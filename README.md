@@ -50,7 +50,19 @@ Manga Editor（第三方子模块）：
 cd apps/manga-editor-desu
 npm install
 python 99_server.py
+
 ```
+
+## Using Docker
+
+启动全部容器：
+
+```bash
+docker compose up -d
+```
+
+服务端口：`desktop-agent` 5050，`autonomous-job-agent` 3456，`manju-system` 5001。
+请先在根目录复制 `.env.example` 为 `.env` 并填写 `DEEPSEEK_API_KEY`，Docker Compose 会自动读取。
 
 ## 项目列表
 

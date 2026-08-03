@@ -1,0 +1,44 @@
+name: codex-workspace
+
+services:
+  desktop-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["uv", "run", "--project", "apps/desktop-agent", "python", "webui.py"]
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+    ports:
+      - "5050:5050"
+    restart: unless-stopped
+
+  autonomous-job-agent:
+    build:
+      context: ./apps/autonomous-job-agent
+      dockerfile: Dockerfile
+    environment:
+      PORT: "3456"
+    ports:
+      - "3456:3456"
+    restart: unless-stopped
+
+  manju-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      [
+        "uv",
+        "run",
+        "--project",
+        "apps/manju-system",
+        "python",
+        "run_review.py",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5001",
+      ]
+    ports:
+      - "5001:5001"
+    restart: unless-stopped

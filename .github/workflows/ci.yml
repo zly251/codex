@@ -44,7 +44,7 @@ jobs:
       - name: Dependency audit
         run: uv run pip-audit
       - name: Tests
-        run: uv run pytest
+        run: uv run pytest --cov=apps --cov-report=term --cov-fail-under=50
 
   node:
     runs-on: ubuntu-latest

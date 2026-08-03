@@ -13,6 +13,7 @@ dev = [
     "pip-audit>=2.7,<3.0",
     "pre-commit>=4.0,<5.0",
     "pytest>=9.0.3,<10.0",
+    "pytest-cov>=7.0,<8.0",
     "ruff>=0.11.0,<0.12.0",
 ]
 
@@ -24,6 +25,7 @@ members = [
     "apps/autonomous-job-agent",
     "apps/desktop-agent",
     "apps/manju-system",
+    "packages/codex-core",
 ]
 
 [tool.ruff]
@@ -44,5 +46,25 @@ quote-style = "double"
 indent-style = "space"
 
 [tool.pytest.ini_options]
-testpaths = ["apps/desktop-agent/tests", "apps/manju-system/tests"]
-addopts = "-q"
+testpaths = [
+    "apps/desktop-agent/tests",
+    "apps/manju-system/tests",
+    "packages/codex-core/tests",
+]
+addopts = "--cov=apps --cov-report=term --cov-fail-under=50"
+
+[tool.coverage.run]
+omit = [
+    "*/tests/*",
+    "**/__pycache__/**",
+    "apps/manga-editor-desu/**",
+    "apps/autonomous-job-agent/ApplyPilot_*/**",
+    "apps/autonomous-job-agent/.gradle*/**",
+    "apps/autonomous-job-agent/packaging/**",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if __name__ == \"__main__\":",
+    "pragma: no cover",
+]

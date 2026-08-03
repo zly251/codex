@@ -1,0 +1,14 @@
+.git
+.gradle*
+.idea
+node_modules
+ApplyPilot_*
+packaging
+*.exe
+*.zip
+*.msi
+resumes
+prisma/*.db
+prisma/*.db-journal
+*.tmp
+*.log

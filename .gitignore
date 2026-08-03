@@ -13,6 +13,8 @@ node_modules/
 .claude/
 .DS_Store
 .pytest_cache/
+.coverage
+htmlcov/
 .venv/
 .ruff_cache/
 .mypy_cache/
