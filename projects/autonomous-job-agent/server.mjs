@@ -23,6 +23,7 @@ import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
 import * as application from "./src/db/application.js";
 import { extractSkills } from "./src/utils/skills.js";
+import { scoreJob } from "./src/scoring.js";
 import { ocrImage } from "./src/utils/ocr.js";
 
 var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
@@ -90,14 +91,10 @@ function apiJobs(req, res) {
   var results = job.search(params);
   var total = job.count(params);
   var profile = getProfile();
-  var userSkills = profile ? profile.skills.split(',').map(function(s) { return s.trim().toLowerCase(); }).filter(function(s) { return s; }) : [];
   results = results.map(function(j) {
     var cn = ''; if (j.companyId) { var c = company.findById(j.companyId); if (c) cn = c.name; }
-    var techs = (j.technologies || '').split(',').map(function(s) { return s.trim().toLowerCase(); }).filter(function(s) { return s; });
-    var matched = techs.filter(function(t) { return userSkills.indexOf(t) !== -1; });
-    var missing = techs.filter(function(t) { return userSkills.indexOf(t) === -1; });
-    var pct = techs.length > 0 ? Math.round(matched.length / techs.length * 100) : null;
-    return { id: j.id, title: j.title, companyName: cn, salaryRaw: j.salaryRaw, city: j.city, status: j.status, score: j.score, technologies: j.technologies, url: j.url, matchPct: pct, matchedSkills: matched, missingSkills: missing };
+    var s = scoreJob(j, profile);
+    return { id: j.id, title: j.title, companyName: cn, salaryRaw: j.salaryRaw, city: j.city, status: j.status, score: j.score, technologies: j.technologies, url: j.url, matchPct: s.score, matchedSkills: s.matchedSkills, missingSkills: s.missingSkills };
   });
   json(res, { jobs: results, total: total });
 }
