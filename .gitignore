@@ -12,3 +12,4 @@ node_modules/
 *.log
 .claude/
 .DS_Store
+.pytest_cache/

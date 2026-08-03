@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: projects/autonomous-job-agent/package-lock.json
+      - name: Install Node dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: projects/autonomous-job-agent
+      - name: Syntax check
+        run: |
+          node --check server.mjs
+          node --check src/routes.mjs
+        working-directory: projects/autonomous-job-agent
+
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile Python projects
+        run: python -m compileall -q projects/desktop-agent projects/manju-system
+      - name: Run smoke tests
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pytest -q projects/desktop-agent/tests projects/manju-system/tests
