@@ -375,12 +375,15 @@ export async function handleApply(req, res, body) {
     });
 
     const decisions = { AUTO_APPLY: 0, REVIEW: 0, IGNORE: 0 };
+    scored.forEach(function (s) {
+      decisions[decideJob(s.score, minMatch * 100)]++;
+    });
+
     const jobs = scored
       .filter(function (s) { return s.match >= minMatch; })
       .sort(function (a, b) { return b.match - a.match; })
       .slice(0, limit)
       .map(function (s) {
-        decisions[decideJob(s.score, minMatch * 100)]++;
         const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
         const resume = resumeDb.findBestMatch(techs);
         return Object.assign({}, s.job, { resumeId: resume ? resume.id : null });

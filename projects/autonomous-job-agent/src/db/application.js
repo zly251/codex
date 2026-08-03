@@ -27,6 +27,9 @@ export function updateStatus(id, status, notes) {
     return findById(id);
 }
 export function remove(id) { return getDb().prepare("DELETE FROM Application WHERE id = ?").run(id).changes > 0; }
+export function attachDefaultResume(resumeId) {
+    return getDb().prepare("UPDATE Application SET resumeId = ? WHERE resumeId IS NULL").run(resumeId).changes;
+}
 export function getStats() {
     var d = getDb();
     var rows = d.prepare("SELECT status, COUNT(*) as cnt FROM Application GROUP BY status").all();

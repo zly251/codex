@@ -14,10 +14,12 @@ BOSS直聘自动搜索、筛选、投递（打招呼）助手，本地运行，�
 - 按筛选条件搜索、抓取并解析 BOSS 直聘职位
 - 按技能、经验、学历计算岗位匹配度
 - 自动生成 AUTO_APPLY / REVIEW / IGNORE 投递决策，投递记录自动关联匹配简历
+- 个人档案自动生成默认简历，历史投递记录自动补挂简历关联
 - 批量投递打招呼，单职位手动沟通
 - 聊天会话监控，支持查看和发送消息
 - Cookie 自动备份与恢复
 - 看护进程在 Edge 异常后自动重试拉起
+- 反馈漏斗统计（待处理/已查看/已回复/面试/Offer）与策略建议
 - 本地 Web 控制台，默认 http://localhost:3456
 
 ## 技术栈
@@ -73,14 +75,15 @@ postject 后会损坏签名，需要把 PE subsystem 从 3 改为 2（GUI）。
 ## Git
 
 - 远端：https://github.com/zly251/codex
-- git 元数据：`D:\autonomous-job-agent-repo\.git`
-- E 盘 `.git` 被 ACL 拒绝写入，未使用 E 盘仓库
+- 本地工作区：`D:\codex`
+- 仓库内路径：`projects\autonomous-job-agent`
+- E 盘 `.git` 被 ACL 拒绝写入，源码变更需同步到 D:\codex 后提交
 
 ```powershell
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent status
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent add .
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent commit -m "说明"
-git --git-dir=D:\autonomous-job-agent-repo\.git push
+robocopy E:\autonomous-job-agent D:\codex\projects\autonomous-job-agent /E /XD node_modules dist portable data .edge-profile .edge-profile-2 get_jobs temp tmp .git /XF *.log .env /NFL /NDL /NJH /NJS
+git -C D:\codex add projects/autonomous-job-agent
+git -C D:\codex commit -m "说明"
+git -C D:\codex push
 ```
 
 ## License

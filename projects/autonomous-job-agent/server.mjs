@@ -24,6 +24,7 @@ import * as resume from "./src/db/resume.js";
 import * as application from "./src/db/application.js";
 import { extractSkills } from "./src/utils/skills.js";
 import { scoreJob } from "./src/scoring.js";
+import { buildStrategy } from "./src/strategy.js";
 import { ocrImage } from "./src/utils/ocr.js";
 
 var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
@@ -35,6 +36,48 @@ var IMG_EXTS = [".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
 initDb();
 console.log("[server] DB ready, port " + PORT);
+
+function autoCreateResumeFromProfile() {
+  try {
+    const existing = resume.findDefault() || resume.findAll()[0];
+    if (existing) {
+      application.attachDefaultResume(existing.id);
+      return;
+    }
+    const p = getProfile();
+    if (!p || !String(p.skills || "").trim()) return;
+    const created = resume.create({
+      name: p.name || "个人简历",
+      targetRole: p.targetRole || "",
+      tags: p.skills,
+      fileType: "profile",
+      description: "由个人档案自动生成",
+      isDefault: true,
+      skills: p.skills,
+    });
+    if (created) application.attachDefaultResume(created.id);
+    console.log("[server] auto resume created from profile");
+  } catch (e) {
+    console.error("[server] auto resume failed: " + (e && e.message));
+  }
+}
+
+function refreshJobScores() {
+  try {
+    const profile = getProfile();
+    const jobs = job.search({ limit: 100000 });
+    for (const j of jobs) {
+      const s = scoreJob(j, profile);
+      job.update(j.id, { score: s.score });
+    }
+    console.log("[server] scores refreshed: " + jobs.length);
+  } catch (e) {
+    console.error("[server] score refresh failed: " + (e && e.message));
+  }
+}
+
+autoCreateResumeFromProfile();
+refreshJobScores();
 
 function isImage(p) { var e = path.extname(p).toLowerCase(); return IMG_EXTS.indexOf(e) !== -1; }
 
@@ -74,15 +117,33 @@ function apiSaveProfile(req, res) {
 }
 
 function apiStats(req, res) {
+  var appStats = application.getStats();
+  var strategy = buildStrategy();
   json(res, {
     totalJobs: job.search({}).length,
     activeJobs: job.search({ status: 'active' }).length,
     closedJobs: job.search({ status: 'closed' }).length,
     totalResumes: resume.findAll().length,
     totalApplications: application.findAll().length,
-    interviews: (application.getStats().interview || 0),
-    offers: (application.getStats().offer || 0),
+    pending: appStats.pending || 0,
+    viewed: appStats.viewed || 0,
+    replied: appStats.replied || 0,
+    interviews: appStats.interview || 0,
+    offers: appStats.offer || 0,
+    rejected: appStats.rejected || 0,
+    withdrawn: appStats.withdrawn || 0,
+    funnel: strategy.funnel,
+    conversion: strategy.conversion,
+    strategy: {
+      recommendedMinMatch: strategy.recommendedMinMatch,
+      avgAppliedScore: strategy.avgAppliedScore,
+      insight: strategy.insight,
+    },
   });
+}
+
+function apiStrategy(req, res) {
+  json(res, buildStrategy());
 }
 
 function apiJobs(req, res) {
@@ -142,7 +203,8 @@ function apiApplications(req, res) {
   apps = apps.map(function(a) {
     var j = a.jobId ? job.findById(a.jobId) : null;
     var c = j && j.companyId ? company.findById(j.companyId) : null;
-    return { id: a.id, jobTitle: (j && j.title) || (a.jobId ? '#' + a.jobId : '-'), companyName: (c && c.name) || (j && j.companyName) || '', salary: (j && j.salaryRaw) || '', city: (j && j.city) || '', status: a.status, notes: a.notes || '', time: a.appliedAt || a.updatedAt || '' };
+    var r = a.resumeId ? resume.findById(a.resumeId) : null;
+    return { id: a.id, jobTitle: (j && j.title) || (a.jobId ? '#' + a.jobId : '-'), companyName: (c && c.name) || (j && j.companyName) || '', salary: (j && j.salaryRaw) || '', city: (j && j.city) || '', status: a.status, notes: a.notes || '', resumeId: a.resumeId || null, resumeName: (r && r.name) || '', time: a.appliedAt || a.updatedAt || '' };
   });
   json(res, { applications: apps });
 }
@@ -181,6 +243,7 @@ var routes = {
   "/api/jobs": apiJobs,
   "/api/resumes": apiResumes,
   "/api/applications": apiApplications,
+  "/api/strategy": apiStrategy,
 };
 
 var httpServer = http.createServer(function(req, res) {
