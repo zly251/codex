@@ -2,9 +2,11 @@
 
 ## Workspace
 
-- 单仓库多项目，`projects/<project>` 为边界
+- 单仓库多项目，`apps/<应用>` 为可执行应用边界
+- `packages/` 放置共享公共库
 - 根目录只放工程规范和文档
 - 外部项目用 git 子模块
+- Python 应用由 uv workspace 统一管理
 
 ## 项目
 
@@ -33,3 +35,4 @@
 ### ai-agent-skills
 
 - Markdown 学习与项目记录
+- 位于 docs/skills/ai-agent-skills

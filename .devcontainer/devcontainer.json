@@ -1,0 +1,26 @@
+{
+  "name": "codex-workspace",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "postCreateCommand": "uv sync --all-packages && uv run pre-commit install",
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": ".venv/bin/python",
+        "ruff.enable": true,
+        "ruff.format": true
+      },
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+  "forwardPorts": [
+    3456,
+    8188,
+    11434
+  ]
+}

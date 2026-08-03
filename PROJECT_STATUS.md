@@ -15,9 +15,10 @@
 
 ## 已完成
 
-- 仓库迁移到 projects/ 结构
+- 仓库迁移到 apps/ 和 packages/ 结构
 - 根级工程文件补齐
-- CI 接入
+- uv、Ruff、pre-commit、GitHub Actions CI 接入
+- .devcontainer 开发环境
 
 ## 下一步
 

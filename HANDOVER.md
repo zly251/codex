@@ -4,7 +4,7 @@
 
 - 远端：https://github.com/zly251/codex
 - 本地工作区：D:\codex
-- 结构：`projects/<项目名>`，每个子目录一个项目
+- 结构：`apps/<应用名>`，`packages/` 放共享库
 
 ## 已包含项目
 
@@ -21,6 +21,8 @@
 ```powershell
 cd D:\codex
 git submodule update --init --recursive
+uv sync --all-packages
+uv run pre-commit install
 git add .
 git commit -m "说明"
 git push
@@ -32,8 +34,8 @@ git push
 
 ```powershell
 cd D:\codex
-robocopy E:\autonomous-job-agent projects\autonomous-job-agent /E /XD node_modules dist portable data .edge-profile .edge-profile-2 get_jobs temp tmp /XF *.log .env
-git add projects/autonomous-job-agent
+robocopy E:\autonomous-job-agent apps\autonomous-job-agent /E /XD node_modules dist portable data .edge-profile .edge-profile-2 get_jobs temp tmp /XF *.log .env
+git add apps/autonomous-job-agent
 git commit -m "说明"
 git push
 ```

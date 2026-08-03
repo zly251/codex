@@ -1,0 +1,17 @@
+[project]
+name = "desktop-agent"
+version = "0.1.0"
+description = "Douyin desktop agent powered by DeepSeek"
+requires-python = ">=3.11"
+dependencies = [
+    "duckduckgo-search>=7.0,<8.0",
+    "edge-tts>=7.0,<8.0",
+    "flask>=3.0,<4.0",
+    "httpx>=0.28,<1.0",
+    "moviepy>=2.0,<3.0",
+    "Pillow>=11.0,<12.0",
+    "playwright>=1.49,<2.0",
+]
+
+[tool.uv]
+package = false
