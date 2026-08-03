@@ -55,6 +55,11 @@ python 99_server.py
 
 ## Using Docker
 
+前置条件：
+
+- 确保 Docker Desktop 已启动，且 Docker 的 WSL 数据盘有读写权限。
+- 如果构建失败，优先检查 Docker 数据盘挂载位置。Windows 常见问题：Docker 数据盘位于权限受限分区时，WSL 无法挂载 `ext4.vhdx`，`docker compose build` 会返回 500。
+
 启动全部容器：
 
 ```bash
@@ -63,6 +68,14 @@ docker compose up -d
 
 服务端口：`desktop-agent` 5050，`autonomous-job-agent` 3456，`manju-system` 5001。
 请先在根目录复制 `.env.example` 为 `.env` 并填写 `DEEPSEEK_API_KEY`，Docker Compose 会自动读取。
+
+如果 Docker 无法启动，仍可本地运行：
+
+```bash
+uv sync --all-packages
+uv run --project apps/desktop-agent python webui.py
+cd apps/autonomous-job-agent && npm install && npm run dev
+```
 
 ## 项目列表
 

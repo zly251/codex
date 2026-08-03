@@ -20,6 +20,23 @@ cp .env.example .env
 
 3. `.env` 不要提交到仓库，已由 `.gitignore` 忽略。
 
+## 常见问题（FAQ）
+
+### Docker 构建报 500 或 `E_ACCESSDENIED`
+
+- 现象：`docker compose build` 返回 `request returned 500 Internal Server Error`。
+- 常见原因：Docker Desktop 使用 WSL 作为 Linux 引擎，但 Docker 数据盘所在分区权限受限，WSL 无法挂载 `ext4.vhdx`，Windows 上会报 `E_ACCESSDENIED`。
+- 排查步骤：
+  1. 确认 Docker Desktop 已启动，并执行 `docker info` 检查引擎是否正常。
+  2. 检查 Docker Desktop 的数据盘位置。例如数据盘在 `E:\Docker\wsl-data` 且 E 盘不可写时，需要调整 Docker 数据目录到有读写权限的磁盘。
+  3. 迁移或修复数据盘权限后，重新启动 Docker Desktop 再执行 `docker compose build`。
+- 本地备用运行方式：
+  ```bash
+  uv sync --all-packages
+  uv run --project apps/desktop-agent python webui.py
+  cd apps/autonomous-job-agent && npm install && npm run dev
+  ```
+
 ## 环境要求
 
 - Python 3.11+
