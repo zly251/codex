@@ -388,7 +388,7 @@ export class AutoApplyBot {
 
           if (verified) {
             applied++;
-            try { applicationDb.create({ jobId: job.id, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
+            try { applicationDb.create({ jobId: job.id, resumeId: job.resumeId || null, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
             results.push({ job: title, status: "ok", verified: true });
             log(`[${i + 1}/${total}] 复核通过，确认已打招呼: ${title}`);
           } else {

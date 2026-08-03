@@ -7,7 +7,7 @@ import { BossApiScraper } from "./scrapers/bossApi.js";
 import { AutoApplyBot } from "./chatApply.js";
 import * as liveLog from "./log.js";
 import { findEdgePath, launchEdge, waitForCDP, DEFAULT_PROFILE, FALLBACK_PROFILE } from "./edgeLauncher.js";
-import { scoreJob } from "./scoring.js";
+import { scoreJob, decideJob } from "./scoring.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -371,14 +371,20 @@ export async function handleApply(req, res, body) {
     const scored = allJobs.map(function (j) {
       const s = scoreJob(j, profile);
       try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
-      return { job: j, match: s.score / 100 };
+      return { job: j, match: s.score / 100, score: s.score };
     });
 
+    const decisions = { AUTO_APPLY: 0, REVIEW: 0, IGNORE: 0 };
     const jobs = scored
       .filter(function (s) { return s.match >= minMatch; })
       .sort(function (a, b) { return b.match - a.match; })
       .slice(0, limit)
-      .map(function (s) { return s.job; });
+      .map(function (s) {
+        decisions[decideJob(s.score, minMatch * 100)]++;
+        const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+        const resume = resumeDb.findBestMatch(techs);
+        return Object.assign({}, s.job, { resumeId: resume ? resume.id : null });
+      });
 
     if (jobs.length === 0) {
       json(res, { ok: true, applied: 0, total: 0, message: "没有匹配的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）" });
@@ -387,6 +393,7 @@ export async function handleApply(req, res, body) {
 
     liveLog.add(`已排除黑名单公司: ${BLOCKED_COMPANIES.join(", ")}`);
     liveLog.add(`筛选出 ${jobs.length} 个职位，随机延迟 ${delayMin}-${delayMax} 秒，开始投递`);
+    liveLog.add(`决策: 自动投递 ${decisions.AUTO_APPLY} / 待确认 ${decisions.REVIEW} / 忽略 ${decisions.IGNORE}`);
 
     const b = getBot();
     b.running = true;
@@ -405,6 +412,7 @@ export async function handleApply(req, res, body) {
         applied: result.applied || 0,
         failed: result.failed || 0,
         total: jobs.length,
+        decisions: decisions,
         results: result.results || [],
       });
     } finally {

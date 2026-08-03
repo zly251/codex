@@ -72,3 +72,9 @@ export function scoreJob(job, profile) {
     missingSkills: profileSkills.filter(function (s) { return !combined.includes(s); }),
   };
 }
+
+export function decideJob(score, reviewThreshold = 30) {
+  if (score >= 60) return "AUTO_APPLY";
+  if (score >= reviewThreshold) return "REVIEW";
+  return "IGNORE";
+}
