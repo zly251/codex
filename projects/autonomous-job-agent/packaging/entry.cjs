@@ -8,6 +8,7 @@ const { spawn, execFileSync } = require('node:child_process');
 const { createRequire } = require('node:module');
 
 const SERVER_URL = 'http://127.0.0.1:' + (process.env.PORT || 3456);
+const PORT = Number(process.env.PORT) || 3456;
 const CDP_PORT = 9222;
 let edgeLock = false;
 
@@ -21,6 +22,39 @@ async function waitFor(url, timeoutMs) {
     await new Promise((r) => setTimeout(r, 500));
   }
   return false;
+}
+
+function getServerPid() {
+  try {
+    const ps = "(Get-NetTCPConnection -State Listen -LocalPort " + PORT + " -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | Select-Object -First 1)";
+    const out = execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8', timeout: 8000, windowsHide: true });
+    const n = parseInt((out || '').trim(), 10);
+    return Number.isFinite(n) ? n : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function isOurServer() {
+  try {
+    const res = await fetch(SERVER_URL + '/api/boss/status', { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data && typeof data.browserConnected === 'boolean';
+  } catch (e) {
+    return false;
+  }
+}
+
+async function stopExistingInstance() {
+  if (!(await isOurServer())) return false;
+  const pid = getServerPid();
+  if (!pid) return false;
+  try {
+    execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Stop-Process -Id ' + pid + ' -Force'], { stdio: 'ignore', timeout: 8000, windowsHide: true });
+  } catch (e) {}
+  await new Promise((r) => setTimeout(r, 1500));
+  return true;
 }
 
 function findEdgePath() {
@@ -183,7 +217,12 @@ function startEdgeWatchdog() {
 async function main() {
   const ROOT = process.env.JOB_AGENT_ROOT;
   const serverRunning = await waitFor(SERVER_URL + '/api/stats', 2000);
-  if (!serverRunning) {
+  const replaced = serverRunning ? await stopExistingInstance() : false;
+  if (serverRunning && !replaced) {
+    openUrl(SERVER_URL);
+    return;
+  }
+  if (!serverRunning || replaced) {
     const serverPath = process.env.JOB_AGENT_SERVER_BUNDLE || path.join(ROOT, 'server', 'server.cjs');
     try {
       createRequire(process.execPath)(serverPath);

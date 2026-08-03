@@ -138,6 +138,13 @@ async function afterBrowserConnect() {
   await restoreBossCookies();
   await saveBossCookies();
   startCookieWatcher();
+  try {
+    const page = await getZhipinPage();
+    if (page && !(await isBossLoggedIn(page))) {
+      liveLog.add("BOSS 未登录，打开登录页");
+      try { await page.goto("https://www.zhipin.com/web/user/?ka=header-login", { waitUntil: "domcontentloaded", timeout: 15000 }); } catch (e) {}
+    }
+  } catch (e) {}
 }
 
 // 禁止投递的公司黑名单（命中公司名称即跳过）
