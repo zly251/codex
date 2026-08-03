@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI 漫剧验收中心</title>
+<style>
+  :root { --bg:#f5f5f0; --card:#ffffff; --line:#e2e2dc; --primary:#4f6af5; --text:#22242a; --muted:#6b6f76; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI","Microsoft YaHei",system-ui,sans-serif; }
+  .wrap { max-width:1100px; margin:0 auto; padding:24px; }
+  h1 { font-size:22px; }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  th, td { text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); font-size:14px; }
+  th { background:#fafaf8; font-weight:600; }
+  a { color:var(--primary); text-decoration:none; }
+  .muted { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>AI 漫剧验收中心</h1>
+  <p class="muted">选择一条生产记录进入人工验收。</p>
+  <table>
+    <tr><th>run_id</th><th>选题</th><th>状态</th><th>更新时间</th><th></th></tr>
+    {% for run in runs %}
+    <tr>
+      <td>{{ run.id }}</td>
+      <td>{{ run.topic }}</td>
+      <td>{{ run.status }}</td>
+      <td class="muted">{{ run.updated_at }}</td>
+      <td><a href="/review/{{ run.id }}">打开验收</a></td>
+    </tr>
+    {% endfor %}
+  </table>
+</div>
+</body>
+</html>

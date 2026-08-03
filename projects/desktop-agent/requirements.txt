@@ -1,0 +1,6 @@
+httpx
+duckduckgo_search
+moviepy
+Pillow
+edge-tts
+playwright

@@ -1,61 +1,44 @@
-# 求职助手 交接文档
+# Codex 工作区仓库 交接文档
 
-## 项目
+## 仓库
 
-- 用途：BOSS直聘自动搜索、筛选、投递（打招呼）助手
-- 源码：`E:\autonomous-job-agent`
-- 运行：桌面 `C:\Users\asus\Desktop\求职助手.exe`，单文件 SEA 打包
+- 远端：https://github.com/zly251/codex
+- 本地工作区：D:\codex
+- 结构：`projects/<项目名>`，每个子目录一个项目
 
-## 数据位置
+## 已包含项目
 
-- 运行数据：`E:\autonomous-job-agent\portable\`
-- 登录配置：`E:\autonomous-job-agent\.edge-profile`
-- Cookie 备份：`portable\data\boss-cookies.json`
-- 用户档案：`portable\data\profile.json`
-- 数据库：`%TEMP%\autonomous-job-agent\dev.db`
-- 看护日志：`portable\data\watchdog.log`
+| 项目 | 本地来源 |
+| --- | --- |
+| autonomous-job-agent | E:\autonomous-job-agent（运行目录） |
+| desktop-agent | D:\desktop-agent |
+| manju-system | E:\AIProjects\manju-system |
+| manga-editor-desu | git 子模块：https://github.com/new-sankaku/manga-editor-desu.git |
+| ai-agent-skills | E:\ai-agent\skills |
 
-## 构建
-
-```powershell
-esbuild packaging/entry.cjs -> dist/sea-entry.cjs
-esbuild server.mjs -> dist/sea-server.cjs
-node --experimental-sea-config sea-config.json
-Copy-Item E:\node.exe dist\求职助手.exe
-postject dist\求职助手.exe NODE_SEA_BLOB dist\sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
-```
-
-postject 后会损坏签名，需手工把 PE subsystem 从 3 改为 2（GUI）。
-
-## 已修复问题
-
-- 登录态：固定复用 `.edge-profile`；登录后 Cookie 自动备份，启动时自动恢复。
-- 未登录时点“开始投递”：直接提示扫码，不再关闭 BOSS 页面。
-- Edge 连接失败：先重试 5 次；看护只在端口连续不可用 3 次后才重启 Edge，避免自杀式重启循环。
-- 所有 PowerShell/cmd 子进程均隐藏窗口，不再闪黑框。
-- 单职位“手动沟通”只处理 1 个职位；批量投递按当前筛选条件处理多个。
-
-## 当前状态
-
-- 已登录，Cookie 已备份。
-- 最近一次“手动沟通”成功：初级软件工程师。
-
-## 下次接手要点
-
-- 若 BOSS 要求重新扫码：在程序自动打开的 BOSS 窗口扫码一次即可，Cookie 会自动备份。
-- 页面若长时间未打开：看护会在端口持续不可用约 1 分钟后自动拉起 Edge。
-
-## Git
-
-- 远端：https://github.com/zly251/codex.git
-- 本地 git 元数据：D:\autonomous-job-agent-repo\.git（E 盘 .git 被 ACL 拒绝，未使用 E 盘仓库）
-- 许可证：MIT，LICENSE 文件已包含
-- 状态：2026-08-03 已推送到 GitHub main，提交 7c18fa1
-- 提交命令：
+## 日常提交
 
 ```powershell
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent status
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent add .
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent commit -m "说明"
-git --git-dir=D:\autonomous-job-agent-repo\.git push
+cd D:\codex
+git submodule update --init --recursive
+git add .
+git commit -m "说明"
+git push
 ```
+
+## 求职助手同步
+
+`E:\autonomous-job-agent` 是实际运行目录，修改后同步到仓库再提交：
+
+```powershell
+cd D:\codex
+robocopy E:\autonomous-job-agent projects\autonomous-job-agent /E /XD node_modules dist portable data .edge-profile .edge-profile-2 get_jobs temp tmp /XF *.log .env
+git add projects/autonomous-job-agent
+git commit -m "说明"
+git push
+```
+
+## 待整理
+
+- DeepSeek Monitor Windows：目录骨架已建，源码待补
+- ComfyUI：位于 E:\Comfy-Desktop，工作流待整理后纳入

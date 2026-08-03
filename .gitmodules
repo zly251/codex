@@ -1,0 +1,3 @@
+[submodule "projects/manga-editor-desu"]
+	path = projects/manga-editor-desu
+	url = https://github.com/new-sankaku/manga-editor-desu.git

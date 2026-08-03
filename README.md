@@ -1,20 +1,35 @@
-# Autonomous Job Search Agent
+# Codex AI Engineering Workspace
 
-一个用于自动化抓取、整理与分析招聘信息的智能求职助手系统。
+个人 AI 工程实验仓库。
 
-## 📌 项目简介
+用于管理基于 Codex、DeepSeek、Agent、ComfyUI 等技术栈的 AI 自动化开发项目，包括模型配置、Agent 工作流、提示词工程、自动化脚本以及实验记录。
 
-Autonomous Job Search Agent 是一个面向个人使用的自动化求职系统，能够：
+## 项目列表
 
-- 自动抓取招聘网站职位信息
-- 解析职位详情（岗位、薪资、地点、要求等）
-- 清洗与结构化数据
-- 支持后续扩展（筛选、推荐、投递自动化等）
+| 项目 | 路径 | 状态 |
+| --- | --- | --- |
+| 求职助手 | projects/autonomous-job-agent | 可运行，BOSS直聘自动化 |
+| 抖音桌面 Agent | projects/desktop-agent | MVP，DeepSeek + TTS + 视频生成 + Douyin |
+| Manju 内容生产系统 | projects/manju-system | 半成品 |
+| Manga Editor | projects/manga-editor-desu | git 子模块（new-sankaku） |
+| AI Agent Skills | projects/ai-agent-skills | 学习记录 |
+| DeepSeek Monitor | projects/deepseek-monitor-windows | 半成品，待补源码 |
 
-目标是减少手动刷招聘网站的成本，实现“信息自动流入 + 结构化整理”。
+## 结构
 
----
+- `projects/` 每个子目录一个项目
+- 只提交源码，不提交 venv、node_modules、模型、数据、exe、日志
+- `projects/manga-editor-desu` 是 git 子模块，克隆后执行 `git submodule update --init`
+- 根目录 LICENSE 为 MIT
 
-## 🧠 系统架构
+## Git
 
-当前系统主要分为以下模块：
+- 远端：https://github.com/zly251/codex
+- 本地工作区：D:\codex
+
+```powershell
+cd D:\codex
+git add .
+git commit -m "说明"
+git push
+```
