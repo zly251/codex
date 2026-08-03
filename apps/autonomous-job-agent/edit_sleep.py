@@ -1,5 +1,6 @@
 # Edit Boss.java and Liepin.java - replace fixed sleeps with random delays
 
+
 def edit_boss():
     path = r"E:\autonomous-job-agent\get_jobs\src\main\java\com\getjobs\worker\boss\Boss.java"
     with open(path, encoding="utf-8") as f:
