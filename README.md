@@ -5,36 +5,51 @@
 
 基于 uv 的 Python Mono-Repo Workspace，用于管理 Codex、DeepSeek、Agent、ComfyUI 等 AI 自动化项目。
 
-## 3 条命令
+## 快速开始
+
+## Python 项目
+
+1. 克隆并进入仓库：
 
 ```bash
 git clone --recurse-submodules https://github.com/zly251/codex.git codex
-cd codex && uv sync --all-packages
-uv run --project apps/desktop-agent python main.py
+cd codex
 ```
 
-Manju 内容生产系统：
-
-```bash
-uv run --project apps/manju-system python run_final.py
-```
-
-## 快速开始
-
-### Python 项目
+2. 安装依赖：
 
 ```bash
 uv sync --all-packages
+```
+
+3. 启动抖音桌面 Agent：
+
+```bash
 uv run --project apps/desktop-agent python main.py
+```
+
+4. 启动 Manju 内容生产系统：
+
+```bash
 uv run --project apps/manju-system python run_final.py
 ```
 
-### Node/TypeScript 项目
+## Node/TypeScript 项目
 
 求职助手：
 
 ```bash
-cd apps/autonomous-job-agent && npm install && npx tsx server.mjs
+cd apps/autonomous-job-agent
+npm install
+npm run dev
+```
+
+Manga Editor（第三方子模块）：
+
+```bash
+cd apps/manga-editor-desu
+npm install
+python 99_server.py
 ```
 
 ## 项目列表

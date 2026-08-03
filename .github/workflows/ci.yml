@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  python:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,16 +16,35 @@ jobs:
         with:
           version: "0.11.32"
           enable-cache: true
+          cache-dependency-glob: "uv.lock"
       - name: Install workspace
         run: uv sync --all-packages
       - name: Ruff check
         run: uv run ruff check .
       - name: Ruff format check
         run: uv run ruff format --check .
-      - name: Tests
-        run: uv run pytest
       - name: Pre-commit
         run: uv run pre-commit run --all-files
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.32"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install workspace
+        run: uv sync --all-packages
+      - name: Install pip-audit
+        run: uv pip install pip-audit
+      - name: Dependency audit
+        run: uv run pip-audit
+      - name: Tests
+        run: uv run pytest
 
   node:
     runs-on: ubuntu-latest

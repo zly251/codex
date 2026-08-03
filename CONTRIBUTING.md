@@ -1,12 +1,24 @@
 # Contributing
 
-## 3 条命令
+## Quick Start
 
 ```bash
 git clone --recurse-submodules https://github.com/zly251/codex.git codex
 cd codex && uv sync --all-packages
 uv run pre-commit install && uv run pytest
 ```
+
+## Environment Setup
+
+1. 复制环境变量模板：
+
+```bash
+cp .env.example .env
+```
+
+2. 填写必要的 API Key 和 Cookie。
+
+3. `.env` 不要提交到仓库，已由 `.gitignore` 忽略。
 
 ## 环境要求
 
