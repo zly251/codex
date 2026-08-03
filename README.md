@@ -23,5 +23,6 @@ Autonomous Job Search Agent 是一个面向个人使用的自动化求职系统�
 - 数据层 `src/db/`：SQLite（node:sqlite）存储职位、公司、简历与投递记录。
 - 自动化执行层 `src/chatApply.js` + `src/browser/browserManager.js`：通过 CDP 连接 Edge，模拟真人浏览、打招呼并校验结果。
 - 服务层 `server.mjs` + `src/routes.mjs`：HTTP API、实时日志、登录 Cookie 备份与恢复。
+- 评分引擎 `src/scoring.js`：按技能、经验、学历计算岗位匹配度，投递前自动更新评分。
 - 前端 `web/index.html`：搜索、筛选、批量投递、单职位沟通与聊天监控操作面板。
 - 打包层 `packaging/`：Node SEA 单文件 exe，启动时自动还原资源、复用登录配置并恢复 Cookie。

@@ -7,6 +7,7 @@ import { BossApiScraper } from "./scrapers/bossApi.js";
 import { AutoApplyBot } from "./chatApply.js";
 import * as liveLog from "./log.js";
 import { findEdgePath, launchEdge, waitForCDP, DEFAULT_PROFILE, FALLBACK_PROFILE } from "./edgeLauncher.js";
+import { scoreJob } from "./scoring.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -366,17 +367,11 @@ export async function handleApply(req, res, body) {
       liveLog.add(`关键词过滤: ${before} -> ${allJobs.length}`);
     }
 
-    let profileSkills = [];
-    try {
-      const p = getProfile();
-      profileSkills = (p.skills || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
-    } catch (e) {}
-
+    const profile = getProfile();
     const scored = allJobs.map(function (j) {
-      const techs = (j.technologies || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
-      if (techs.length === 0 || profileSkills.length === 0) return { job: j, match: 1 };
-      const matched = techs.filter(function (t) { return profileSkills.includes(t); });
-      return { job: j, match: matched.length / techs.length };
+      const s = scoreJob(j, profile);
+      try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
+      return { job: j, match: s.score / 100 };
     });
 
     const jobs = scored
