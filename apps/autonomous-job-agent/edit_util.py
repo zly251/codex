@@ -1,18 +1,19 @@
-﻿import re
-
 # Edit PlaywrightUtil.java
-with open(r'E:\autonomous-job-agent\get_jobs\src\main\java\com\getjobs\worker\utils\PlaywrightUtil.java', 'r', encoding='utf-8') as f:
+with open(
+    r"E:\autonomous-job-agent\get_jobs\src\main\java\com\getjobs\worker\utils\PlaywrightUtil.java",
+    encoding="utf-8",
+) as f:
     content = f.read()
 
 # Add import
 content = content.replace(
-    'import java.util.concurrent.TimeUnit;',
-    'import java.util.concurrent.TimeUnit;\nimport java.util.concurrent.ThreadLocalRandom;'
+    "import java.util.concurrent.TimeUnit;",
+    "import java.util.concurrent.TimeUnit;\nimport java.util.concurrent.ThreadLocalRandom;",
 )
 
 # Add sleepRandom method after sleepMillis method
-old_end = '        }\n    }\n\n    /**\n     * \u67e5\u627e\u5143\u7d20'  # "查找元素"
-new_part = '''        }
+old_end = "        }\n    }\n\n    /**\n     * \u67e5\u627e\u5143\u7d20"  # "查找元素"
+new_part = """        }
     }
 
     /**
@@ -32,11 +33,15 @@ new_part = '''        }
     }
 
     /**
-     * 查找元素'''
+     * 查找元素"""
 
 content = content.replace(old_end, new_part, 1)
 
-with open(r'E:\autonomous-job-agent\get_jobs\src\main\java\com\getjobs\worker\utils\PlaywrightUtil.java', 'w', encoding='utf-8') as f:
+with open(
+    r"E:\autonomous-job-agent\get_jobs\src\main\java\com\getjobs\worker\utils\PlaywrightUtil.java",
+    "w",
+    encoding="utf-8",
+) as f:
     f.write(content)
 
-print('PlaywrightUtil.java done')
+print("PlaywrightUtil.java done")

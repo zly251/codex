@@ -15,6 +15,7 @@ dev = [
 
 [tool.uv.workspace]
 members = [
+    "apps/autonomous-job-agent",
     "apps/desktop-agent",
     "apps/manju-system",
 ]
@@ -23,7 +24,6 @@ members = [
 line-length = 100
 target-version = "py312"
 extend-exclude = [
-    "apps/autonomous-job-agent",
     "apps/manga-editor-desu",
     ".venv",
     "docs",

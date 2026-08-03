@@ -1,0 +1,9 @@
+[project]
+name = "autonomous-job-agent"
+version = "0.1.0"
+description = "BOSS job agent helper scripts"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false

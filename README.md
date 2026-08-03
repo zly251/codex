@@ -19,7 +19,19 @@ Manju 内容生产系统：
 uv run --project apps/manju-system python run_final.py
 ```
 
-Node 应用（求职助手）：
+## 快速开始
+
+### Python 项目
+
+```bash
+uv sync --all-packages
+uv run --project apps/desktop-agent python main.py
+uv run --project apps/manju-system python run_final.py
+```
+
+### Node/TypeScript 项目
+
+求职助手：
 
 ```bash
 cd apps/autonomous-job-agent && npm install && npx tsx server.mjs
@@ -27,13 +39,13 @@ cd apps/autonomous-job-agent && npm install && npx tsx server.mjs
 
 ## 项目列表
 
-| 项目 | 路径 | 状态 | 说明 |
-| --- | --- | --- | --- |
-| 求职助手 | apps/autonomous-job-agent | 可运行 | Node，BOSS直聘搜索、筛选、投递自动化 |
-| 抖音桌面 Agent | apps/desktop-agent | MVP | Python，DeepSeek + TTS + 视频生成 + Douyin |
-| Manju 内容生产系统 | apps/manju-system | 半成品 | Python，内容生产、视觉质检、视频生成 |
-| Manga Editor | apps/manga-editor-desu | 子模块 | new-sankaku/manga-editor-desu |
-| AI Agent Skills | docs/skills/ai-agent-skills | 学习记录 | 项目经验与技能笔记 |
+| 项目 | 路径 | 技术栈 | 状态 | 说明 |
+| --- | --- | --- | --- | --- |
+| 求职助手 | apps/autonomous-job-agent | Node/TypeScript | 可运行 | BOSS直聘搜索、筛选、投递自动化 |
+| 抖音桌面 Agent | apps/desktop-agent | Python | MVP | DeepSeek + TTS + 视频生成 + Douyin |
+| Manju 内容生产系统 | apps/manju-system | Python | 半成品 | 内容生产、视觉质检、视频生成 |
+| Manga Editor | apps/manga-editor-desu | Node/TypeScript | 子模块 | new-sankaku/manga-editor-desu |
+| AI Agent Skills | docs/skills/ai-agent-skills | Markdown | 学习记录 | 项目经验与技能笔记 |
 
 ## 目录结构
 
@@ -42,10 +54,10 @@ codex/
 ├── .devcontainer/
 ├── .github/workflows/ci.yml
 ├── apps/
-│   ├── autonomous-job-agent/
-│   ├── desktop-agent/
-│   ├── manju-system/
-│   └── manga-editor-desu/
+│   ├── autonomous-job-agent/   # Node/TypeScript + Python helper
+│   ├── desktop-agent/          # Python
+│   ├── manju-system/           # Python
+│   └── manga-editor-desu/      # Node/TypeScript (submodule)
 ├── packages/
 ├── docs/
 │   ├── ARCHITECTURE.md
