@@ -48,12 +48,18 @@ async function getZhipinPage() {
   const mgr = getManager();
   if (!mgr.browser?.connected) return null;
   const pages = await mgr.browser.pages();
+  let first = null;
   for (const p of pages) {
     try {
-      if (p.url().includes("zhipin.com")) return p;
+      if (!p.url().includes("zhipin.com")) continue;
+      if (!first) first = p;
+      const t = await p.evaluate(function () {
+        return document.body ? document.body.innerText : "";
+      });
+      if (t.indexOf("登录/注册") < 0) return p;
     } catch (e) {}
   }
-  return null;
+  return first;
 }
 
 async function isBossLoggedIn(page) {
@@ -295,6 +301,11 @@ export async function handleSearch(req, res, body) {
 export async function handleApply(req, res, body) {
   try {
     const mgr = getManager();
+    const b = getBot();
+    if (b.running || state.running || state.chatActive) {
+      json(res, { ok: false, error: "已有投递任务运行中，请先停止", busy: true }, 409);
+      return;
+    }
     if (!mgr.browser?.connected) {
       json(res, { ok: false, error: "浏览器未连接，请先连接 Edge" }, 400);
       return;
@@ -398,7 +409,6 @@ export async function handleApply(req, res, body) {
     liveLog.add(`筛选出 ${jobs.length} 个职位，随机延迟 ${delayMin}-${delayMax} 秒，开始投递`);
     liveLog.add(`决策: 自动投递 ${decisions.AUTO_APPLY} / 待确认 ${decisions.REVIEW} / 忽略 ${decisions.IGNORE}`);
 
-    const b = getBot();
     b.running = true;
     state.running = true;
     state.progress = { current: 0, total: jobs.length, title: "", step: "准备中" };
@@ -438,6 +448,10 @@ export async function handleChatStart(req, res, body) {
       return;
     }
     const b = getBot();
+    if (b.running || state.running || state.chatActive) {
+      json(res, { ok: false, error: "已有任务运行中，请先停止", busy: true }, 409);
+      return;
+    }
     b.running = true;
     state.chatActive = true;
     b.monitorChat(async (chat) => {
