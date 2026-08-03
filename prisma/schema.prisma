@@ -1,0 +1,99 @@
+// ─── Autonomous Job Search Agent ───
+// Prisma Schema — SQLite
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Company {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  shortName   String?
+  industry    String?
+  size        String?
+  stage       String?
+  website     String?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  jobs        Job[]
+}
+
+model Job {
+  id            Int      @id @default(autoincrement())
+  title         String
+  salaryMin     Float?
+  salaryMax     Float?
+  salaryRaw     String?
+  city          String?
+  district      String?
+  experience    String?
+  education     String?
+  description   String?
+  requirements  String?
+  technologies  String?
+  url           String   @unique
+  source        String   @default("zhipin")
+  rawData       String?
+  status        String   @default("active")
+  jobTag        String?
+  score         Float?
+  postedAt      DateTime?
+  lastSeenAt    DateTime?
+  scrapedAt     DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  companyId     Int?
+  company       Company? @relation(fields: [companyId], references: [id])
+  applications  Application[]
+
+  @@index([source, status])
+  @@index([companyId])
+  @@index([city])
+}
+
+model Resume {
+  id          Int      @id @default(autoincrement())
+  name        String
+  targetRole  String?
+  tags        String?
+  filePath    String?
+  fileType    String?
+  isDefault   Boolean  @default(false)
+  version     Int      @default(1)
+  description String?
+  rawText     String?
+  skills      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  applications Application[]
+
+  @@index([isDefault])
+}
+
+model Application {
+  id             Int      @id @default(autoincrement())
+  status         String   @default("pending")
+  appliedAt      DateTime?
+  viewedAt       DateTime?
+  repliedAt      DateTime?
+  interviewAt    DateTime?
+  offerAt        DateTime?
+  notes          String?
+  feedback       String?
+  resumeId       Int?
+  resume         Resume?  @relation(fields: [resumeId], references: [id])
+  jobId          Int?
+  job            Job?     @relation(fields: [jobId], references: [id])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status])
+  @@index([resumeId])
+  @@index([jobId])
+}

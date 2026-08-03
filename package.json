@@ -1,0 +1,20 @@
+{
+  "name": "autonomous-job-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:db": "npx tsx src/testDb.ts",
+    "test:boss": "npx tsx src/testBossScraper.ts",
+    "import:resume": "npx tsx scripts/import-resume.ts"
+  },
+  "dependencies": {
+    "iconv-lite": "^0.7.2",
+    "puppeteer-core": "^24.0.0",
+    "tesseract.js": "^5.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  }
+}

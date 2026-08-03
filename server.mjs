@@ -1,0 +1,260 @@
+// Autonomous Job Search Agent - Web UI Server
+// Start: npx tsx server.mjs
+
+import http from "node:http";
+import "dotenv/config";
+
+// Prevent crash on unhandled promise rejections
+process.on("unhandledRejection", function(reason) {
+  console.error("[server] Unhandled Rejection:", (reason?.message || reason || "").slice(0, 100));
+});
+process.on("uncaughtException", function(err) {
+  console.error("[server] Uncaught Exception:", (err?.message || "").slice(0, 100));
+});
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { initDb } from "./src/db/index.js";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
+import * as company from "./src/db/company.js";
+import * as job from "./src/db/job.js";
+import * as resume from "./src/db/resume.js";
+import * as application from "./src/db/application.js";
+import { extractSkills } from "./src/utils/skills.js";
+import { ocrImage } from "./src/utils/ocr.js";
+
+var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
+var WEB_DIR = process.env.JOB_AGENT_WEB_DIR || path.join(__dirname, "web");
+var RESUME_DIR = process.env.JOB_AGENT_RESUME_DIR || path.join(__dirname, "resumes");
+var PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(__dirname, "data", "profile.json");
+var PORT = Number(process.env.PORT) || 3456;
+var IMG_EXTS = [".png", ".jpg", ".jpeg", ".bmp", ".webp"];
+
+initDb();
+console.log("[server] DB ready, port " + PORT);
+
+function isImage(p) { var e = path.extname(p).toLowerCase(); return IMG_EXTS.indexOf(e) !== -1; }
+
+function serveFile(res, filePath) {
+  var mimes = { '.html':'text/html;charset=utf-8', '.css':'text/css;charset=utf-8', '.js':'application/javascript;charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg' };
+  try {
+    var c = fs.readFileSync(filePath);
+    res.writeHead(200, { 'Content-Type': mimes[path.extname(filePath).toLowerCase()] || 'application/octet-stream' });
+    res.end(c);
+  } catch {
+    res.writeHead(404);
+    res.end('Not found');
+  }
+}
+
+function json(res, data, status) {
+  res.writeHead(status || 200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+  res.end(JSON.stringify(data));
+}
+
+function getProfile() { try { return JSON.parse(fs.readFileSync(PROFILE_PATH, 'utf8')); } catch { return null; } }
+
+function apiGetProfile(req, res) { json(res, getProfile() || { name: '', skills: '', targetRole: '' }); }
+
+function apiSaveProfile(req, res) {
+  var body = '';
+  req.on('data', function(c) { body += c; });
+  req.on('end', function() {
+    try {
+      var p = JSON.parse(body);
+      fs.writeFileSync(PROFILE_PATH, JSON.stringify(p, null, 2), 'utf8');
+      json(res, { ok: true });
+    } catch (e) {
+      json(res, { error: e.message }, 400);
+    }
+  });
+}
+
+function apiStats(req, res) {
+  json(res, {
+    totalJobs: job.search({}).length,
+    activeJobs: job.search({ status: 'active' }).length,
+    closedJobs: job.search({ status: 'closed' }).length,
+    totalResumes: resume.findAll().length,
+    totalApplications: application.findAll().length,
+    interviews: (application.getStats().interview || 0),
+    offers: (application.getStats().offer || 0),
+  });
+}
+
+function apiJobs(req, res) {
+  var url = new URL(req.url, 'http://localhost');
+  var params = Object.fromEntries(url.searchParams);
+  var results = job.search(params);
+  var total = job.count(params);
+  var profile = getProfile();
+  var userSkills = profile ? profile.skills.split(',').map(function(s) { return s.trim().toLowerCase(); }).filter(function(s) { return s; }) : [];
+  results = results.map(function(j) {
+    var cn = ''; if (j.companyId) { var c = company.findById(j.companyId); if (c) cn = c.name; }
+    var techs = (j.technologies || '').split(',').map(function(s) { return s.trim().toLowerCase(); }).filter(function(s) { return s; });
+    var matched = techs.filter(function(t) { return userSkills.indexOf(t) !== -1; });
+    var missing = techs.filter(function(t) { return userSkills.indexOf(t) === -1; });
+    var pct = techs.length > 0 ? Math.round(matched.length / techs.length * 100) : null;
+    return { id: j.id, title: j.title, companyName: cn, salaryRaw: j.salaryRaw, city: j.city, status: j.status, score: j.score, technologies: j.technologies, url: j.url, matchPct: pct, matchedSkills: matched, missingSkills: missing };
+  });
+  json(res, { jobs: results, total: total });
+}
+
+function apiResumes(req, res) { json(res, { resumes: resume.findAll() }); }
+
+function apiUploadResume(req, res) {
+  var body = '';
+  req.on('data', function(c) { body += c; });
+  req.on('end', async function() {
+    try {
+      var data = JSON.parse(body);
+      if (!data.fileData) { json(res, { error: 'No file data' }, 400); return; }
+      var buf = Buffer.from(data.fileData, 'base64');
+      var saveName = Date.now() + '-' + (data.fileName || 'upload').replace(/[^\w.-]/g, '_');
+      var savePath = path.join(RESUME_DIR, saveName);
+      fs.writeFileSync(savePath, buf);
+      var text = '';
+      if (isImage(savePath)) {
+        var ocrResult = await ocrImage(savePath);
+        text = ocrResult || '';
+      }
+      var skills = extractSkills(text).filter(function(s, i, a) { return a.indexOf(s) === i; });
+      var r = resume.create({
+        name: data.name || saveName,
+        targetRole: data.targetRole || '',
+        tags: data.tags || '',
+        isDefault: !!data.isDefault,
+        rawText: text.slice(0, 10000),
+        filePath: savePath,
+        fileType: isImage(savePath) ? 'ocr' : 'txt',
+        skills: skills.join(','),
+      });
+      json(res, { ok: true, resume: r, skills: skills });
+    } catch (e) {
+      console.error("[upload] " + e.message);
+      json(res, { error: e.message }, 400);
+    }
+  });
+}
+
+function apiApplications(req, res) {
+  var s = new URL(req.url, 'http://localhost').searchParams.get('status') || undefined;
+  var apps = application.findAll(s);
+  apps = apps.map(function(a) {
+    var j = a.jobId ? job.findById(a.jobId) : null;
+    var c = j && j.companyId ? company.findById(j.companyId) : null;
+    return { id: a.id, jobTitle: (j && j.title) || (a.jobId ? '#' + a.jobId : '-'), companyName: (c && c.name) || (j && j.companyName) || '', salary: (j && j.salaryRaw) || '', city: (j && j.city) || '', status: a.status, notes: a.notes || '', time: a.appliedAt || a.updatedAt || '' };
+  });
+  json(res, { applications: apps });
+}
+
+function readJsonBody(req, cb) {
+  var body = '';
+  req.on('data', function(c) { body += c; });
+  req.on('end', function() {
+    try { cb(JSON.parse(body || '{}')); } catch (e) { cb({}); }
+  });
+}
+
+function apiCloseJob(req, res, id) {
+  json(res, { ok: job.markClosed(id) });
+}
+
+function apiCloseStaleJobs(req, res) {
+  var before = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  json(res, { ok: true, closed: job.markClosedBefore(before) });
+}
+
+function apiUpdateApplication(req, res, id) {
+  readJsonBody(req, function(data) {
+    var a = application.updateStatus(id, data.status || 'pending', data.notes || null);
+    json(res, { ok: !!a, application: a });
+  });
+}
+
+function apiDeleteApplication(req, res, id) {
+  json(res, { ok: application.remove(id) });
+}
+
+var routes = {
+  "/api/profile": apiGetProfile,
+  "/api/stats": apiStats,
+  "/api/jobs": apiJobs,
+  "/api/resumes": apiResumes,
+  "/api/applications": apiApplications,
+};
+
+var httpServer = http.createServer(function(req, res) {
+  var url = new URL(req.url, 'http://localhost');
+  var p = url.pathname;
+  if (p === "/api/profile" && req.method === "POST") { apiSaveProfile(req, res); return; }
+  if (p === "/api/resumes/upload" && req.method === "POST") { apiUploadResume(req, res); return; }
+
+  if (req.method === "DELETE" && /^\/api\/resumes\/\d+$/.test(p)) {
+    var id = parseInt(p.split('/').pop(), 10);
+    var ok = resume.remove(id);
+    json(res, { ok: ok });
+    return;
+  }
+
+  if (req.method === "POST" && /^\/api\/jobs\/\d+\/close$/.test(p)) {
+    apiCloseJob(req, res, parseInt(p.match(/^\/api\/jobs\/(\d+)\/close$/)[1], 10));
+    return;
+  }
+  if (req.method === "POST" && p === "/api/jobs/close-stale") {
+    apiCloseStaleJobs(req, res);
+    return;
+  }
+  if (req.method === "PATCH" && /^\/api\/applications\/\d+$/.test(p)) {
+    apiUpdateApplication(req, res, parseInt(p.split('/').pop(), 10));
+    return;
+  }
+  if (req.method === "DELETE" && /^\/api\/applications\/\d+$/.test(p)) {
+    apiDeleteApplication(req, res, parseInt(p.split('/').pop(), 10));
+    return;
+  }
+
+  var handler = routes[p];
+  if (handler) { handler(req, res); return; }
+
+  if (p.startsWith("/api/boss")) {
+    if (req.method === "GET") {
+      if (p === "/api/boss/status") { json(res, getBossStatus()); return; }
+      if (p === "/api/boss/chat/stop") { handleChatStop(req, res); return; }
+      if (p === '/api/chat/messages') { handleGetMessages(req, res); return; }
+    }
+    if (req.method === "POST") {
+      var bd = "";
+      req.on("data", function(c) { bd += c; });
+      req.on("end", async function() {
+        try {
+          var data = bd ? JSON.parse(bd) : {};
+          if (p === "/api/boss/connect") { await handleConnect(req, res, data); }
+          else if (p === "/api/boss/launch") { await handleLaunch(req, res, data); }
+          else if (p === "/api/boss/search") { await handleSearch(req, res, data); }
+          else if (p === "/api/boss/apply") { await handleApply(req, res, data); }
+          else if (p === "/api/boss/stop") { handleChatStop(req, res); }
+          else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }
+          else if (p === '/api/chat/send') { await handleSendMessage(req, res, data); }
+          else { json(res, { error: "not found" }, 404); }
+        } catch (e) {
+          json(res, { error: e.message }, 500);
+        }
+      });
+      return;
+    }
+    json(res, { error: "method not allowed" }, 405);
+    return;
+  }
+
+  if (p === "/") p = "/index.html";
+  serveFile(res, path.join(WEB_DIR, p));
+});
+
+httpServer.listen(PORT, function() {
+  console.log("================================================");
+  console.log("  Job Agent UI  -  http://localhost:" + PORT);
+  console.log("================================================");
+});

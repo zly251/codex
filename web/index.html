@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>求职助手</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:#f0f2f5;color:#1a1a2e}
+.layout{display:flex;min-height:100vh}
+.sidebar{width:210px;background:#1a1a2e;color:#fff;padding:20px 0;flex-shrink:0;display:flex;flex-direction:column}
+.sidebar h1{font-size:16px;padding:0 16px 20px;border-bottom:1px solid #2a2a4e;margin-bottom:8px}
+.user-info{padding:8px 16px 16px;font-size:12px;color:#667799;border-bottom:1px solid #2a2a4e;margin-bottom:8px}
+.user-info .name{font-size:14px;color:#fff;font-weight:600}
+.nav-item{padding:10px 16px;cursor:pointer;font-size:14px;color:#8899bb}
+.nav-item:hover{background:#2a2a4e;color:#fff}
+.nav-item.active{background:#2a2a4e;color:#4fc3f7;border-left:3px solid #4fc3f7}
+.nav-spacer{flex:1}
+.content{flex:1;padding:24px;min-width:0;overflow-y:auto}
+.tab{display:none}.tab.active{display:block}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:10px 8px;background:#f8f9fa;border-bottom:2px solid #e0e0e0;color:#555;white-space:nowrap}
+td{padding:10px 8px;border-bottom:1px solid #f0f0f0}
+tr:hover{background:#f5f7fa}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px}
+.badge.active{background:#e8f5e9;color:#2e7d32}
+.badge.closed{background:#fbe9e7;color:#c62828}
+.badge.pending{background:#fff3e0;color:#e65100}
+.badge.replied{background:#e3f2fd;color:#1565c0}
+.badge.interview{background:#f3e5f5;color:#7b1fa2}
+.badge.offer{background:#e8f5e9;color:#2e7d32}
+.btn{display:inline-block;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px}
+.btn-primary{background:#1565c0;color:#fff}
+.btn-primary:hover{background:#0d47a1}
+.btn-primary:disabled{background:#90caf9;cursor:not-allowed}
+.btn-sm{padding:4px 12px;font-size:12px;border:none;border-radius:4px;cursor:pointer}
+.btn-sm.primary{background:#1565c0;color:#fff}
+.btn-sm.danger{background:#c62828;color:#fff}
+.btn-sm.warn{background:#e65100;color:#fff}
+.card{background:#fff;border-radius:8px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.form-group{margin-bottom:14px}.form-group label{display:block;font-size:12px;color:#666;margin-bottom:4px}
+.form-group input,.form-group select{width:100%;padding:8px 12px;border:1px solid #ddd;border-radius:6px;font-size:14px}
+.form-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.form-row .form-group{flex:1;min-width:120px;margin-bottom:0}
+.status-bar{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#fff;border-radius:8px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,0.06)}
+.status-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.status-dot.online{background:#2e7d32}.status-dot.offline{background:#999}
+.log-area{background:#1a1a2e;color:#aaccff;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto;margin-top:12px;font-family:Consolas,monospace;white-space:pre-wrap}
+select.filter{width:auto;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px}
+@media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%}.nav-item{display:inline-block}.content{padding:12px}}
+</style></head><body>
+<div class="layout" id="app">
+<div class="sidebar">
+<h1>求职助手</h1>
+<div class="user-info"><div class="name" id="sidebar-name">---</div><div id="sidebar-status" style="color:#999">未连接</div></div>
+<div class="nav-item active" data-tab="dashboard">概览</div>
+<div class="nav-item" data-tab="jobs">职位</div>
+<div class="nav-item" data-tab="automation">&#x1f916; 自动化</div>
+<div class="nav-item" data-tab="applications">投递</div>
+<div class="nav-item" data-tab="resumes">简历</div>
+<div class="nav-spacer"></div>
+<div class="nav-item" data-tab="profile">个人设置</div>
+</div>
+<div class="content" id="content">
+<div id="tab-dashboard" class="tab active"></div>
+<div id="tab-jobs" class="tab"></div>
+<div id="tab-automation" class="tab"></div>
+<div id="tab-applications" class="tab"></div>
+<div id="tab-resumes" class="tab"></div>
+<div id="tab-profile" class="tab"></div>
+</div></div>
+<script>
+// ─── 状态 ───
+var profile = null;
+var bossConnected = false;
+var applyRunning = false;
+var _logLines = [];
+var _lastServerLogId = 0;
+var _pollTimer = null;
+var _statusBusy = false;
+
+function log(msg) {
+  _logLines.push(new Date().toLocaleTimeString() + "  " + msg);
+  if (_logLines.length > 100) _logLines.shift();
+  var la = document.getElementById("log-area");
+  if (la) la.textContent = _logLines.slice(-30).join("\n");
+}
+
+async function api(path, opts) {
+  var r = await fetch(path, opts || {});
+  return r.json();
+}
+
+// ─── 导航 ───
+document.querySelectorAll(".nav-item").forEach(function(el){
+  el.addEventListener("click", function(){
+    var name = this.getAttribute("data-tab");
+    document.querySelectorAll(".nav-item").forEach(function(n){ n.classList.remove("active"); });
+    document.querySelectorAll(".tab").forEach(function(t){ t.classList.remove("active"); });
+    this.classList.add("active");
+    document.getElementById("tab-" + name).classList.add("active");
+    loadTab(name);
+  });
+});
+
+function loadTab(name) {
+  if (name === "dashboard") loadDashboard();
+  else if (name === "jobs") loadJobs();
+  else if (name === "resumes") loadResumes();
+  else if (name === "applications") loadApplications();
+  else if (name === "automation") loadAutomation();
+  else if (name === "profile") loadProfile();
+}
+
+// ─── 概览 ───
+async function loadDashboard() {
+  var d = await api("/api/stats");
+  var bs = await api("/api/boss/status").catch(function(){ return {}; });
+  bossConnected = bs.browserConnected || false;
+
+  var el = document.getElementById("tab-dashboard");
+  var connectedHtml = bossConnected
+    ? '<span style="color:#2e7d32">已连接</span>'
+    : '<span style="color:#c62828">未连接</span>';
+  var statusHtml = bs.status || "idle";
+  var appliedHtml = (bs.appliedCount || 0);
+
+  el.innerHTML =
+    '<div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">' +
+    '<h2 style="margin:0">概览</h2>' +
+    '<span style="font-size:12px;color:#666">浏览器: ' + connectedHtml + '</span>' +
+    '<span style="font-size:12px;color:#666">状态: ' + statusHtml + '</span>' +
+    '<span style="font-size:12px;color:#666">已打招呼: ' + appliedHtml + ' 次</span>' +
+    '<button class="btn-sm primary" onclick="refreshDashboard()" style="margin-left:auto">刷新</button>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px">' +
+    '<div class="card" style="text-align:center;cursor:pointer" onclick="document.querySelector(\'[data-tab=jobs]\').click()"><div style="font-size:32px;font-weight:700;color:#1565c0">'+(d.totalJobs||0)+'</div><div style="font-size:13px;color:#666">职位总数</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:32px;font-weight:700;color:#2e7d32">'+(d.activeJobs||0)+'</div><div style="font-size:13px;color:#666">有效职位</div></div>' +
+    '<div class="card" style="text-align:center;cursor:pointer" onclick="document.querySelector(\'[data-tab=applications]\').click()"><div style="font-size:32px;font-weight:700;color:#1565c0">'+(d.totalApplications||0)+'</div><div style="font-size:13px;color:#666">投递记录</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:32px;font-weight:700;color:#e65100">'+(d.interviews||0)+'</div><div style="font-size:13px;color:#666">面试</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:32px;font-weight:700;color:#2e7d32">'+(d.offers||0)+'</div><div style="font-size:13px;color:#666">Offer</div></div>' +
+    '</div>' +
+    '<div class="card" style="margin-top:16px">' +
+    '<div style="display:flex;align-items:center;gap:12px"><strong style="font-size:14px">快捷操作</strong></div>' +
+    '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">' +
+    '<button class="btn btn-primary" onclick="quickApply(5)">快速投递5份</button>' +
+    '<button class="btn btn-primary" onclick="quickApply(10)">快速投递10份</button>' +
+    '<button class="btn btn-primary" onclick="quickApply(20)">快速投递20份</button>' +
+    '<button class="btn" style="background:#c62828;color:#fff" onclick="stopApply()">停止投递</button>' +
+    '</div></div>';
+}
+
+function refreshDashboard() { loadDashboard(); log("概览已刷新"); }
+
+function currentApplyOptions(extra) {
+  function el(id) { return document.getElementById(id); }
+  function num(id, dflt) { var v = parseInt((el(id)||{}).value); return isNaN(v) ? dflt : v; }
+  var o = {
+    city: (el("filter-city")||{}).value || "",
+    district: (el("filter-district")||{}).value || "",
+    keywords: (el("filter-keywords")||{}).value || (profile && profile.skills) || "",
+    minMatch: num("min-match", 30) / 100,
+    delayMin: num("delay-min", 8),
+    delayMax: num("delay-max", 25),
+  };
+  return Object.assign(o, extra || {});
+}
+
+async function quickApply(n) {
+  if (applyRunning) { log("投递已在进行中"); return; }
+  applyRunning = true;
+  log("开始投递 " + n + " 份...");
+  try {
+    var r = await fetch("/api/boss/apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(currentApplyOptions({limit:n}))});
+    var d = await r.json();
+    if (d.ok) {
+      log("完成: 成功 " + d.applied + " / 失败 " + (d.failed||0) + " / 共 " + d.total);
+    } else {
+      log("失败: " + (d.error||""));
+    }
+  } catch(e) { log("错误: " + e.message); }
+  applyRunning = false;
+  loadDashboard();
+}
+
+async function stopApply() {
+  try { await fetch("/api/boss/stop", {method:"POST"}); log("已发送停止指令"); applyRunning = false; } catch(e) {}
+}
+// ─── 职位 ───
+async function loadJobs(filters) {
+  filters = filters || {};
+  var qs = "?limit=200";
+  if (filters.keyword) qs += "&keywords=" + encodeURIComponent(filters.keyword);
+  if (filters.city) qs += "&city=" + encodeURIComponent(filters.city);
+  if (filters.status) qs += "&status=" + filters.status;
+  var d = await api("/api/jobs" + qs);
+  var el = document.getElementById("tab-jobs");
+
+  var h = '<div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap">' +
+    '<h2 style="margin:0">职位 (' + (d.total||0) + ')</h2>' +
+    '<input id="job-filter-kw" placeholder="搜索职位/技能..." style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:180px" value="'+(filters.keyword||"")+'">' +
+    '<input id="job-filter-city" placeholder="城市" style="padding:6px 10px;border:1px solid #ddd;border-radius:4px;font-size:13px;width:90px" value="'+(filters.city||"")+'">' +
+    '<select id="job-filter-status" class="filter"><option value="">全部状态</option><option value="active">有效</option><option value="closed">已关闭</option></select>' +
+    '<button class="btn-sm primary" onclick="loadJobs({keyword:document.getElementById(\'job-filter-kw\').value,city:document.getElementById(\'job-filter-city\').value,status:document.getElementById(\'job-filter-status\').value})">搜索</button>' +
+    '<button class="btn-sm" style="background:#555;color:#fff" onclick="markAllClosed()">标记过期职位</button>' +
+    '</div>';
+
+  if (!d.jobs || !d.jobs.length) { h += '<div style="color:#999;padding:40px;text-align:center">暂无匹配职位，先去自动化Tab搜索吧</div>'; el.innerHTML = h; return; }
+
+  h += '<div class="card" style="padding:0"><table><tr><th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>匹配</th><th>状态</th><th>操作</th></tr>';
+  d.jobs.forEach(function(j,i){
+    var pct = j.matchPct != null ? j.matchPct + "%" : "-";
+    var mc = j.matchPct >= 60 ? "active" : j.matchPct >= 30 ? "pending" : "closed";
+    h += '<tr>' +
+      '<td>'+(i+1)+'</td>' +
+      '<td><a href="'+(j.url||"#")+'" target="_blank" style="color:#1565c0;text-decoration:none">'+(j.title||"-")+'</a></td>' +
+      '<td>'+(j.companyName||"-")+'</td>' +
+      '<td>'+(j.salaryRaw||"-")+'</td>' +
+      '<td>'+(j.city||"-")+ (j.district ? " " + j.district : "") +'</td>' +
+      '<td><span class="badge '+mc+'">'+pct+'</span></td>' +
+      '<td><span class="badge '+(j.status||"active")+'">'+(j.status||"active")+'</span></td>' +
+      '<td>' +
+      '<button class="btn-sm primary" onclick="applyOne(\''+(j.id||"")+'\')">沟通</button> ' +
+      '<button class="btn-sm warn" onclick="markClosed('+j.id+')">关闭</button>' +
+      '</td></tr>';
+  });
+  h += '</table></div>';
+  el.innerHTML = h;
+}
+
+async function applyOne(jobId) {
+  log("手动沟通职位 #" + jobId + " (需浏览器已连接)");
+  try {
+    var r = await fetch("/api/boss/apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(currentApplyOptions({jobId:jobId,limit:1}))});
+    var d = await r.json();
+    log(d.ok ? ("已尝试: 成功 " + (d.applied||0) + " / 失败 " + (d.failed||0)) : "失败: " + (d.error||""));
+  } catch(e) { log("错误: " + e.message); }
+}
+
+async function markClosed(id) {
+  var r = await fetch("/api/jobs/" + id + "/close", {method:"POST"});
+  var d = await r.json();
+  log(d.ok ? ("已标记职位 #" + id + " 为关闭") : ("关闭失败: " + (d.error||"")));
+  loadJobs();
+}
+
+async function markAllClosed() {
+  log("标记7天前的职位为过期...");
+  try {
+    var r = await api("/api/jobs/close-stale", {method:"POST"});
+    log("已关闭过期职位: " + (r.closed||0) + " 个");
+    loadJobs();
+  } catch(e) {}
+}
+
+// ─── 简历 ───
+async function loadResumes() {
+  var p = profile || await api("/api/profile").catch(function(){return{}});
+  profile = p;
+  var d = await api("/api/resumes");
+  var el = document.getElementById("tab-resumes");
+  var h = '<h2>简历 & 个人信息</h2>';
+
+  if (p && p.name) {
+    h += '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">当前档案</h3>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">' +
+      '<div><span style="color:#666">姓名: </span>'+(p.name||"-")+'</div>' +
+      '<div><span style="color:#666">状态: </span>'+(p.status||"待补充")+'</div>' +
+      '<div><span style="color:#666">目标: </span>'+(p.targetRole||"待补充")+'</div>' +
+      '<div><span style="color:#666">学历: </span>'+(p.education||"待补充")+'</div>' +
+      '<div><span style="color:#666">经验: </span>'+(p.experience||"待补充")+'</div>' +
+      '<div><span style="color:#666">技能: </span>'+(p.skills||"")+'</div>' +
+      '</div>' +
+      '<button class="btn-sm primary" style="margin-top:12px" onclick="document.querySelector(\'[data-tab=profile]\').click()">编辑档案</button></div>';
+  } else {
+    h += '<div class="card"><p style="color:#999">尚未设置个人档案，请前往「个人设置」补充</p>' +
+      '<button class="btn btn-primary" onclick="document.querySelector(\'[data-tab=profile]\').click()">去设置</button></div>';
+  }
+
+  // Upload resume
+  h += '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">上传简历</h3>' +
+    '<input type="file" id="resume-file" accept=".pdf,.doc,.docx,.png,.jpg" style="margin-bottom:8px" onchange="uploadResume()">' +
+    '<div style="font-size:12px;color:#999">支持 PDF/Word/图片，自动OCR识别技能</div></div>';
+
+  if (d.resumes && d.resumes.length > 0) {
+    h += '<div class="card" style="padding:0"><table><tr><th>文件名</th><th>技能</th><th>时间</th><th>操作</th></tr>';
+    d.resumes.forEach(function(r){
+      h += '<tr><td>'+(r.name||"-")+'</td><td>'+(r.skills||"").substring(0,60)+'</td>' +
+        '<td style="font-size:11px">'+(r.createdAt||"").slice(0,10)+'</td>' +
+        '<td><button class="btn-sm danger" onclick="deleteResume('+r.id+')">删除</button></td></tr>';
+    });
+    h += '</table></div>';
+  }
+  el.innerHTML = h;
+}
+
+async function uploadResume() {
+  var file = document.getElementById("resume-file").files[0];
+  if (!file) return;
+  log("上传简历: " + file.name);
+  var reader = new FileReader();
+  reader.onload = async function() {
+    var base64 = reader.result.split(",")[1];
+    try {
+      var r = await api("/api/resumes/upload", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({fileName:file.name,fileData:base64})});
+      if (r.ok) { log("上传成功, 识别技能: " + (r.skills||[]).join(",")); loadResumes(); }
+      else { log("上传失败: " + (r.error||"")); }
+    } catch(e) { log("上传错误: " + e.message); }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function deleteResume(id) {
+  await fetch("/api/resumes/" + id, {method:"DELETE"});
+  log("已删除简历 #" + id);
+  loadResumes();
+}
+// ─── 投递 ───
+var appStatusFilter = "";
+
+async function loadApplications(status) {
+  appStatusFilter = status || appStatusFilter || "";
+  var qs = appStatusFilter ? "?status=" + appStatusFilter : "";
+  var d = await api("/api/applications" + qs);
+  var el = document.getElementById("tab-applications");
+  var sm = { pending:"待处理", viewed:"已查看", replied:"已回复", interview:"面试中", offer:"Offer", rejected:"不合适", withdrawn:"已撤回" };
+
+  var filters = ["","pending","viewed","replied","interview","offer","rejected","withdrawn"];
+  var filterHtml = filters.map(function(s){
+    var label = s ? (sm[s]||s) : "全部";
+    var cls = appStatusFilter === s ? "btn-sm primary" : "btn-sm";
+    return '<button class="'+cls+'" style="margin-right:4px;margin-bottom:4px" onclick="loadApplications(\''+s+'\')">'+label+'</button>';
+  }).join("");
+
+  var apps = d.applications || [];
+  var h = '<h2>投递记录 (' + apps.length + ')</h2>' +
+    '<div style="margin-bottom:12px">' + filterHtml + '</div>';
+
+  if (!apps.length) {
+    h += '<div style="color:#999;padding:40px;text-align:center">暂无投递记录</div>';
+    el.innerHTML = h; return;
+  }
+
+  h += '<div class="card" style="padding:0"><table>' +
+    '<tr><th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>状态</th><th>备注</th><th>时间</th><th>操作</th></tr>';
+  apps.forEach(function(a){
+    h += '<tr>' +
+      '<td style="color:#999">'+a.id+'</td>' +
+      '<td>'+(a.jobTitle||"-")+'</td>' +
+      '<td>'+(a.companyName||"-")+'</td>' +
+      '<td>'+(a.salary||"-")+'</td>' +
+      '<td>'+(a.city||"-")+'</td>' +
+      '<td><span class="badge '+(a.status||"pending")+'">'+(sm[a.status]||a.status)+'</span></td>' +
+      '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(a.notes||"")+'">'+(a.notes||"")+'</td>' +
+      '<td style="font-size:11px;color:#999">'+(a.time||"").slice(0,10)+'</td>' +
+      '<td>' +
+      '<select class="filter" onchange="updateAppStatus('+a.id+',this.value)" style="font-size:11px">' +
+      '<option value="">改状态</option>' +
+      filters.filter(function(s){return s}).map(function(s){return '<option value="'+s+'">'+(sm[s]||s)+'</option>';}).join("") +
+      '</select>' +
+      '<button class="btn-sm danger" style="margin-left:4px" onclick="deleteApp('+a.id+')">删</button>' +
+      '</td></tr>';
+  });
+  h += '</table></div>';
+  el.innerHTML = h;
+}
+
+async function updateAppStatus(id, status) {
+  if (!status) return;
+  try {
+    var r = await fetch("/api/applications/" + id, {method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:status})});
+    var d = await r.json();
+    log(d.ok ? ("已更新投递 #" + id + " -> " + status) : ("更新失败: " + (d.error||"")));
+    loadApplications();
+  } catch(e) { log("更新失败: " + e.message); }
+}
+
+async function deleteApp(id) {
+  try {
+    var r = await fetch("/api/applications/" + id, {method:"DELETE"});
+    var d = await r.json();
+    log(d.ok ? ("已删除投递 #" + id) : ("删除失败: " + (d.error||"")));
+    loadApplications();
+  } catch(e) { log("删除失败: " + e.message); }
+}
+
+// ─── 个人设置 ───
+async function loadProfile() {
+  var p = profile || await api("/api/profile").catch(function(){return{}});
+  profile = p;
+  var el = document.getElementById("tab-profile");
+  var sOpts = ["","在职","离职","应届生","在读"].map(function(s){ return '<option value="'+s+'"'+(p.status===s?" selected":"")+'>'+(s||"请选择")+'</option>'; }).join("");
+  var eOpts = ["","大专","本科","硕士","博士"].map(function(s){ return '<option value="'+s+'"'+(p.education===s?" selected":"")+'>'+(s||"请选择")+'</option>'; }).join("");
+  el.innerHTML =
+    '<h2>个人设置</h2>' +
+    '<div class="card" style="max-width:520px">' +
+    '<div class="form-group"><label>姓名</label><input id="pf-name" value="'+(p.name||"")+'"></div>' +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>就业状态</label><select id="pf-status">'+sOpts+'</select></div>' +
+    '<div class="form-group"><label>学历</label><select id="pf-edu">'+eOpts+'</select></div>' +
+    '</div>' +
+    '<div class="form-group"><label>经验年限</label><input id="pf-exp" value="'+(p.experience||"")+'" placeholder="如: 3年"></div>' +
+    '<div class="form-group"><label>技能（逗号分隔）</label><input id="pf-skills" value="'+(p.skills||"")+'" placeholder="C++,Qt,Python,Linux,嵌入式"></div>' +
+    '<div class="form-group"><label>目标职位</label><input id="pf-target" value="'+(p.targetRole||"")+'" placeholder="如: C++开发工程师"></div>' +
+    '<div style="display:flex;align-items:center;gap:12px">' +
+    '<button class="btn btn-primary" onclick="saveProfile()">保存</button>' +
+    '<span id="pf-msg" style="color:#2e7d32;font-size:13px;display:none">已保存</span>' +
+    '</div></div>';
+}
+
+async function saveProfile() {
+  var data = {
+    name: document.getElementById("pf-name").value,
+    status: document.getElementById("pf-status").value,
+    education: document.getElementById("pf-edu").value,
+    experience: document.getElementById("pf-exp").value,
+    skills: document.getElementById("pf-skills").value,
+    targetRole: document.getElementById("pf-target").value,
+  };
+  try {
+    await api("/api/profile", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
+    profile = data;
+    document.getElementById("sidebar-name").textContent = data.name || "---";
+    var msg = document.getElementById("pf-msg");
+    msg.style.display = "inline";
+    setTimeout(function(){ msg.style.display = "none"; }, 2000);
+    log("个人设置已保存");
+  } catch(e) { log("保存失败: " + e.message); }
+}
+// ─── 自动化 ───
+async function loadAutomation() {
+  var el = document.getElementById("tab-automation");
+  var bs = await api("/api/boss/status").catch(function(){ return {}; });
+  bossConnected = bs.browserConnected || false;
+  var dotCls = bossConnected ? "online" : "offline";
+  var statusTxt = bossConnected ? "浏览器已连接" : "浏览器未连接";
+  var statusDetail = bs.lastSearch ? "上次搜索: " + bs.lastSearch.keyword + " (" + bs.lastSearch.count + "个)" : "";
+
+  var h =
+    '<h2>&#x1f916; 自动化求职</h2>' +
+    '<div class="status-bar">' +
+    '<span class="status-dot ' + dotCls + '"></span>' +
+    '<span id="browser-txt" style="font-size:14px">' + statusTxt + '</span>' +
+    '<span id="prog" style="margin-left:auto;font-size:12px;color:#999">' + (bs.running ? (bs.progress && bs.progress.total ? "进度 " + bs.progress.current + "/" + bs.progress.total + " " + (bs.progress.step||"") : "自动化运行中...") : "空闲") + '</span>' +
+    '<span style="font-size:12px;color:#999">' + statusDetail + '</span>' +
+    '<button class="btn-sm primary" onclick="bossConnect()">启动/连接Edge</button>' +
+    '<button class="btn-sm warn" onclick="refreshStatus()">刷新</button>' +
+    '</div>';
+
+  // Step 1: 搜索
+  h += '<div class="card"><h3 style="font-size:14px;margin:0 0 10px">1. 搜索职位</h3>' +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>关键词</label><input id="kw" value="C++" style="width:140px"></div>' +
+    '<div class="form-group"><label>城市</label><input id="city-input" placeholder="台州" style="width:90px"></div>' +
+    '<div class="form-group"><label>页数</label><input id="pages" value="3" type="number" style="width:60px"></div>' +
+    '<button class="btn btn-primary" onclick="bossSearch()" style="height:34px">搜索</button>' +
+    '</div>' +
+    '<span id="sr" style="font-size:12px;color:#999"></span></div>';
+
+  // Step 2: 投递
+  h += '<div class="card"><h3 style="font-size:14px;margin:0 0 10px">2. 自动打招呼</h3>' +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>城市</label><input id="filter-city" value="台州" style="width:70px"></div>' +
+    '<div class="form-group"><label>区域</label><input id="filter-district" placeholder="椒江" style="width:70px"></div>' +
+    '<div class="form-group"><label>关键词</label><input id="filter-keywords" value="C++,Qt,Python,嵌入式" style="width:150px"></div>' +
+    '<div class="form-group"><label>匹配度≥</label><input id="min-match" type="number" value="30" min="0" max="100" style="width:55px">%</div>' +
+    '<div class="form-group"><label>份数</label><input id="limit" type="number" value="20" min="1" max="50" style="width:55px"></div>' +
+    '<div class="form-group"><label>随机延迟(秒)</label><input id="delay-min" type="number" value="8" min="1" max="120" style="width:50px">~<input id="delay-max" type="number" value="25" min="1" max="300" style="width:50px"></div>' +
+    '<button class="btn btn-primary" onclick="bossApply()" style="height:34px">开始投递</button>' +
+    '</div>' +
+    '<span id="ar" style="font-size:12px;color:#999"></span></div>';
+
+  // Step 3: 监控 (只保留控制，实际自动回复不可靠)
+  h += '<div class="card"><h3 style="font-size:14px;margin:0 0 10px">3. 聊天监控 (实验性)</h3>' +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>轮询间隔(秒)</label><input id="interval" type="number" value="30" style="width:70px"></div>' +
+    '<button class="btn btn-primary" onclick="bossChatStart()" id="chat-btn" style="height:34px">开始监控</button>' +
+    '<button class="btn-sm warn" onclick="bossChatStop()">停止</button>' +
+    '</div>' +
+    '<span id="cr" style="font-size:12px;color:#999"></span></div>';
+
+  // Log area
+  h += '<div class="log-area" id="log-area">--- 日志 ---</div>';
+  el.innerHTML = h;
+}
+
+async function refreshStatus() {
+  await pollStatusOnce();
+  log("状态已刷新: " + (bossConnected ? "已连接" : "未连接"));
+}
+
+async function bossConnect() {
+  log("启动/连接 Edge...");
+  try {
+    var r = await api("/api/boss/launch", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:"127.0.0.1",port:9222})});
+    if (r.ok) { log(r.message || "连接成功!"); bossConnected = true; }
+    else {
+      log("自动启动失败: " + (r.error||"") + "，尝试直接连接");
+      var r2 = await api("/api/boss/connect", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({host:"127.0.0.1",port:9222})});
+      if (r2.ok) { log("连接成功!"); bossConnected = true; }
+      else { log("连接失败: " + (r2.error||"")); bossConnected = false; }
+    }
+  } catch(e) { log("连接错误: " + e.message); bossConnected = false; }
+  document.getElementById("sidebar-status").textContent = bossConnected ? "已连接" : "未连接";
+  document.getElementById("sidebar-status").style.color = bossConnected ? "#2e7d32" : "#999";
+  await pollStatusOnce();
+}
+
+async function bossSearch() {
+  var kw = document.getElementById("kw").value || "C++";
+  var city = document.getElementById("city-input").value || "";
+  var pg = parseInt(document.getElementById("pages").value) || 3;
+  var el = document.getElementById("sr");
+  el.textContent = "搜索中...";
+  log("搜索: " + kw + " " + (city||"全国") + " " + pg + "页");
+  try {
+    var r = await api("/api/boss/search", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({keyword:kw,city:city,pages:pg})});
+    if (r.ok) { el.textContent = "找到 " + r.count + " 个职位"; log("搜索完成: " + r.count + " 个职位"); }
+    else { el.textContent = "失败: " + (r.error||""); log("搜索失败: " + (r.error||"")); }
+  } catch(e) { el.textContent = "失败: " + e.message; log("搜索错误: " + e.message); }
+}
+
+async function bossApply() {
+  var l = parseInt(document.getElementById("limit").value) || 20;
+  var o = currentApplyOptions({limit:l});
+  if (o.delayMax < o.delayMin) o.delayMax = o.delayMin;
+  var city = o.city || "全部";
+  var district = o.district || "";
+  var keywords = o.keywords || "全部";
+  var dm = o.delayMin;
+  var dx = o.delayMax;
+  var el = document.getElementById("ar");
+  el.textContent = "投递中...";
+  log("开始投递: " + city + " " + district + " " + keywords + " 最多" + l + "份，随机延迟 " + dm + "-" + dx + " 秒");
+  try {
+    var r = await fetch("/api/boss/apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)});
+    var d = await r.json();
+    if (d.ok) {
+      el.innerHTML = "&#x2713; 成功 <b>" + d.applied + "</b> / 失败 <b>" + (d.failed||0) + "</b> / 共 <b>" + d.total + "</b>";
+      log("投递完成: 成功 " + d.applied + " 失败 " + (d.failed||0) + " 共 " + d.total);
+    } else {
+      el.textContent = "失败: " + (d.error||"");
+      log("投递失败: " + (d.error||""));
+    }
+  } catch(e) { el.textContent = "失败: " + e.message; log("投递错误: " + e.message); }
+}
+
+async function bossChatStart() {
+  var intv = (parseInt(document.getElementById("interval").value) || 30) * 1000;
+  var btn = document.getElementById("chat-btn"); btn.disabled = true; btn.textContent = "启动中...";
+  var el = document.getElementById("cr"); el.textContent = "启动中...";
+  try {
+    var r = await api("/api/boss/chat/start", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({interval:intv})});
+    if (r.ok) { el.innerHTML = "监控已启动 (自动回复体验证不可靠)"; btn.textContent = "监控中"; log("聊天监控已启动"); }
+    else { el.textContent = "失败: " + (r.error||""); btn.disabled = false; btn.textContent = "开始监控"; }
+  } catch(e) { el.textContent = "失败: " + e.message; btn.disabled = false; btn.textContent = "开始监控"; }
+}
+
+async function bossChatStop() {
+  try { await fetch("/api/boss/chat/stop"); document.getElementById("cr").textContent = "已停止";
+    document.getElementById("chat-btn").disabled = false; document.getElementById("chat-btn").textContent = "开始监控";
+    log("聊天监控已停止"); } catch(e) {}
+}
+
+// ─── 实时状态轮询（不重绘页面，避免闪烁） ───
+async function pollStatusOnce() {
+  if (_statusBusy) return;
+  _statusBusy = true;
+  try {
+    var bs = await api("/api/boss/status").catch(function(){ return {}; });
+    bossConnected = bs.browserConnected || false;
+    var s = document.getElementById("sidebar-status");
+    if (s) { s.textContent = bossConnected ? "已连接" : "未连接"; s.style.color = bossConnected ? "#2e7d32" : "#999"; }
+    var bt = document.getElementById("browser-txt");
+    if (bt) bt.textContent = bossConnected ? "浏览器已连接" : "浏览器未连接";
+    var dot = document.querySelector(".status-dot");
+    if (dot) dot.className = "status-dot " + (bossConnected ? "online" : "offline");
+    var prog = document.getElementById("prog");
+    if (prog) {
+      if (bs.running && bs.progress && bs.progress.total) {
+        prog.textContent = "进度 " + bs.progress.current + "/" + bs.progress.total + " " + (bs.progress.step||"");
+        prog.style.color = "#1565c0";
+      } else if (bs.running) {
+        prog.textContent = "自动化运行中...";
+        prog.style.color = "#1565c0";
+      } else {
+        prog.textContent = "空闲";
+        prog.style.color = "#999";
+      }
+    }
+    if (bs.logs && bs.logs.length) {
+      var la = document.getElementById("log-area");
+      if (la) {
+        var newOnes = bs.logs.filter(function(l){ return l.id > _lastServerLogId; });
+        if (newOnes.length) {
+          _lastServerLogId = bs.logs[bs.logs.length - 1].id;
+          var lines = newOnes.map(function(l){ return new Date(l.t).toLocaleTimeString() + "  " + l.msg; });
+          _logLines = _logLines.concat(lines);
+          if (_logLines.length > 100) _logLines = _logLines.slice(-100);
+          la.textContent = _logLines.slice(-40).join("\n");
+        }
+      }
+    }
+  } catch(e) {}
+  _statusBusy = false;
+}
+
+function startPolling() {
+  if (_pollTimer) return;
+  _pollTimer = setInterval(pollStatusOnce, 1500);
+}
+
+// ─── Init ───
+(async function() {
+  try { var p = await api("/api/profile"); if (p && p.name) { profile = p; document.getElementById("sidebar-name").textContent = p.name; } } catch(e){}
+  await refreshStatus();
+  loadDashboard();
+  startPolling();
+})();
+</script>
+</body></html>
