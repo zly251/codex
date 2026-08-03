@@ -48,13 +48,14 @@ postject 后会损坏签名，需手工把 PE subsystem 从 3 改为 2（GUI）�
 ## Git
 
 - 远端：https://github.com/zly251/codex.git
-- 本地 git 元数据：D:\autonomous-job-agent.git（E 盘 .git 被 ACL 拒绝，未使用 E 盘仓库）
+- 本地 git 元数据：D:\autonomous-job-agent-repo\.git（E 盘 .git 被 ACL 拒绝，未使用 E 盘仓库）
 - 许可证：MIT，LICENSE 文件已包含
+- 状态：2026-08-03 已推送到 GitHub main，提交 7c18fa1
 - 提交命令：
 
 ```powershell
-git --git-dir=D:\autonomous-job-agent.git --work-tree=E:\autonomous-job-agent status
-git --git-dir=D:\autonomous-job-agent.git --work-tree=E:\autonomous-job-agent add .
-git --git-dir=D:\autonomous-job-agent.git --work-tree=E:\autonomous-job-agent commit -m "说明"
-git --git-dir=D:\autonomous-job-agent.git push
+git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent status
+git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent add .
+git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent commit -m "说明"
+git --git-dir=D:\autonomous-job-agent-repo\.git push
 ```
