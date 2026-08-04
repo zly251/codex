@@ -69,11 +69,7 @@ src/scrapers/*_orig_check.*
 /fix_*.py
 /refactor.mjs
 /selector_fix*.mjs
-/scripts/check-login.mjs
-/scripts/dry-run-filter.mjs
-/scripts/score-check.mjs
-/scripts/why-one.mjs
-/scripts/writer.mjs
+/scripts/*.mjs
 /src/debug*.js
 /src/diagDetail.js
 /src/test*.js
@@ -86,3 +82,6 @@ src/scrapers/*_orig_check.*
 /src/db/index2.ts
 /src/scrapers/bossScraper.ts
 /src/scrapers/interface.ts
+/chat_server.cjs
+/gh_response.txt
+/zhipin_debug.png
