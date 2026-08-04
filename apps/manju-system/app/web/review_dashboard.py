@@ -30,6 +30,10 @@ def create_app(project_dir=None):
     visual_judge_cfg = config.get("visual_judge", {})
     judge_running = set()
 
+    @app.route("/health")
+    def health():
+        return jsonify({"status": "ok"})
+
     def load_json(path):
         path = Path(path)
         if not path.exists():

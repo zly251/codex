@@ -10,8 +10,18 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=512"]
 
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
   - repo: local
     hooks:
+      - id: block-secret-files
+        name: block secret files
+        entry: python .pre-commit-hooks/block_secret_files.py
+        language: system
+        pass_filenames: false
       - id: ruff
         name: ruff
         entry: uv run ruff check --fix

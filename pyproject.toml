@@ -53,6 +53,13 @@ testpaths = [
 ]
 addopts = "--cov=apps --cov-report=term --cov-fail-under=50"
 
+[tool.semantic_release]
+version_toml = ["pyproject.toml:project.version"]
+branch = "main"
+tag_format = "v{version}"
+commit_author = "github-actions[bot]"
+commit_email = "41898282+github-actions[bot]@users.noreply.github.com"
+
 [tool.coverage.run]
 omit = [
     "*/tests/*",

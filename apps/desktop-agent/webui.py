@@ -20,6 +20,11 @@ app = Flask(__name__)
 tasks = {}
 
 
+@app.route("/health")
+def health():
+    return jsonify({"status": "ok"})
+
+
 def worker(task_id, cmd, api_key):
     q = tasks.get(task_id)
 

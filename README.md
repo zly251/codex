@@ -22,6 +22,8 @@ cd codex
 uv sync --all-packages
 ```
 
+也可以使用 `make install` 作为替代方案。
+
 3. 启动抖音桌面 Agent：
 
 ```bash
@@ -128,7 +130,7 @@ codex/
 - 共享公共库放在 `packages/`
 - 只提交源码，不提交 `.venv`、node_modules、模型、数据、exe、日志、密钥
 - 每个应用维护自己的 README、PROJECT_STATUS、.env.example
-- 提交格式：`feat: ...` / `fix: ...` / `docs: ...` / `chore: ...` / `test: ...`
+- 提交信息必须遵循 Conventional Commits：`feat: ...` / `fix: ...` / `docs: ...` / `chore: ...` / `test: ...`
 
 ## Git
 

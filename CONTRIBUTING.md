@@ -51,13 +51,13 @@ cp .env.example .env
 4. 提交并推送
 5. 创建 Pull Request
 
-## 提交格式
+## 提交格式（必须遵循 Conventional Commits）
 
-- `feat:` 新功能
-- `fix:` 修复
-- `docs:` 文档
-- `chore:` 工程化
-- `test:` 测试
+- `feat: ...` 新功能
+- `fix: ...` 修复
+- `docs: ...` 文档
+- `chore: ...` 工程化
+- `test: ...` 测试
 
 ## 规范
 

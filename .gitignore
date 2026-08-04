@@ -3,6 +3,9 @@ __pycache__/
 venv/
 env/
 data/
+!apps/manju-system/app/data/
+!apps/manju-system/app/data/**
+apps/manju-system/app/data/__pycache__/
 models/
 output/
 browser_data/
