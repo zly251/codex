@@ -56,19 +56,16 @@ export class BrowserManager {
         if (!b || !b.connected) {
             throw new Error("BrowserManager: 浏览器未连接，请先调用 connect()");
         }
-        // 优先复用已有的 zhipin.com 页面（已通过反爬验证）
-        const pages = await b.pages();
-        for (const p of pages) {
-            const url = p.url();
-            if (url.includes("zhipin.com") && !url.includes("/user/")) {
-                try { await p.bringToFront(); } catch (e) {}
-                return p;
-            }
-        }
-        // 没有可用页面时创建新标签页
-        const page = await b.newPage();
-        try { await page.bringToFront(); } catch (e) {}
-        return page;
+    // 优先复用已有的 zhipin.com 页面，避免搜索/同步等后台操作抢焦点
+    const pages = await b.pages();
+    for (const p of pages) {
+      const url = p.url();
+      if (url.includes("zhipin.com") && !url.includes("/user/")) {
+        return p;
+      }
+    }
+    // 没有可用页面时创建新标签页
+    return await b.newPage();
     }
     /**
      * 断开连接（不关闭 Edge 浏览器）

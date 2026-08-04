@@ -64,6 +64,7 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 
 - 登录态：固定复用 `.edge-profile`，Cookie 自动备份/恢复，未登录自动打开扫码页。
 - 稳定性：单实例顶替、看护不自杀式重启、空页 reload、失败保留页面、子进程隐藏窗口。
+- 页面管理：本地控制台通过 CDP 复用同一标签页，BOSS 只保留一个标签页，后台同步/搜索不再反复抢焦点。
 - 去重：启动时合并同一职位的重复投递记录，并建立 `Application(jobId)` 唯一索引。
 - 反馈同步：新增 `/api/boss/sync-feedback`，聊天监控每次扫描后同步，Web 控制台也提供手动按钮。
 - 平台抽象：路由不再直接依赖 BOSS，换平台只需实现 adapter 并设置 `JOB_PLATFORM`。

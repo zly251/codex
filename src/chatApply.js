@@ -77,6 +77,13 @@ export class AutoApplyBot {
       } catch (e) {}
     }
 
+    if (zhipinPages.length === 0) {
+      const page = await b.newPage();
+      this.page = page;
+      log("[page] 创建 BOSS 直聘标签页");
+      return page;
+    }
+
     let chosen = zhipinPages[0];
     for (const p of zhipinPages) {
       try {
@@ -85,7 +92,7 @@ export class AutoApplyBot {
       } catch (e) {}
     }
 
-    while (zhipinPages.length > 2) {
+    while (zhipinPages.length > 1) {
       const idx = zhipinPages.findIndex(function (p) { return p !== chosen; });
       if (idx < 0) break;
       const extra = zhipinPages.splice(idx, 1)[0];
@@ -93,7 +100,6 @@ export class AutoApplyBot {
     }
 
     this.page = chosen;
-    try { await this.page.bringToFront(); } catch (e) {}
     log("[page] 复用已打开的 BOSS 直聘标签页");
     return this.page;
 
@@ -131,7 +137,6 @@ export class AutoApplyBot {
   }
 
   async _humanMove(page, x, y) {
-    try { await page.bringToFront(); } catch (e) {}
     const startX = clamp(x - randBetween(160, 380), 20, 1400);
     const startY = clamp(y + randBetween(-160, 160), 20, 800);
     await page.mouse.move(startX, startY, { steps: Math.floor(randBetween(5, 12)) });
@@ -359,10 +364,16 @@ export class AutoApplyBot {
     return page;
   }
 
-  async _scanChatSessions() {
+  async _scanChatSessions(navigate = true) {
     const page = await this._getPage();
-    await this._navigateToChat();
-    await this._humanWait(1.5, 2.5);
+    if (!navigate && !page.url().includes("/chat")) {
+      log("[chat] 当前不在聊天页，本次跳过");
+      return [];
+    }
+    if (navigate) {
+      await this._navigateToChat();
+      await this._humanWait(1.5, 2.5);
+    }
     return await page.evaluate(() => {
       const rows = [];
       document.querySelectorAll('li[role="listitem"]').forEach((li) => {
@@ -438,7 +449,6 @@ export class AutoApplyBot {
         const title = job.title || job.name || "?";
         this._progress(options, i + 1, total, title, "打开职位页");
         log(`[${i + 1}/${total}] 打开职位: ${title} ${job.city || ""} ${job.district || ""}`);
-        try { await page.bringToFront(); } catch (e) {}
         await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
         await this._humanWait(2.5, 5);
         try { await page.waitForSelector("body", { timeout: 8000 }); } catch (e) {}
@@ -537,9 +547,11 @@ export class AutoApplyBot {
   }
 
   async monitorChat(onMsg, interval) {
+    let firstScan = true;
     const check = async () => {
       try {
-        const data = await this._scanChatSessions();
+        const data = await this._scanChatSessions(firstScan);
+        firstScan = false;
 
         log(`[chat] 扫描到 ${data.length} 个会话`);
         for (const c of data) {

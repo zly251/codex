@@ -64,6 +64,7 @@ function startCookieWatcher() {
 
 async function afterBrowserConnect() {
   state.status = "connected";
+  await closeExtraJobPages();
   await restorePlatformCookies();
   await savePlatformCookies();
   startCookieWatcher();
@@ -108,6 +109,32 @@ function getScraper() {
 function getBot() {
   if (!bot) bot = platform.createBot(getManager());
   return bot;
+}
+
+async function closeExtraJobPages() {
+  const b = getManager().browser;
+  if (!b?.connected) return;
+  let pages = [];
+  try {
+    pages = await b.pages();
+  } catch (e) {
+    return;
+  }
+  const jobPages = [];
+  for (const p of pages) {
+    try {
+      if (p.isClosed()) continue;
+      const u = p.url();
+      if (u.includes("zhipin.com") && !u.includes("about:")) jobPages.push(p);
+    } catch (e) {}
+  }
+  while (jobPages.length > 1) {
+    const extra = jobPages.pop();
+    try {
+      await extra.close();
+      liveLog.add("已关闭多余 BOSS 标签页");
+    } catch (e) {}
+  }
 }
 
 export function getStatus() {

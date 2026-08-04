@@ -9,7 +9,9 @@ export class BossApiScraper {
   async _getPage() {
     if (this._page && !this._page.isClosed()) { try { await this._page.evaluate("1+1"); return this._page; } catch {} }
     const b = this.manager.browser; if (!b?.connected) throw new Error("未连接");
-    this._page = await b.newPage(); await this._page.setViewport({ width:1400, height:900 }); return this._page;
+    this._page = await this.manager.getPage();
+    await this._page.setViewport({ width:1400, height:900 });
+    return this._page;
   }
 
   async searchJobs({ keyword="C++", city="", pages:pg=3 }={}) {

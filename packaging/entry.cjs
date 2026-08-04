@@ -238,6 +238,83 @@ function openUrl(url) {
   } catch (e) {}
 }
 
+function isAppTarget(t) {
+  if (!t || t.type !== "page") return false;
+  const u = t.url || "";
+  return u.startsWith("http://127.0.0.1:" + PORT) || u.startsWith("http://localhost:" + PORT);
+}
+
+async function closeTarget(id) {
+  try {
+    await fetch("http://127.0.0.1:" + CDP_PORT + "/json/close/" + encodeURIComponent(id), {
+      method: "PUT",
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {}
+}
+
+async function activateTarget(id) {
+  try {
+    await fetch("http://127.0.0.1:" + CDP_PORT + "/json/activate/" + encodeURIComponent(id), {
+      method: "PUT",
+      signal: AbortSignal.timeout(5000),
+    });
+  } catch (e) {}
+}
+
+async function openAppPage() {
+  try {
+    const res = await fetch("http://127.0.0.1:" + CDP_PORT + "/json/list", {
+      signal: AbortSignal.timeout(5000),
+    });
+    const list = await res.json();
+    const targets = (list || []).filter(isAppTarget);
+    if (targets.length > 0) {
+      const keep = targets[0];
+      for (let i = 1; i < targets.length; i++) {
+        await closeTarget(targets[i].id);
+      }
+      await activateTarget(keep.id);
+      return;
+    }
+    const newRes = await fetch("http://127.0.0.1:" + CDP_PORT + "/json/new?" + encodeURIComponent(SERVER_URL), {
+      method: "PUT",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (newRes.ok) return;
+  } catch (e) {
+    console.error("[launcher] open app page via CDP failed: " + (e && e.message));
+  }
+  openUrl(SERVER_URL);
+}
+
+async function ensureEdgeConnected() {
+  if (process.env.JOB_AGENT_NO_EDGE === "1") return;
+  let cdpOpen = await waitFor("http://127.0.0.1:" + CDP_PORT + "/json/version", 1500);
+  if (cdpOpen && process.env.JOB_AGENT_PROFILE_DIR) {
+    const running = getRunningProfile();
+    const matchesPreferred = running &&
+      normalizeProfile(running) === normalizeProfile(process.env.JOB_AGENT_PROFILE_DIR) &&
+      hasCookies(running);
+    if (!matchesPreferred) {
+      if (running) killProfileProcesses(running);
+      await new Promise(function (r) { setTimeout(r, 800); });
+      cdpOpen = false;
+    }
+  }
+  if (!cdpOpen) {
+    await launchEdge();
+  }
+  try {
+    await fetch(SERVER_URL + "/api/boss/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ host: "127.0.0.1", port: CDP_PORT }),
+      signal: AbortSignal.timeout(10000),
+    });
+  } catch (e) {}
+}
+
 function startEdgeWatchdog() {
   let failures = 0;
   setInterval(async function () {
@@ -277,7 +354,11 @@ async function main() {
   const serverRunning = await waitFor(SERVER_URL + '/api/stats', 2000);
   const replaced = serverRunning ? await stopExistingInstance() : false;
   if (serverRunning && !replaced) {
-    openUrl(SERVER_URL);
+    await ensureEdgeConnected();
+    startEdgeWatchdog();
+    if (process.env.JOB_AGENT_NO_OPEN !== '1') {
+      await openAppPage();
+    }
     return;
   }
   if (!serverRunning || replaced) {
@@ -290,37 +371,12 @@ async function main() {
     await waitFor(SERVER_URL + '/api/stats', 20000);
   }
 
-  if (process.env.JOB_AGENT_NO_EDGE !== '1') {
-    let cdpOpen = await waitFor('http://127.0.0.1:' + CDP_PORT + '/json/version', 1500);
-    if (cdpOpen && process.env.JOB_AGENT_PROFILE_DIR) {
-      const running = getRunningProfile();
-      const matchesPreferred = running &&
-        normalizeProfile(running) === normalizeProfile(process.env.JOB_AGENT_PROFILE_DIR) &&
-        hasCookies(running);
-      if (!matchesPreferred) {
-        if (running) killProfileProcesses(running);
-        await new Promise((r) => setTimeout(r, 800));
-        cdpOpen = false;
-      }
-    }
-    if (!cdpOpen) {
-      await launchEdge();
-    }
-
-    try {
-      await fetch(SERVER_URL + '/api/boss/connect', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ host: '127.0.0.1', port: CDP_PORT }),
-        signal: AbortSignal.timeout(10000),
-      });
-    } catch (e) {}
-  }
+  await ensureEdgeConnected();
 
   startEdgeWatchdog();
 
   if (process.env.JOB_AGENT_NO_OPEN !== '1') {
-    openUrl(SERVER_URL);
+    await openAppPage();
   }
 }
 

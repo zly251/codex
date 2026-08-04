@@ -63,7 +63,7 @@ export class BrowserManager {
       throw new Error("BrowserManager: 浏览器未连接，请先调用 connect()");
     }
 
-    // 优先复用已有的 zhipin.com 页面（已通过反爬验证）
+    // 优先复用已有的 zhipin.com 页面，避免搜索/同步等后台操作抢焦点
     const pages = await b.pages();
     for (const p of pages) {
       const url = p.url();
@@ -73,8 +73,7 @@ export class BrowserManager {
     }
 
     // 没有可用页面时创建新标签页
-    const page = await b.newPage();
-    return page;
+    return await b.newPage();
   }
 
   /**
