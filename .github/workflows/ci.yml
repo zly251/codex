@@ -12,6 +12,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.32"
@@ -32,6 +39,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.32"
@@ -57,6 +71,13 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: apps/autonomous-job-agent/package-lock.json
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: apps/autonomous-job-agent/node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('apps/autonomous-job-agent/package-lock.json') }}
+          restore-keys: |
+            node-modules-${{ runner.os }}-
       - name: Install Node dependencies
         run: npm install --no-audit --no-fund
         working-directory: apps/autonomous-job-agent

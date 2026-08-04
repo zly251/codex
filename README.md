@@ -46,12 +46,7 @@ npm run dev
 
 Manga Editor（第三方子模块）：
 
-```bash
-cd apps/manga-editor-desu
-npm install
-python 99_server.py
-
-```
+Manga Editor 是第三方 git 子模块，运行方式和依赖请以其子模块文档为准。
 
 ## Using Docker
 
@@ -76,6 +71,13 @@ uv sync --all-packages
 uv run --project apps/desktop-agent python webui.py
 cd apps/autonomous-job-agent && npm install && npm run dev
 ```
+
+## API 文档
+
+- desktop-agent（Flask Web/API）：本地 `http://127.0.0.1:5050`，接口说明见 [apps/desktop-agent/README.md](apps/desktop-agent/README.md)
+- manju-system（Flask Review API）：本地 `http://127.0.0.1:5001`，接口说明见 [apps/manju-system/README.md](apps/manju-system/README.md)
+
+这两个项目当前使用 Flask，没有 FastAPI 自动 `/docs` 路由。
 
 ## 项目列表
 

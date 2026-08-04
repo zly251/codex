@@ -46,9 +46,9 @@ BOSS直聘自动搜索、筛选、投递（打招呼）助手，本地运行，�
 双击 `求职助手.bat`，或手动运行：
 
 ```powershell
-cd E:\autonomous-job-agent
+cd apps/autonomous-job-agent
 npm install
-npx tsx server.mjs
+npm run dev
 ```
 
 浏览器打开 http://localhost:3456
