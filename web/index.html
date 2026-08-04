@@ -139,6 +139,14 @@ async function loadDashboard() {
     '<div class="card" style="text-align:center"><div style="font-size:32px;font-weight:700;color:#e65100">'+(d.interviews||0)+'</div><div style="font-size:13px;color:#666">面试</div></div>' +
     '<div class="card" style="text-align:center"><div style="font-size:32px;font-weight:700;color:#2e7d32">'+(d.offers||0)+'</div><div style="font-size:13px;color:#666">Offer</div></div>' +
     '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-top:12px">' +
+    '<div class="card" style="text-align:center"><div style="font-size:24px;font-weight:700;color:#e65100">'+(d.pending||0)+'</div><div style="font-size:13px;color:#666">待处理</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:24px;font-weight:700;color:#1565c0">'+(d.viewed||0)+'</div><div style="font-size:13px;color:#666">已查看</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:24px;font-weight:700;color:#7b1fa2">'+(d.replied||0)+'</div><div style="font-size:13px;color:#666">已回复</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:24px;font-weight:700;color:#c62828">'+(d.rejected||0)+'</div><div style="font-size:13px;color:#666">不合适</div></div>' +
+    '<div class="card" style="text-align:center"><div style="font-size:24px;font-weight:700;color:#2e7d32">'+(d.strategy&&d.strategy.recommendedMinMatch!=null?d.strategy.recommendedMinMatch:"-")+'%</div><div style="font-size:13px;color:#666">建议匹配度</div></div>' +
+    '</div>' +
+    '<div class="card" style="margin-top:12px"><strong style="font-size:14px">策略建议</strong><div style="margin-top:8px;font-size:13px;color:#555">'+(d.strategy&&d.strategy.insight||"")+' · 平均投递分 '+(d.strategy&&d.strategy.avgAppliedScore||0)+' · 回复率 '+(d.conversion&&d.conversion.replyRate||0)+'%</div></div>' +
     '<div class="card" style="margin-top:16px">' +
     '<div style="display:flex;align-items:center;gap:12px"><strong style="font-size:14px">快捷操作</strong></div>' +
     '<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">' +
@@ -341,7 +349,7 @@ async function loadApplications(status) {
   }
 
   h += '<div class="card" style="padding:0"><table>' +
-    '<tr><th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>状态</th><th>备注</th><th>时间</th><th>操作</th></tr>';
+    '<tr><th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>简历</th><th>状态</th><th>备注</th><th>时间</th><th>操作</th></tr>';
   apps.forEach(function(a){
     h += '<tr>' +
       '<td style="color:#999">'+a.id+'</td>' +
@@ -349,6 +357,7 @@ async function loadApplications(status) {
       '<td>'+(a.companyName||"-")+'</td>' +
       '<td>'+(a.salary||"-")+'</td>' +
       '<td>'+(a.city||"-")+'</td>' +
+      '<td>'+(a.resumeName||"-")+'</td>' +
       '<td><span class="badge '+(a.status||"pending")+'">'+(sm[a.status]||a.status)+'</span></td>' +
       '<td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+(a.notes||"")+'">'+(a.notes||"")+'</td>' +
       '<td style="font-size:11px;color:#999">'+(a.time||"").slice(0,10)+'</td>' +

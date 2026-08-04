@@ -18,9 +18,14 @@ function ensureDir(p) {
 
 function defaultRoot() {
   if (process.env.JOB_AGENT_DATA_DIR) return process.env.JOB_AGENT_DATA_DIR;
-  const existing = 'E:\\autonomous-job-agent';
-  if (fs.existsSync(existing)) return path.join(existing, 'portable');
-  return path.join(os.homedir(), 'AppData', 'Local', 'JobAgent');
+  const candidates = [
+    process.env.JOB_AGENT_HOME,
+    process.platform === 'win32' ? 'E:\\autonomous-job-agent' : null,
+    path.join(os.homedir(), '.autonomous-job-agent'),
+  ].filter(Boolean);
+  const existing = candidates.find(function (p) { return fs.existsSync(p); });
+  if (existing) return path.join(existing, 'portable');
+  return path.join(os.homedir(), '.autonomous-job-agent', 'portable');
 }
 
 const ROOT = defaultRoot();
@@ -37,15 +42,16 @@ function hasCookies(dir) {
 }
 
 function pickPrimaryProfile() {
-  const legacy = 'E:\\autonomous-job-agent\\.edge-profile';
-  if (hasCookies(legacy)) return legacy;
+  const legacy = process.platform === 'win32' ? 'E:\\autonomous-job-agent\\.edge-profile' : null;
+  if (legacy && hasCookies(legacy)) return legacy;
   const portableProfile = path.join(ROOT, '.edge-profile');
   if (hasCookies(portableProfile)) return portableProfile;
   return portableProfile;
 }
 
 function migrateLegacyProfile() {
-  const legacyProfile = 'E:\\autonomous-job-agent\\data\\profile.json';
+  const legacyProfile = process.platform === 'win32' ? 'E:\\autonomous-job-agent\\data\\profile.json' : null;
+  if (!legacyProfile) return;
   const targetProfile = path.join(ROOT, 'data', 'profile.json');
   if (fs.existsSync(targetProfile) || !fs.existsSync(legacyProfile)) return;
   try {

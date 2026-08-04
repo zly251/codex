@@ -3,11 +3,10 @@ import * as companyDb from "./db/company.js";
 import * as applicationDb from "./db/application.js";
 import * as resumeDb from "./db/resume.js";
 import { BrowserManager } from "./browser/browserManager.js";
-import { BossApiScraper } from "./scrapers/bossApi.js";
-import { AutoApplyBot } from "./chatApply.js";
 import * as liveLog from "./log.js";
 import { findEdgePath, launchEdge, waitForCDP, DEFAULT_PROFILE, FALLBACK_PROFILE } from "./edgeLauncher.js";
-import { scoreJob } from "./scoring.js";
+import { scoreJob, decideJob } from "./scoring.js";
+import { getPlatform } from "./platforms/index.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,85 +35,21 @@ var state = {
   progress: null,
 };
 var PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(PROJECT_ROOT, "data", "profile.json");
-
-var COOKIE_BACKUP_PATH = path.join(PROJECT_ROOT, "data", "boss-cookies.json");
+const platform = getPlatform();
 var cookieWatcher = null;
 
-function isZhipinDomain(domain) {
-  return typeof domain === "string" && (domain === "zhipin.com" || domain.endsWith(".zhipin.com"));
-}
-
-async function getZhipinPage() {
-  const mgr = getManager();
-  if (!mgr.browser?.connected) return null;
-  const pages = await mgr.browser.pages();
-  for (const p of pages) {
-    try {
-      if (p.url().includes("zhipin.com")) return p;
-    } catch (e) {}
-  }
-  return null;
-}
-
-async function isBossLoggedIn(page) {
+async function savePlatformCookies() {
   try {
-    return await page.evaluate(function () {
-      const t = document.body ? document.body.innerText : "";
-      return t.indexOf("登录/注册") < 0;
-    });
-  } catch (e) {
-    return false;
-  }
-}
-
-async function saveBossCookies() {
-  try {
-    const page = await getZhipinPage();
-    if (!page) return;
-    const loggedIn = await isBossLoggedIn(page);
-    if (!loggedIn) return;
-    const client = await page.createCDPSession();
-    const data = await client.send("Network.getAllCookies");
-    const cookies = (data.cookies || []).filter(function (c) { return isZhipinDomain(c.domain); });
-    if (cookies.length === 0) return;
-    const json = JSON.stringify(cookies);
-    let prev = "";
-    try { prev = fs.readFileSync(COOKIE_BACKUP_PATH, "utf8"); } catch (e) {}
-    if (prev === json) return;
-    fs.writeFileSync(COOKIE_BACKUP_PATH, json, "utf8");
-    liveLog.add("BOSS 登录 Cookie 已备份 (" + cookies.length + " 条)");
+    const result = await platform.saveCookies(getManager(), PROJECT_ROOT);
+    if (result?.saved) liveLog.add(`${platform.name} 登录 Cookie 已备份 (${result.count} 条)`);
   } catch (e) {}
 }
 
-async function restoreBossCookies() {
+async function restorePlatformCookies() {
   try {
-    if (!fs.existsSync(COOKIE_BACKUP_PATH)) return 0;
-    const cookies = JSON.parse(fs.readFileSync(COOKIE_BACKUP_PATH, "utf8"));
-    if (!Array.isArray(cookies) || cookies.length === 0) return 0;
-    const page = await getZhipinPage();
-    if (!page) return 0;
-    const loggedIn = await isBossLoggedIn(page);
-    if (loggedIn) return cookies.length;
-    const client = await page.createCDPSession();
-    const payload = cookies.map(function (c) {
-      return {
-        name: c.name,
-        value: c.value,
-        domain: c.domain,
-        path: c.path || "/",
-        expires: typeof c.expires === "number" ? c.expires : -1,
-        httpOnly: !!c.httpOnly,
-        secure: !!c.secure,
-        sameSite: c.sameSite || "Lax",
-        priority: c.priority || "Medium",
-      };
-    });
-    await client.send("Network.setCookies", { cookies: payload });
-    liveLog.add("已恢复 BOSS 登录 Cookie (" + payload.length + " 条)");
-    try {
-      await page.reload({ waitUntil: "domcontentloaded", timeout: 15000 });
-    } catch (e) {}
-    return payload.length;
+    const result = await platform.restoreCookies(getManager(), PROJECT_ROOT);
+    if (result?.restored) liveLog.add(`已恢复 ${platform.name} 登录 Cookie (${result.count} 条)`);
+    return result?.restored ? result.count : 0;
   } catch (e) {
     return 0;
   }
@@ -123,19 +58,23 @@ async function restoreBossCookies() {
 function startCookieWatcher() {
   if (cookieWatcher) return;
   cookieWatcher = setInterval(function () {
-    saveBossCookies().catch(function () {});
+    savePlatformCookies().catch(function () {});
   }, 15000);
 }
 
 async function afterBrowserConnect() {
   state.status = "connected";
-  await restoreBossCookies();
-  await saveBossCookies();
+  await restorePlatformCookies();
+  await savePlatformCookies();
   startCookieWatcher();
+  try {
+    const page = await platform.findJobPage(getManager());
+    if (page && !(await platform.isLoggedIn(page))) {
+      liveLog.add(`${platform.name} 未登录，打开登录页`);
+      try { await page.goto(platform.loginUrl, { waitUntil: "domcontentloaded", timeout: 15000 }); } catch (e) {}
+    }
+  } catch (e) {}
 }
-
-// 禁止投递的公司黑名单（命中公司名称即跳过）
-const BLOCKED_COMPANIES = ["甲骨科技", "比伦纺织科技", "教育", "培训学校"];
 
 function getJobCompanyName(j) {
   if (j.companyId) {
@@ -149,7 +88,7 @@ function getJobCompanyName(j) {
 
 function isBlockedCompany(j) {
   const name = getJobCompanyName(j);
-  return BLOCKED_COMPANIES.some((b) => name.includes(b));
+  return (platform.blockedCompanies || []).some((b) => name.includes(b));
 }
 
 function getProfile() {
@@ -162,12 +101,12 @@ function getManager() {
 }
 
 function getScraper() {
-  if (!scraper) scraper = new BossApiScraper(getManager());
+  if (!scraper) scraper = platform.createScraper(getManager());
   return scraper;
 }
 
 function getBot() {
-  if (!bot) bot = new AutoApplyBot(getManager());
+  if (!bot) bot = platform.createBot(getManager());
   return bot;
 }
 
@@ -196,16 +135,16 @@ async function ensureEdgeLaunched(host, port) {
   let lastErr = null;
   for (const dir of profiles) {
     try {
-      liveLog.add("自动启动 Edge: " + exe);
+      liveLog.add("自动启动浏览器: " + exe);
       await launchEdge({ profileDir: dir, host, port });
       await waitForCDP(host, port, 20000);
-      liveLog.add("Edge CDP 端口已就绪");
+      liveLog.add("浏览器 CDP 端口已就绪");
       return true;
     } catch (e) {
       lastErr = e;
     }
   }
-  throw new Error("Edge 启动失败: " + (lastErr?.message || ""));
+  throw new Error("浏览器启动失败: " + (lastErr?.message || ""));
 }
 
 export async function handleLaunch(req, res, body) {
@@ -295,15 +234,20 @@ export async function handleSearch(req, res, body) {
 export async function handleApply(req, res, body) {
   try {
     const mgr = getManager();
-    if (!mgr.browser?.connected) {
-      json(res, { ok: false, error: "浏览器未连接，请先连接 Edge" }, 400);
+    const b = getBot();
+    if (b.running || state.running || state.chatActive) {
+      json(res, { ok: false, error: "已有投递任务运行中，请先停止", busy: true }, 409);
       return;
     }
-    const loginPage = await getZhipinPage();
-    if (!loginPage || !(await isBossLoggedIn(loginPage))) {
-      liveLog.add("BOSS 未登录，请先在自动打开的 BOSS 页面扫码登录后再投递");
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接，请先连接浏览器" }, 400);
+      return;
+    }
+    const loginPage = await platform.findJobPage(getManager());
+    if (!loginPage || !(await platform.isLoggedIn(loginPage))) {
+      liveLog.add(`${platform.name} 未登录，请先扫码登录后再投递`);
       try { await loginPage?.bringToFront(); } catch (e) {}
-      json(res, { ok: false, error: "BOSS 未登录，请先扫码登录", needLogin: true }, 400);
+      json(res, { ok: false, error: `${platform.name} 未登录，请先扫码登录`, needLogin: true }, 400);
       return;
     }
     const jobId = body?.jobId ? Number(body.jobId) : null;
@@ -326,7 +270,7 @@ export async function handleApply(req, res, body) {
     }
 
     if (allJobs.length === 0 && !jobId) {
-      liveLog.add("数据库为空，实时搜索 BOSS 直聘...");
+      liveLog.add(`数据库为空，实时搜索 ${platform.name}...`);
       try {
         const s = getScraper();
         const kw = filterKeywords.split(/[,\u3001\/]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; })[0] || "C++";
@@ -371,24 +315,33 @@ export async function handleApply(req, res, body) {
     const scored = allJobs.map(function (j) {
       const s = scoreJob(j, profile);
       try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
-      return { job: j, match: s.score / 100 };
+      return { job: j, match: s.score / 100, score: s.score };
+    });
+
+    const decisions = { AUTO_APPLY: 0, REVIEW: 0, IGNORE: 0 };
+    scored.forEach(function (s) {
+      decisions[decideJob(s.score, minMatch * 100)]++;
     });
 
     const jobs = scored
       .filter(function (s) { return s.match >= minMatch; })
       .sort(function (a, b) { return b.match - a.match; })
       .slice(0, limit)
-      .map(function (s) { return s.job; });
+      .map(function (s) {
+        const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+        const resume = resumeDb.findBestMatch(techs);
+        return Object.assign({}, s.job, { resumeId: resume ? resume.id : null });
+      });
 
     if (jobs.length === 0) {
       json(res, { ok: true, applied: 0, total: 0, message: "没有匹配的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）" });
       return;
     }
 
-    liveLog.add(`已排除黑名单公司: ${BLOCKED_COMPANIES.join(", ")}`);
+    liveLog.add(`已排除黑名单公司: ${(platform.blockedCompanies || []).join(", ")}`);
     liveLog.add(`筛选出 ${jobs.length} 个职位，随机延迟 ${delayMin}-${delayMax} 秒，开始投递`);
+    liveLog.add(`决策: 自动投递 ${decisions.AUTO_APPLY} / 待确认 ${decisions.REVIEW} / 忽略 ${decisions.IGNORE}`);
 
-    const b = getBot();
     b.running = true;
     state.running = true;
     state.progress = { current: 0, total: jobs.length, title: "", step: "准备中" };
@@ -405,12 +358,13 @@ export async function handleApply(req, res, body) {
         applied: result.applied || 0,
         failed: result.failed || 0,
         total: jobs.length,
+        decisions: decisions,
         results: result.results || [],
       });
     } finally {
       b.running = false;
       state.running = false;
-      await saveBossCookies().catch(function () {});
+      await savePlatformCookies().catch(function () {});
     }
   } catch (e) {
     state.lastError = e.message;
@@ -427,6 +381,10 @@ export async function handleChatStart(req, res, body) {
       return;
     }
     const b = getBot();
+    if (b.running || state.running || state.chatActive) {
+      json(res, { ok: false, error: "已有任务运行中，请先停止", busy: true }, 409);
+      return;
+    }
     b.running = true;
     state.chatActive = true;
     b.monitorChat(async (chat) => {

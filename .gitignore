@@ -59,3 +59,24 @@ packaging/test-out*.txt
 prisma/*.db*
 src/scrapers/*.bakcheck
 src/scrapers/*_orig_check.*
+
+# Diagnostic/temp scripts, not part of the application
+/click_fix*.mjs
+/edit_*.mjs
+/edit_*.ps1
+/edit_*.py
+/fix_*.mjs
+/fix_*.py
+/refactor.mjs
+/selector_fix*.mjs
+/scripts/check-login.mjs
+/scripts/dry-run-filter.mjs
+/scripts/score-check.mjs
+/scripts/why-one.mjs
+/scripts/writer.mjs
+/src/debug*.js
+/src/diagDetail.js
+/src/test*.js
+/src/db/index2.js
+/src/scrapers/bossScraper.js
+/src/scrapers/interface.js

@@ -34,6 +34,7 @@ export class BrowserManager {
         this.browser = await puppeteer.connect({
             browserWSEndpoint: this.wsEndpoint,
             defaultViewport: null,
+            protocolTimeout: 60000,
         });
         // 监听断开事件，触发自动重连（非主动断开时）
         this.browser.on("disconnected", () => {

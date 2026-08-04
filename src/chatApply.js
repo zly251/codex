@@ -59,31 +59,50 @@ export class AutoApplyBot {
       } catch (e) {}
     }
 
+    let chosen = zhipinPages[0];
+    for (const p of zhipinPages) {
+      try {
+        const t = await p.evaluate(function () { return document.body ? document.body.innerText : ""; });
+        if (t.indexOf("登录/注册") < 0) { chosen = p; break; }
+      } catch (e) {}
+    }
+
     while (zhipinPages.length > 2) {
-      const extra = zhipinPages.pop();
+      const idx = zhipinPages.findIndex(function (p) { return p !== chosen; });
+      if (idx < 0) break;
+      const extra = zhipinPages.splice(idx, 1)[0];
       try { await extra.close(); log("[page] 关闭多余标签页"); } catch (e) {}
     }
 
-    if (zhipinPages.length > 0) {
-      this.page = zhipinPages[0];
-      try { await this.page.bringToFront(); } catch (e) {}
-      log("[page] 复用已打开的 BOSS 直聘标签页");
-      return this.page;
-    }
-
-    this.page = await b.newPage();
-    await this.page.setViewport({ width: 1400, height: 900 }).catch(() => {});
+    this.page = chosen;
     try { await this.page.bringToFront(); } catch (e) {}
-    log("[page] 新建标签页");
+    log("[page] 复用已打开的 BOSS 直聘标签页");
     return this.page;
+
+    throw new Error("BOSS 标签页已关闭，请重启应用或手动打开 BOSS 直聘");
   }
 
   async _closeCurrentPage() {
     const p = this.page;
     this.page = null;
-    if (p && !p.isClosed()) {
-      try { await p.close(); log("[page] 已关闭异常页面"); } catch (e) {}
+    if (!p || p.isClosed()) return;
+    let zhipinCount = 0;
+    try {
+      const pages = await this.manager.browser.pages();
+      for (const x of pages) {
+        if (x.isClosed()) continue;
+        const u = x.url();
+        if (u.includes("zhipin") && !u.includes("about:")) zhipinCount++;
+      }
+    } catch (e) {}
+    if (zhipinCount <= 1) {
+      try {
+        log("[page] 保留最后一个 BOSS 页面");
+        await p.goto("https://www.zhipin.com/web/geek/jobs", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
+      } catch (e) {}
+      return;
     }
+    try { await p.close(); log("[page] 已关闭异常页面"); } catch (e) {}
   }
 
   async _humanWait(minSec, maxSec) {
@@ -336,9 +355,18 @@ export class AutoApplyBot {
         await this._humanWait(2.5, 5);
         try { await page.waitForSelector("body", { timeout: 8000 }); } catch (e) {}
 
-        const state0 = await this._checkPageState(page);
-        const bodyText = await page.evaluate(() => document.body?.innerText || "").catch(() => "");
-        const blockedHint = BLOCKED_HINTS.find((h) => bodyText.includes(h));
+        let state0 = await this._checkPageState(page);
+        let bodyText = await page.evaluate(() => document.body?.innerText || "").catch(() => "");
+        let blockedHint = BLOCKED_HINTS.find((h) => bodyText.includes(h));
+        if (!state0 || state0.textLen < 30) {
+          log(`[${i + 1}/${total}] 页面内容不足，等待重新加载: ${title}`);
+          await this._humanWait(3, 5);
+          try { await page.reload({ waitUntil: "domcontentloaded", timeout: 15000 }); } catch (e) {}
+          await this._humanWait(2, 4);
+          state0 = await this._checkPageState(page);
+          bodyText = await page.evaluate(() => document.body?.innerText || "").catch(() => "");
+          blockedHint = BLOCKED_HINTS.find((h) => bodyText.includes(h));
+        }
         if (!state0 || state0.textLen < 30 || blockedHint) {
           failed++;
           results.push({ job: title, status: "blocked", reason: blockedHint || "页面无内容" });
@@ -347,7 +375,7 @@ export class AutoApplyBot {
             this.running = false;
             return { applied, failed, total: applied + failed, results };
           }
-          log(`[${i + 1}/${total}] 页面无法查看（${blockedHint || "内容为空"}），关闭该页继续: ${title}`);
+          log(`[${i + 1}/${total}] 页面无法查看（${blockedHint || "内容为空"}），保留页面继续: ${title}`);
           try { await page.screenshot({ path: "data/last_blocked.png", fullPage: false }).catch(() => {}); } catch (e) {}
           await this._closeCurrentPage();
           if (this.running && i < total - 1) await this._humanWait(delayMin, delayMax);
@@ -388,7 +416,7 @@ export class AutoApplyBot {
 
           if (verified) {
             applied++;
-            try { applicationDb.create({ jobId: job.id, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
+            try { applicationDb.create({ jobId: job.id, resumeId: job.resumeId || null, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
             results.push({ job: title, status: "ok", verified: true });
             log(`[${i + 1}/${total}] 复核通过，确认已打招呼: ${title}`);
           } else {

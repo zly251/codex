@@ -8,7 +8,9 @@ const { spawn, execFileSync } = require('node:child_process');
 const { createRequire } = require('node:module');
 
 const SERVER_URL = 'http://127.0.0.1:' + (process.env.PORT || 3456);
+const PORT = Number(process.env.PORT) || 3456;
 const CDP_PORT = 9222;
+const PLATFORM = process.platform;
 let edgeLock = false;
 
 async function waitFor(url, timeoutMs) {
@@ -23,9 +25,61 @@ async function waitFor(url, timeoutMs) {
   return false;
 }
 
-function findEdgePath() {
+function getServerPid() {
+  try {
+    if (PLATFORM === 'win32') {
+      const ps = "(Get-NetTCPConnection -State Listen -LocalPort " + PORT + " -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | Select-Object -First 1)";
+      const out = execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8', timeout: 8000, windowsHide: true });
+      const n = parseInt((out || '').trim(), 10);
+      return Number.isFinite(n) ? n : null;
+    }
+    try {
+      const out = execFileSync('lsof', ['-ti', 'tcp:' + PORT], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+      const n = parseInt((out || '').trim().split(/\r?\n/)[0], 10);
+      if (Number.isFinite(n)) return n;
+    } catch (e) {}
+    const netstat = execFileSync('netstat', ['-tlnp'], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+    for (const line of (netstat || '').split(/\r?\n/)) {
+      if (line.indexOf(':' + PORT) === -1) continue;
+      const m = line.match(/\s(\d+)\/(\S+)/);
+      if (m) return Number(m[1]);
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function isOurServer() {
+  try {
+    const res = await fetch(SERVER_URL + '/api/boss/status', { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data && typeof data.browserConnected === 'boolean';
+  } catch (e) {
+    return false;
+  }
+}
+
+async function stopExistingInstance() {
+  if (!(await isOurServer())) return false;
+  const pid = getServerPid();
+  if (!pid) return false;
+  try {
+    if (PLATFORM === 'win32') {
+      execFileSync('powershell.exe', ['-NoProfile', '-Command', 'Stop-Process -Id ' + pid + ' -Force'], { stdio: 'ignore', timeout: 8000, windowsHide: true });
+    } else {
+      execFileSync('kill', ['-9', String(pid)], { stdio: 'ignore', timeout: 8000 });
+    }
+  } catch (e) {}
+  await new Promise((r) => setTimeout(r, 1500));
+  return true;
+}
+
+function findBrowserPath() {
+  const envPath = process.env.BROWSER_PATH || process.env.EDGE_PATH;
+  if (envPath && fs.existsSync(envPath)) return envPath;
   const candidates = [
-    process.env.EDGE_PATH,
     'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge Beta\\Application\\msedge.exe',
@@ -33,20 +87,44 @@ function findEdgePath() {
     'C:\\Program Files (x86)\\Microsoft\\Edge Dev\\Application\\msedge.exe',
     'C:\\Program Files\\Microsoft\\Edge Dev\\Application\\msedge.exe',
     'C:\\Program Files (x86)\\Microsoft\\Edge Canary\\Application\\msedge.exe',
-    'C:\\Program Files\\Microsoft\\Edge Canary\\Application\\msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/Applications/Chromium.app/Contents/MacOS/Chromium',
+    '/usr/bin/google-chrome',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/chromium',
+    '/usr/bin/chromium-browser',
+    '/usr/bin/microsoft-edge',
+    '/opt/google/chrome/chrome',
+    '/snap/bin/chromium',
   ].filter(Boolean);
   for (const p of candidates) {
     try {
       if (fs.existsSync(p)) return p;
     } catch (e) {}
   }
+  if (PLATFORM !== 'win32') {
+    for (const cmd of ['google-chrome', 'google-chrome-stable', 'chromium', 'chromium-browser', 'microsoft-edge']) {
+      try {
+        const out = execFileSync('which', [cmd], { encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore'] });
+        const p = (out || '').trim().split(/\r?\n/)[0];
+        if (p && fs.existsSync(p)) return p;
+      } catch (e) {}
+    }
+  }
   return null;
 }
 
+const findEdgePath = findBrowserPath;
+
 function killProfileProcesses(profileDir) {
   try {
-    const ps = "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | Where-Object { $_.CommandLine -like '*" + profileDir.replace(/'/g, "''") + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
-    execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { stdio: 'ignore', timeout: 8000, windowsHide: true });
+    if (PLATFORM === 'win32') {
+      const ps = "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' OR Name='chrome.exe' OR Name='chromium.exe'\" | Where-Object { $_.CommandLine -like '*" + profileDir.replace(/'/g, "''") + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+      execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { stdio: 'ignore', timeout: 8000, windowsHide: true });
+    } else {
+      execFileSync('pkill', ['-f', '--', '--user-data-dir=' + profileDir], { stdio: 'ignore', timeout: 8000 });
+    }
   } catch (e) {}
 }
 
@@ -69,8 +147,13 @@ function normalizeProfile(p) {
 
 function getRunningProfile() {
   try {
-    const ps = "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe'\" | Select-Object -ExpandProperty CommandLine";
-    const out = execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8', timeout: 8000, windowsHide: true });
+    let out = '';
+    if (PLATFORM === 'win32') {
+      const ps = "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' OR Name='chrome.exe' OR Name='chromium.exe'\" | Select-Object -ExpandProperty CommandLine";
+      out = execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8', timeout: 8000, windowsHide: true });
+    } else {
+      out = execFileSync('ps', ['-eo', 'args'], { encoding: 'utf8', timeout: 8000, stdio: ['ignore', 'pipe', 'ignore'] });
+    }
     const lines = out.split(/\r?\n/).map(function (s) { return s.trim(); }).filter(Boolean);
     for (const line of lines) {
       if (line.indexOf('--remote-debugging-port=' + CDP_PORT) === -1) continue;
@@ -85,12 +168,9 @@ function getRunningProfile() {
   return null;
 }
 
-function cdpPortOpen() {
+async function cdpPortOpen() {
   try {
-    const ps = "(Get-NetTCPConnection -State Listen -LocalPort " + CDP_PORT + " -ErrorAction SilentlyContinue | Measure-Object).Count";
-    const out = execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { encoding: 'utf8', timeout: 5000, windowsHide: true });
-    const n = parseInt((out || '').trim(), 10);
-    return n > 0;
+    return await waitFor('http://127.0.0.1:' + CDP_PORT + '/json/version', 1200);
   } catch (e) {
     return false;
   }
@@ -107,7 +187,7 @@ function appendWatchdogLog(msg) {
 async function launchEdge() {
   if (edgeLock) return false;
   edgeLock = true;
-  const exe = findEdgePath();
+  const exe = findBrowserPath();
   try {
     if (!exe) return false;
     const profiles = [
@@ -127,9 +207,9 @@ async function launchEdge() {
         '--start-maximized',
         '--no-first-run',
         '--disable-notifications',
-        'https://www.zhipin.com',
+        process.env.JOB_AGENT_START_URL || 'https://www.zhipin.com',
       ];
-      const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: true });
+      const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: PLATFORM === 'win32' });
       child.unref();
       if (await waitFor('http://127.0.0.1:' + CDP_PORT + '/json/version', 20000)) return true;
     }
@@ -141,7 +221,19 @@ async function launchEdge() {
 
 function openUrl(url) {
   try {
-    const child = spawn('cmd.exe', ['/c', 'start', '', url], { detached: true, stdio: 'ignore', windowsHide: true });
+    let cmd;
+    let args;
+    if (PLATFORM === 'win32') {
+      cmd = 'cmd.exe';
+      args = ['/c', 'start', '', url];
+    } else if (PLATFORM === 'darwin') {
+      cmd = 'open';
+      args = [url];
+    } else {
+      cmd = 'xdg-open';
+      args = [url];
+    }
+    const child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: PLATFORM === 'win32' });
     child.unref();
   } catch (e) {}
 }
@@ -150,7 +242,7 @@ function startEdgeWatchdog() {
   let failures = 0;
   setInterval(async function () {
     if (process.env.JOB_AGENT_NO_EDGE === '1') return;
-    const portOk = cdpPortOpen();
+    const portOk = await cdpPortOpen();
     if (portOk) {
       failures = 0;
       return;
@@ -183,7 +275,12 @@ function startEdgeWatchdog() {
 async function main() {
   const ROOT = process.env.JOB_AGENT_ROOT;
   const serverRunning = await waitFor(SERVER_URL + '/api/stats', 2000);
-  if (!serverRunning) {
+  const replaced = serverRunning ? await stopExistingInstance() : false;
+  if (serverRunning && !replaced) {
+    openUrl(SERVER_URL);
+    return;
+  }
+  if (!serverRunning || replaced) {
     const serverPath = process.env.JOB_AGENT_SERVER_BUNDLE || path.join(ROOT, 'server', 'server.cjs');
     try {
       createRequire(process.execPath)(serverPath);
