@@ -14,6 +14,10 @@ export function findByJobId(jobId) { return getDb().prepare("SELECT * FROM Appli
 
 export function create(data) {
   var d = getDb();
+  if (data.jobId) {
+    var existing = findByJobId(data.jobId);
+    if (existing) return existing;
+  }
   var info = d.prepare("INSERT INTO Application (status, resumeId, jobId, notes, appliedAt) VALUES (?, ?, ?, ?, datetime('now'))").run(data.status||"pending", data.resumeId||null, data.jobId||null, data.notes||null);
   return findById(info.lastInsertRowid);
 }

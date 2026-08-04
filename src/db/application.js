@@ -12,6 +12,10 @@ export function findById(id) { return getDb().prepare("SELECT * FROM Application
 export function findByJobId(jobId) { return getDb().prepare("SELECT * FROM Application WHERE jobId = ? ORDER BY updatedAt DESC LIMIT 1").get(jobId); }
 export function create(data) {
     var d = getDb();
+    if (data.jobId) {
+        var existing = findByJobId(data.jobId);
+        if (existing) return existing;
+    }
     var info = d.prepare("INSERT INTO Application (status, resumeId, jobId, notes, appliedAt) VALUES (?, ?, ?, ?, datetime('now'))").run(data.status || "pending", data.resumeId || null, data.jobId || null, data.notes || null);
     return findById(info.lastInsertRowid);
 }

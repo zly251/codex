@@ -25,6 +25,43 @@ function migrateLegacyDb() {
   }
 }
 
+function applicationStatusRank(status) {
+  if (status === "offer") return 5;
+  if (status === "interview") return 4;
+  if (status === "rejected") return 3;
+  if (status === "replied") return 2;
+  if (status === "viewed") return 1;
+  return 0;
+}
+
+function migrateDuplicateApplications() {
+  var d = getDb();
+  var dupRows = d.prepare("SELECT jobId FROM Application WHERE jobId IS NOT NULL GROUP BY jobId HAVING COUNT(*) > 1").all();
+  if (dupRows.length === 0) return;
+  var mergeStmt = d.prepare(
+    "UPDATE Application SET status = ?, notes = ?, appliedAt = ?, viewedAt = COALESCE(viewedAt, ?), repliedAt = COALESCE(repliedAt, ?), interviewAt = COALESCE(interviewAt, ?), offerAt = COALESCE(offerAt, ?), feedback = COALESCE(feedback, ?), resumeId = COALESCE(resumeId, ?), updatedAt = datetime('now') WHERE id = ?"
+  );
+  var deleteStmt = d.prepare("DELETE FROM Application WHERE id = ?");
+  for (var i = 0; i < dupRows.length; i++) {
+    var apps = d.prepare("SELECT * FROM Application WHERE jobId = ? ORDER BY id ASC").all(dupRows[i].jobId);
+    var keeper = apps[0];
+    for (var j = 1; j < apps.length; j++) {
+      if (applicationStatusRank(apps[j].status) > applicationStatusRank(keeper.status)) keeper = apps[j];
+    }
+    for (var k = 0; k < apps.length; k++) {
+      var app = apps[k];
+      if (app.id === keeper.id) continue;
+      var higher = applicationStatusRank(app.status) > applicationStatusRank(keeper.status);
+      var nextStatus = higher ? app.status : keeper.status;
+      var nextNotes = higher ? (app.notes || keeper.notes) : (keeper.notes || app.notes);
+      var nextAppliedAt = app.appliedAt && (!keeper.appliedAt || app.appliedAt < keeper.appliedAt) ? app.appliedAt : keeper.appliedAt;
+      mergeStmt.run(nextStatus, nextNotes, nextAppliedAt, app.viewedAt, app.repliedAt, app.interviewAt, app.offerAt, app.feedback, app.resumeId, keeper.id);
+      deleteStmt.run(app.id);
+    }
+  }
+  console.log("[db] merged duplicate applications: " + dupRows.length + " jobs");
+}
+
 export function getDb() {
     if (!db) {
         migrateLegacyDb();
@@ -42,6 +79,8 @@ export function getDbPath() { return DB_PATH; }
 export function initDb() {
     var d = getDb();
     d.exec(SCHEMA_SQL);
+    migrateDuplicateApplications();
+    d.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_application_jobId_unique ON Application(jobId);");
     console.log("[db] DB ready: " + DB_PATH);
 }
 export function resetDb() {
