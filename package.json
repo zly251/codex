@@ -4,8 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test:db": "npx tsx src/testDb.ts",
-    "test:boss": "npx tsx src/testBossScraper.ts",
     "import:resume": "npx tsx scripts/import-resume.ts"
   },
   "dependencies": {

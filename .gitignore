@@ -80,3 +80,9 @@ src/scrapers/*_orig_check.*
 /src/db/index2.js
 /src/scrapers/bossScraper.js
 /src/scrapers/interface.js
+/src/debug*.ts
+/src/diagDetail.ts
+/src/test*.ts
+/src/db/index2.ts
+/src/scrapers/bossScraper.ts
+/src/scrapers/interface.ts
