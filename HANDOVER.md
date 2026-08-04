@@ -12,7 +12,7 @@
 - Git 工作区：`E:\autonomous-job-agent`
 - 已推送：`06e6f8c`（清理）、`a378bec`（debug 清理）、`4d4d355`（平台抽象+跨平台）
 - 当前登录态：Cookie 已备份；失效时自动打开 BOSS 扫码页
-- 仓库状态：git 工作区干净，临时脚本已从 git 和本地删除
+- 仓库状态：反馈同步功能已开发、打包并验证
 - E 盘删除权限已补：`LAPTOP-5M3QFS52\asus:(OI)(CI)(D,DC)`
 
 ## 项目用途
@@ -35,7 +35,7 @@
 - 登录配置：`.edge-profile/`，备用 `.edge-profile-2/`
 - Cookie 备份：`portable/data/boss-cookies.json`
 - 用户档案：`portable/data/profile.json`
-- 数据库：`%TEMP%\autonomous-job-agent\dev.db`
+- 数据库：`portable/data/job-agent.db`，旧临时库首次启动会自动迁移
 
 ## 常用命令
 
@@ -64,6 +64,7 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 
 - 登录态：固定复用 `.edge-profile`，Cookie 自动备份/恢复，未登录自动打开扫码页。
 - 稳定性：单实例顶替、看护不自杀式重启、空页 reload、失败保留页面、子进程隐藏窗口。
+- 反馈同步：新增 `/api/boss/sync-feedback`，聊天监控每次扫描后同步，Web 控制台也提供手动按钮。
 - 平台抽象：路由不再直接依赖 BOSS，换平台只需实现 adapter 并设置 `JOB_PLATFORM`。
 - 跨平台：浏览器发现、进程清理、端口检查、打开 URL 均按平台实现。
 - 清理：所有历史 debug/test/临时脚本已从 git 和本地删除，`.gitignore` 已补规则。

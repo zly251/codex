@@ -1,4 +1,6 @@
 import * as applicationDb from "./db/application.js";
+import * as companyDb from "./db/company.js";
+import * as jobDb from "./db/job.js";
 import * as liveLog from "./log.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -28,6 +30,22 @@ const SEND_SELECTORS = [
 ];
 
 const BLOCKED_HINTS = ["验证码", "安全验证", "访问异常", "访问过于频繁", "系统繁忙", "请登录", "扫码登录"];
+
+function normalizeCompany(name) {
+  return String(name || "")
+    .toLowerCase()
+    .replace(/股份有限公司|有限责任公司|有限公司/g, "")
+    .replace(/[^a-z0-9\u4e00-\u9fff]/g, "");
+}
+
+function feedbackStatusFromMessage(msg) {
+  const text = String(msg || "").toLowerCase();
+  if (/offer|录用|入职|恭喜/.test(text)) return "offer";
+  if (/面试|面谈|面聊|复试|初试/.test(text)) return "interview";
+  if (/不合适|不匹配|招满|暂不|不考虑|不需要|不录用|停止|抱歉|遗憾|已关闭|不符合/.test(text)) return "rejected";
+  if (text.trim()) return "replied";
+  return null;
+}
 
 export class AutoApplyBot {
   constructor(bm, style) {
@@ -250,6 +268,17 @@ export class AutoApplyBot {
   async _navigateToChat() {
     const page = await this._getPage();
     let url = page.url();
+    if (url.includes("/web/geek/chat") || url.includes("/chat")) {
+      return page;
+    }
+    try {
+      await page.goto("https://www.zhipin.com/web/geek/chat?ka=header-message", { waitUntil: "domcontentloaded", timeout: 15000 });
+      if (!page.url().includes("/chat")) log("[nav] 直达聊天页未跳转: " + page.url().slice(0, 80));
+    } catch (e) {
+      log("[nav] 直达聊天页失败: " + (e.message || "").slice(0, 80));
+    }
+    await this._humanWait(2, 4);
+    if (page.url().includes("/chat")) return page;
     if (!url.includes("zhipin.com")) {
       log("[nav] 打开 BOSS 直聘职位页...");
       await page.goto("https://www.zhipin.com/web/geek/jobs", { waitUntil: "domcontentloaded", timeout: 15000 }).catch(() => {});
@@ -328,6 +357,65 @@ export class AutoApplyBot {
 
     log("[nav] 当前地址: " + page.url().slice(0, 80));
     return page;
+  }
+
+  async _scanChatSessions() {
+    const page = await this._getPage();
+    await this._navigateToChat();
+    await this._humanWait(1.5, 2.5);
+    return await page.evaluate(() => {
+      const rows = [];
+      document.querySelectorAll('li[role="listitem"]').forEach((li) => {
+        if (!li.offsetParent && li.getClientRects().length === 0) return;
+        const name = (li.querySelector(".name-text")?.textContent || "").trim();
+        const nameBox = li.querySelector(".name-box");
+        const company = (nameBox?.children?.[1]?.textContent || "").trim();
+        const msg = (li.querySelector(".last-msg-text")?.textContent || "").trim();
+        const status = (li.querySelector(".message-status, [class*='status-']")?.textContent || "").trim();
+        const hrLast = !/\[(送达|已读)\]/.test(status || "") && !/^\[(送达|已读)\]/.test(msg || "");
+        const badge = li.querySelector("[class*='badge'], [class*='num']")?.textContent?.trim() || "";
+        const unread = /^\d+$/.test(badge) && Number(badge) > 0;
+        if (name || company || msg) rows.push({ name, company, msg, status, hrLast, unread });
+      });
+      return rows;
+    }).catch(() => []);
+  }
+
+  _findApplicationByCompany(apps, companyName) {
+    const needle = normalizeCompany(companyName);
+    if (!needle) return null;
+    let fallback = null;
+    for (const app of apps || []) {
+      const j = app.jobId ? jobDb.findById(app.jobId) : null;
+      const c = j?.companyId ? companyDb.findById(j.companyId) : null;
+      const candidate = normalizeCompany(c?.name || j?.companyName || "");
+      if (!candidate) continue;
+      if (candidate === needle || candidate.includes(needle) || needle.includes(candidate)) return app;
+      if (!fallback && candidate.includes(needle.slice(0, Math.max(4, needle.length)))) fallback = app;
+    }
+    return fallback;
+  }
+
+  async syncFeedback(sessions) {
+    const scanned = sessions || await this._scanChatSessions();
+    const apps = applicationDb.findAll();
+    const updated = [];
+    const rank = { pending: 0, viewed: 1, replied: 2, interview: 3, offer: 4, rejected: 5 };
+    for (const s of scanned || []) {
+      const ownMessage = /\[(送达|已读)\]/.test(s.status || "") || /^\[(送达|已读)\]/.test(s.msg || "");
+      if (ownMessage || !String(s.msg || "").trim()) continue;
+      const status = feedbackStatusFromMessage(s.msg);
+      if (!status) continue;
+      const app = this._findApplicationByCompany(apps, s.company || s.name || "");
+      if (!app || app.status === status) continue;
+      if ((rank[app.status] || 0) > (rank[status] || 0)) continue;
+      const note = `BOSS 同步: ${s.name || ""} ${s.company || ""} - ${String(s.msg || "").slice(0, 80)}`;
+      applicationDb.updateStatus(app.id, status, note);
+      updated.push({ id: app.id, company: s.company || s.name || "", status, message: String(s.msg || "").slice(0, 120) });
+      log(`[feedback] ${app.id} -> ${status} (${s.company || s.name || ""})`);
+    }
+    log(`[feedback] 扫描 ${scanned.length} 个会话，更新 ${updated.length} 条投递反馈`);
+    return { scanned: scanned.length, updatedCount: updated.length, updated };
   }
 
   _progress(options, current, total, title, step) {
@@ -451,35 +539,16 @@ export class AutoApplyBot {
   async monitorChat(onMsg, interval) {
     const check = async () => {
       try {
-        await this._navigateToChat();
-
-        const data = await this.page.evaluate(() => {
-          const r = [];
-          document.querySelectorAll("[class*='session'], [class*='chat-item'], [class*='conversation']").forEach((el) => {
-            if (el.offsetParent === null) return;
-            const name = (el.querySelector("[class*='name']")?.textContent || "").trim();
-            const msg = (el.querySelector("[class*='last'], [class*='msg'], [class*='content']")?.textContent || "").trim();
-            const unread = !!el.querySelector("[class*='badge'], [class*='num']");
-            if (name) r.push({ name, msg, unread });
-          });
-          if (r.length === 0) {
-            document.querySelectorAll("li, [class*='item']").forEach((el) => {
-              if (el.offsetParent === null) return;
-              const name = (el.textContent || "").trim().split("\n")[0].trim().slice(0, 15);
-              const unread = !!el.querySelector("[class*='badge'], [class*='num']");
-              if (name && name.length > 0) r.push({ name, msg: "", unread });
-            });
-          }
-          return r;
-        }).catch(() => []);
+        const data = await this._scanChatSessions();
 
         log(`[chat] 扫描到 ${data.length} 个会话`);
         for (const c of data) {
-          if (c.unread) {
-            log(`[chat] 收到 ${c.name} 的新消息: ${(c.msg || "").slice(0, 30)}`);
+          if (c.hrLast && c.unread) {
+            log(`[chat] 收到 ${c.name} 的消息: ${(c.msg || "").slice(0, 30)}`);
             try { if (onMsg) await onMsg(c); } catch (e) {}
           }
         }
+        await this.syncFeedback(data);
       } catch (e) {
         log(`[chat] 扫描异常: ${(e?.message || "").slice(0, 60)}`);
       }

@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleFeedbackSync, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -297,6 +297,7 @@ var httpServer = http.createServer(function(req, res) {
           else if (p === "/api/boss/apply") { await handleApply(req, res, data); }
           else if (p === "/api/boss/stop") { handleChatStop(req, res); }
           else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }
+          else if (p === "/api/boss/sync-feedback") { await handleFeedbackSync(req, res, data); }
           else if (p === '/api/chat/send') { await handleSendMessage(req, res, data); }
           else { json(res, { error: "not found" }, 404); }
         } catch (e) {

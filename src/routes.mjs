@@ -411,6 +411,28 @@ export function handleChatStop(req, res) {
   json(res, { ok: true });
 }
 
+export async function handleFeedbackSync(req, res) {
+  try {
+    const mgr = getManager();
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接" }, 400);
+      return;
+    }
+    const b = getBot();
+    if (b.running || state.running || state.chatActive) {
+      json(res, { ok: false, error: "已有任务运行中，请先停止", busy: true }, 409);
+      return;
+    }
+    const result = await b.syncFeedback();
+    liveLog.add(`反馈同步完成: 扫描 ${result.scanned} 个会话，更新 ${result.updatedCount} 条`);
+    json(res, { ok: true, ...result });
+  } catch (e) {
+    state.lastError = e.message;
+    liveLog.add("反馈同步异常: " + (e.message || "").slice(0, 120));
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
 function json(res, data, status) {
   res.writeHead(status || 200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
   res.end(JSON.stringify(data));

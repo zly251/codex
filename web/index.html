@@ -484,6 +484,7 @@ async function loadAutomation() {
     '<div class="form-group"><label>轮询间隔(秒)</label><input id="interval" type="number" value="30" style="width:70px"></div>' +
     '<button class="btn btn-primary" onclick="bossChatStart()" id="chat-btn" style="height:34px">开始监控</button>' +
     '<button class="btn-sm warn" onclick="bossChatStop()">停止</button>' +
+    '<button class="btn btn-primary" onclick="bossSyncFeedback()" style="height:34px">同步反馈</button>' +
     '</div>' +
     '<span id="cr" style="font-size:12px;color:#999"></span></div>';
 
@@ -568,6 +569,24 @@ async function bossChatStop() {
   try { await fetch("/api/boss/chat/stop"); document.getElementById("cr").textContent = "已停止";
     document.getElementById("chat-btn").disabled = false; document.getElementById("chat-btn").textContent = "开始监控";
     log("聊天监控已停止"); } catch(e) {}
+}
+
+async function bossSyncFeedback() {
+  var el = document.getElementById("cr");
+  el.textContent = "同步中...";
+  log("开始同步 BOSS 反馈...");
+  try {
+    var r = await fetch("/api/boss/sync-feedback", {method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+    var d = await r.json();
+    if (d.ok) {
+      el.innerHTML = "已更新 <b>" + d.updatedCount + "</b> 条，扫描 <b>" + d.scanned + "</b> 个会话";
+      log("反馈同步完成: 更新 " + d.updatedCount + " / 扫描 " + d.scanned);
+      loadDashboard();
+    } else {
+      el.textContent = "同步失败: " + (d.error||"");
+      log("反馈同步失败: " + (d.error||""));
+    }
+  } catch(e) { el.textContent = "同步失败: " + e.message; log("反馈同步错误: " + e.message); }
 }
 
 // ─── 实时状态轮询（不重绘页面，避免闪烁） ───

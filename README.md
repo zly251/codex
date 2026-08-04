@@ -11,6 +11,7 @@
 - 自动选择并关联简历，历史投递记录自动补挂简历
 - 批量投递打招呼，单职位手动沟通
 - 聊天会话监控，支持查看和发送消息
+- BOSS 聊天反馈自动同步：扫描会话消息，把已回复、面试、Offer、不合适回写为投递漏斗状态
 - Cookie 自动备份与恢复
 - 看护进程在浏览器异常后自动重试拉起
 - 单任务并发锁，重复投递会被拦截
@@ -81,7 +82,7 @@ Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打�
 - 登录配置：`.edge-profile/`，备用 `.edge-profile-2/`
 - 用户档案：`data/profile.json`
 - Cookie 备份：`portable/data/boss-cookies.json`
-- 本地数据库：`%TEMP%\autonomous-job-agent\dev.db`
+- 本地数据库：`portable/data/job-agent.db`，旧临时库首次启动会自动迁移
 
 ## 打包为 Windows exe
 
@@ -111,6 +112,10 @@ src/
 web/index.html     本地控制台
 packaging/         SEA 打包与启动器
 ```
+
+## API
+
+- `POST /api/boss/sync-feedback`：扫描 BOSS 聊天会话，按 HR 最后消息更新投递状态。
 
 ## Git
 
