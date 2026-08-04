@@ -117,6 +117,7 @@ packaging/         SEA 打包与启动器
 - 远端：https://github.com/zly251/codex
 - Git 元数据：`D:\autonomous-job-agent-repo\.git`
 - 工作区：`E:\autonomous-job-agent`
+- 项目分支：`autonomous-job-agent`（远端 `main` 已被其他工作区占用，不覆盖）
 - E 盘 `.git` 被 ACL 拒绝写入，提交时必须指定 `--git-dir` 和 `--work-tree`
 
 ```powershell

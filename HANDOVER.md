@@ -71,6 +71,7 @@ postject 后会损坏签名，需手工把 PE subsystem 从 3 改为 2（GUI）�
 - 远端：https://github.com/zly251/codex.git
 - Git 元数据：D:\autonomous-job-agent-repo\.git
 - 工作区：E:\autonomous-job-agent
+- 项目分支：autonomous-job-agent
 - E 盘 .git 被 ACL 拒绝写入，源码变更通过 `--git-dir` / `--work-tree` 提交
 - 许可证：MIT，LICENSE 文件已包含
 - 状态：2026-08-04 使用独立项目仓库管理
