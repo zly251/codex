@@ -98,6 +98,8 @@ function normalizeResume(data) {
     phone: cleanText(d.phone),
     email: cleanText(d.email),
     city: cleanText(d.city),
+    birthDate: cleanText(d.birthDate),
+    ethnicity: cleanText(d.ethnicity),
     status: cleanText(d.status),
     education: cleanText(d.education),
     experience: cleanText(d.experience),
@@ -125,6 +127,8 @@ export function loadResumeEditor(profile) {
     phone: cleanText(saved?.phone),
     email: cleanText(saved?.email),
     city: cleanText(saved?.city),
+    birthDate: cleanText(saved?.birthDate),
+    ethnicity: cleanText(saved?.ethnicity),
     status: cleanText(saved?.status ?? p.status),
     education: cleanText(saved?.education ?? p.education),
     experience: cleanText(saved?.experience ?? p.experience),
@@ -154,6 +158,8 @@ export function saveResumeEditor(data, profilePath) {
       "phone",
       "email",
       "city",
+      "birthDate",
+      "ethnicity",
       "status",
       "education",
       "experience",
@@ -177,6 +183,8 @@ export function resumeToText(resume) {
     `目标岗位: ${r.targetRole || ""}`,
     `联系方式: ${[r.phone, r.email].filter(Boolean).join(" / ")}`,
     `所在地: ${r.city || ""}`,
+    `出生年月: ${r.birthDate || ""}`,
+    `民族: ${r.ethnicity || ""}`,
     `求职状态: ${r.status || ""}`,
     `学历: ${r.education || ""}`,
     `经验: ${r.experience || ""}`,
@@ -224,9 +232,22 @@ function renderSectionHtml(title, html) {
   return '<div class="section-title">' + escapeHtml(title) + "</div>" + html;
 }
 
+function contactLine(resume) {
+  const r = resume || {};
+  return [
+    r.targetRole ? "意向岗位：" + r.targetRole : "",
+    r.phone,
+    r.email,
+    r.city ? "现居：" + r.city : "",
+    r.birthDate ? "出生：" + r.birthDate : "",
+    r.ethnicity ? "民族：" + r.ethnicity : "",
+    r.status,
+  ].filter(Boolean).join(" | ");
+}
+
 export function renderResumeHtml(resume) {
   const r = resume || {};
-  const contact = [r.targetRole, r.phone, r.email, r.city, r.status].filter(Boolean).join(" | ");
+  const contact = contactLine(r);
   const photoData = photoToDataUrl(r.photo);
   const workHtml = (r.work || []).map(function (item) {
     return renderItemHtml(item, item.company, item.title);
@@ -261,11 +282,11 @@ h1{margin:0 0 6px;font-size:26px}
 </div>
 ${photoData ? '<img class="photo" src="' + escapeHtml(photoData) + '" alt="证件照">' : ""}
 </div>
+${renderSectionHtml("教育经历", educationHtml)}
 ${r.summary ? '<div class="section-title">个人优势</div><div class="summary">' + escapeHtml(r.summary) + "</div>" : ""}
 ${r.skills ? '<div class="section-title">技能</div><div class="skills">' + escapeHtml(r.skills) + "</div>" : ""}
 ${renderSectionHtml("工作经历", workHtml)}
 ${renderSectionHtml("项目经历", projectHtml)}
-${renderSectionHtml("教育经历", educationHtml)}
 </body></html>`;
 }
 
@@ -298,7 +319,7 @@ function docxItem(item, main, sub) {
 function buildDocxChildren(resume) {
   const r = resume || {};
   const children = [];
-  const contact = [r.targetRole, r.phone, r.email, r.city, r.status].filter(Boolean).join(" | ");
+  const contact = contactLine(r);
   const nameParagraph = new Paragraph({
     alignment: AlignmentType.CENTER,
     spacing: { after: 80 },
@@ -351,6 +372,10 @@ function buildDocxChildren(resume) {
     children.push(nameParagraph);
     if (contactParagraph) children.push(contactParagraph);
   }
+  if ((r.educationList || []).length) {
+    children.push(docxSection("教育经历"));
+    for (const item of r.educationList) children.push(...docxItem(item, item.school, item.degree));
+  }
   if (r.summary) {
     children.push(docxSection("个人优势"));
     children.push(new Paragraph({ children: [new TextRun({ text: r.summary, size: 20 })] }));
@@ -366,10 +391,6 @@ function buildDocxChildren(resume) {
   if ((r.projects || []).length) {
     children.push(docxSection("项目经历"));
     for (const item of r.projects) children.push(...docxItem(item, item.name, item.role));
-  }
-  if ((r.educationList || []).length) {
-    children.push(docxSection("教育经历"));
-    for (const item of r.educationList) children.push(...docxItem(item, item.school, item.degree));
   }
   return children;
 }

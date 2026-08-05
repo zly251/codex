@@ -2231,7 +2231,7 @@ async function loadResume() {
   var skills = String(r.skills || "").split(/[,，\s]+/).filter(Boolean);
   var skillChecks = ["C++", "Qt", "CMake", "Linux", "OpenGL", "Git"];
   var skillPct = skillChecks.filter(function(s) { return skills.some(function(x) { return x.toLowerCase().indexOf(s.toLowerCase()) !== -1; }); }).length / skillChecks.length * 100;
-  var fields = ["name", "targetRole", "phone", "email", "education", "experience", "summary", "skills", "photo"];
+  var fields = ["name", "targetRole", "phone", "email", "city", "birthDate", "ethnicity", "education", "experience", "summary", "skills", "photo"];
   var complete = fields.filter(function(k) { return String(r[k] || "").trim(); }).length / fields.length * 100;
   var workScore = Math.min(100, 40 + (r.work || []).length * 15);
   var projectScore = Math.min(100, 40 + (r.projects || []).length * 12);
@@ -2240,6 +2240,9 @@ async function loadResume() {
   var suggestions = [];
   if (!r.phone) suggestions.push("补充手机号，招聘方才能直接联系你。");
   if (!r.email) suggestions.push("补充邮箱，便于接收面试和 Offer 通知。");
+  if (!r.city) suggestions.push("补充现居地，便于确认通勤范围。");
+  if (!r.birthDate) suggestions.push("补充出生年月，基本信息更完整。");
+  if (!r.ethnicity) suggestions.push("补充民族。");
   if (!r.photo) suggestions.push("补充证件照，简历更完整。");
   if (!(r.projects || []).length) suggestions.push("至少补充 1 个代表性项目，突出结果和职责。");
   if (!(r.work || []).length) suggestions.push("工作经历为空，可先写实习或项目经验。");
@@ -2276,7 +2279,9 @@ async function loadResume() {
     '<div class="field"><label for="re-status">求职状态</label><select id="re-status">' + statusOptions + '</select></div>' +
     '<div class="field"><label for="re-phone">手机</label><input id="re-phone" value="' + escAttr(r.phone || "") + '"></div>' +
     '<div class="field"><label for="re-email">邮箱</label><input id="re-email" value="' + escAttr(r.email || "") + '"></div>' +
-    '<div class="field"><label for="re-city">所在地</label><input id="re-city" value="' + escAttr(r.city || "") + '"></div>' +
+    '<div class="field"><label for="re-city">现居地</label><input id="re-city" value="' + escAttr(r.city || "") + '" placeholder="台州椒江区"></div>' +
+    '<div class="field"><label for="re-birth">出生年月</label><input id="re-birth" value="' + escAttr(r.birthDate || "") + '" placeholder="2003年5月27日"></div>' +
+    '<div class="field"><label for="re-ethnicity">民族</label><input id="re-ethnicity" value="' + escAttr(r.ethnicity || "") + '"></div>' +
     '<div class="field"><label for="re-education">学历</label><select id="re-education">' + eduOptions + '</select></div>' +
     '<div class="field"><label for="re-experience">经验年限</label><input id="re-experience" value="' + escAttr(r.experience || "") + '" placeholder="3年"></div>' +
     '</div>' +
@@ -2353,6 +2358,8 @@ async function saveResumeEditorData() {
   data.phone = document.getElementById("re-phone").value;
   data.email = document.getElementById("re-email").value;
   data.city = document.getElementById("re-city").value;
+  data.birthDate = document.getElementById("re-birth").value;
+  data.ethnicity = document.getElementById("re-ethnicity").value;
   data.education = document.getElementById("re-education").value;
   data.experience = document.getElementById("re-experience").value;
   data.summary = document.getElementById("re-summary").value;
