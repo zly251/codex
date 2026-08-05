@@ -8,6 +8,12 @@ import {
   TextRun,
   HeadingLevel,
   AlignmentType,
+  ImageRun,
+  Table,
+  TableCell,
+  TableRow,
+  VerticalAlign,
+  WidthType,
 } from "docx";
 import { RESUME_EDITOR_PATH } from "./paths.js";
 import { findEdgePath } from "./edgeLauncher.js";
@@ -17,6 +23,57 @@ const MAX_ITEMS = 50;
 
 function cleanText(value) {
   return String(value || "").trim().slice(0, MAX_TEXT);
+}
+
+function cleanPhoto(value) {
+  return String(value || "").trim();
+}
+
+function photoFileMime(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  if (ext === ".png") return "image/png";
+  if (ext === ".webp") return "image/webp";
+  return "image/jpeg";
+}
+
+function photoToDataUrl(photo) {
+  if (!photo) return "";
+  if (/^data:image\//i.test(photo)) return photo;
+  const filePath = path.isAbsolute(photo)
+    ? photo
+    : path.join(path.dirname(RESUME_EDITOR_PATH), photo);
+  try {
+    if (!fs.existsSync(filePath)) return "";
+    return "data:" + photoFileMime(filePath) + ";base64," + fs.readFileSync(filePath).toString("base64");
+  } catch (e) {
+    return "";
+  }
+}
+
+function photoImageData(photo) {
+  if (!photo) return null;
+  if (/^data:image\//i.test(photo)) {
+    const match = /^data:image\/(png|jpe?g|webp);base64,(.*)$/i.exec(photo);
+    if (!match) return null;
+    let type = match[1].toLowerCase();
+    if (type === "jpeg") type = "jpg";
+    if (!["jpg", "png", "gif", "bmp"].includes(type)) return null;
+    return {
+      data: Buffer.from(match[2], "base64"),
+      type,
+    };
+  }
+  const filePath = path.isAbsolute(photo)
+    ? photo
+    : path.join(path.dirname(RESUME_EDITOR_PATH), photo);
+  try {
+    if (!fs.existsSync(filePath)) return null;
+    const ext = path.extname(filePath).toLowerCase();
+    const type = ext === ".png" ? "png" : ext === ".gif" ? "gif" : ext === ".bmp" ? "bmp" : "jpg";
+    return { data: fs.readFileSync(filePath), type };
+  } catch (e) {
+    return null;
+  }
 }
 
 function cleanItems(value, fields) {
@@ -47,6 +104,7 @@ function normalizeResume(data) {
     summary: cleanText(d.summary),
     skills: cleanText(d.skills),
     greeting: cleanText(d.greeting),
+    photo: cleanPhoto(d.photo),
     work: cleanItems(d.work, ["company", "title", "period", "content"]),
     projects: cleanItems(d.projects, ["name", "role", "period", "content"]),
     educationList: cleanItems(d.educationList, ["school", "degree", "period", "content"]),
@@ -73,6 +131,7 @@ export function loadResumeEditor(profile) {
     summary: cleanText(saved?.summary),
     skills: cleanText(saved?.skills ?? p.skills),
     greeting: cleanText(saved?.greeting ?? p.greeting),
+    photo: cleanPhoto(saved?.photo),
     work: cleanItems(saved?.work, ["company", "title", "period", "content"]),
     projects: cleanItems(saved?.projects, ["name", "role", "period", "content"]),
     educationList: cleanItems(saved?.educationList, ["school", "degree", "period", "content"]),
@@ -168,6 +227,7 @@ function renderSectionHtml(title, html) {
 export function renderResumeHtml(resume) {
   const r = resume || {};
   const contact = [r.targetRole, r.phone, r.email, r.city, r.status].filter(Boolean).join(" | ");
+  const photoData = photoToDataUrl(r.photo);
   const workHtml = (r.work || []).map(function (item) {
     return renderItemHtml(item, item.company, item.title);
   }).join("");
@@ -181,7 +241,11 @@ export function renderResumeHtml(resume) {
 <html lang="zh-CN"><head><meta charset="utf-8"><style>
 body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;color:#1f2937;margin:0;padding:28px;line-height:1.65}
 h1{margin:0 0 6px;font-size:26px}
-.contact{color:#555;font-size:12px;margin-bottom:18px}
+.resume-header{display:flex;justify-content:space-between;align-items:flex-start;gap:22px;margin-bottom:18px}
+.resume-header-main{min-width:0}
+.resume-header h1{margin:0 0 6px;font-size:26px}
+.resume-header .contact{color:#555;font-size:12px;margin:0}
+.photo{width:96px;height:104px;object-fit:cover;border:1px solid #d1d5db;border-radius:6px}
 .summary,.skills{white-space:pre-wrap;font-size:12px;color:#374151}
 .section-title{font-size:15px;font-weight:700;border-bottom:1px solid #d1d5db;padding-bottom:5px;margin:20px 0 10px}
 .item{display:grid;grid-template-columns:1fr 130px;gap:10px;margin-bottom:12px}
@@ -190,8 +254,13 @@ h1{margin:0 0 6px;font-size:26px}
 .content{white-space:pre-wrap;font-size:12px;color:#374151}
 @media print{body{padding:0}}
 </style></head><body>
+<div class="resume-header">
+<div class="resume-header-main">
 <h1>${escapeHtml(r.name || "个人简历")}</h1>
 <div class="contact">${escapeHtml(contact)}</div>
+</div>
+${photoData ? '<img class="photo" src="' + escapeHtml(photoData) + '" alt="证件照">' : ""}
+</div>
 ${r.summary ? '<div class="section-title">个人优势</div><div class="summary">' + escapeHtml(r.summary) + "</div>" : ""}
 ${r.skills ? '<div class="section-title">技能</div><div class="skills">' + escapeHtml(r.skills) + "</div>" : ""}
 ${renderSectionHtml("工作经历", workHtml)}
@@ -229,22 +298,58 @@ function docxItem(item, main, sub) {
 function buildDocxChildren(resume) {
   const r = resume || {};
   const children = [];
-  children.push(
-    new Paragraph({
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 80 },
-      children: [new TextRun({ text: r.name || "个人简历", bold: true, size: 32 })],
-    })
-  );
   const contact = [r.targetRole, r.phone, r.email, r.city, r.status].filter(Boolean).join(" | ");
-  if (contact) {
-    children.push(
-      new Paragraph({
+  const nameParagraph = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 80 },
+    children: [new TextRun({ text: r.name || "个人简历", bold: true, size: 32 })],
+  });
+  const contactParagraph = contact
+    ? new Paragraph({
         alignment: AlignmentType.CENTER,
         spacing: { after: 160 },
         children: [new TextRun({ text: contact, color: "555555", size: 20 })],
       })
+    : null;
+  const photo = photoImageData(r.photo);
+  if (photo) {
+    children.push(
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({
+                width: { size: 72, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.CENTER,
+                margins: { top: 80, bottom: 80, left: 80, right: 80 },
+                children: [nameParagraph, contactParagraph].filter(Boolean),
+              }),
+              new TableCell({
+                width: { size: 28, type: WidthType.PERCENTAGE },
+                verticalAlign: VerticalAlign.CENTER,
+                margins: { top: 80, bottom: 80, left: 80, right: 80 },
+                children: [
+                  new Paragraph({
+                    alignment: AlignmentType.RIGHT,
+                    children: [
+                      new ImageRun({
+                        type: photo.type,
+                        data: photo.data,
+                        transformation: { width: 74, height: 80 },
+                      }),
+                    ],
+                  }),
+                ],
+              }),
+            ],
+          }),
+        ],
+      })
     );
+  } else {
+    children.push(nameParagraph);
+    if (contactParagraph) children.push(contactParagraph);
   }
   if (r.summary) {
     children.push(docxSection("个人优势"));
