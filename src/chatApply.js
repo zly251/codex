@@ -30,6 +30,7 @@ const SEND_SELECTORS = [
 ];
 
 const BLOCKED_HINTS = ["验证码", "安全验证", "访问异常", "访问过于频繁", "系统繁忙", "请登录", "扫码登录"];
+const SENT_MARKERS = ["送达", "已发送", "消息已发送", "发送成功", "已沟通", "继续沟通", "查看聊天", "打招呼成功", "已读"];
 
 function normalizeCompany(name) {
   return String(name || "")
@@ -250,7 +251,7 @@ export class AutoApplyBot {
 
   async _checkPageState(page) {
     try {
-      return await page.evaluate(() => {
+      return await page.evaluate((markers) => {
         const body = document.body?.innerText || "";
         let btn = "";
         const sels = [".btn-startchat", "a[ka='job-startchat']", ".op-btn", "[class*='startchat']", "[class*='start-chat']"];
@@ -259,14 +260,16 @@ export class AutoApplyBot {
           if (el && el.offsetParent) { btn = (el.textContent || "").trim(); break; }
         }
         const dialog = document.querySelector(".dialog-footer, .chat-dialog, [class*='dialog']");
+        const chatArea = document.querySelector(".chat-container, [class*='chat']");
+        const chatText = chatArea ? chatArea.innerText : body;
         return {
           textLen: body.length,
           btn,
           dialogVisible: !!(dialog && dialog.offsetParent !== null),
-          hasDelivered: body.includes("送达") || body.includes("已发送") || body.includes("消息已发送"),
+          hasDelivered: markers.some(function (s) { return chatText.includes(s); }),
           hasGreeted: ["继续沟通", "查看聊天", "已沟通"].some((t) => btn.includes(t)),
         };
-      });
+      }, SENT_MARKERS);
     } catch (e) { return null; }
   }
 
@@ -437,6 +440,7 @@ export class AutoApplyBot {
     const page = await this._getPage();
     let applied = 0;
     let failed = 0;
+    let skipped = 0;
     const results = [];
     const total = (jobs || []).length;
     const delayMin = Number(options.delayMin ?? 8) || 8;
@@ -447,6 +451,13 @@ export class AutoApplyBot {
       if (!this.running) { log("已收到停止指令，结束投递"); break; }
       try {
         const title = job.title || job.name || "?";
+        const existing = job.id ? applicationDb.findByJobId(job.id) : null;
+        if (existing) {
+          skipped++;
+          results.push({ job: title, status: "already", reason: "已投递" });
+          log(`[${i + 1}/${total}] 已投递过，跳过: ${title}`);
+          continue;
+        }
         this._progress(options, i + 1, total, title, "打开职位页");
         log(`[${i + 1}/${total}] 打开职位: ${title} ${job.city || ""} ${job.district || ""}`);
         await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 }).catch(() => {});
@@ -542,8 +553,8 @@ export class AutoApplyBot {
     }
 
     this._progress(options, total, total, "", "完成");
-    log(`投递结束: 成功 ${applied}，失败 ${failed}，共处理 ${applied + failed}`);
-    return { applied, failed, total: applied + failed, results };
+    log(`投递结束: 成功 ${applied}，失败 ${failed}，跳过 ${skipped}，共处理 ${applied + failed + skipped}`);
+    return { applied, failed, skipped, total: applied + failed, results };
   }
 
   async monitorChat(onMsg, interval) {

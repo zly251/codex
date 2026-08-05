@@ -91,6 +91,7 @@ function extractAssets() {
 
 function applyEnv() {
   process.env.JOB_AGENT_ROOT = ROOT;
+  process.env.JOB_AGENT_DATA_DIR = ROOT;
   process.env.JOB_AGENT_WEB_DIR = path.join(ROOT, 'web');
   process.env.JOB_AGENT_RESUME_DIR = path.join(ROOT, 'resumes');
   process.env.JOB_AGENT_PROFILE_PATH = path.join(ROOT, 'data', 'profile.json');
@@ -110,13 +111,15 @@ if (isSea()) {
   applyEnv();
 } else {
   const devRoot = path.resolve(__dirname, '..');
+  const devData = path.join(devRoot, 'portable');
   process.env.JOB_AGENT_ROOT = process.env.JOB_AGENT_ROOT || devRoot;
+  process.env.JOB_AGENT_DATA_DIR = process.env.JOB_AGENT_DATA_DIR || devData;
   process.env.JOB_AGENT_WEB_DIR = process.env.JOB_AGENT_WEB_DIR || path.join(devRoot, 'web');
-  process.env.JOB_AGENT_RESUME_DIR = process.env.JOB_AGENT_RESUME_DIR || path.join(devRoot, 'resumes');
-  process.env.JOB_AGENT_PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(devRoot, 'data', 'profile.json');
-  process.env.JOB_AGENT_PROFILE_DIR = process.env.JOB_AGENT_PROFILE_DIR || path.join(devRoot, '.edge-profile');
-  process.env.JOB_AGENT_FALLBACK_PROFILE_DIR = process.env.JOB_AGENT_FALLBACK_PROFILE_DIR || path.join(devRoot, '.edge-profile-2');
-  process.env.JOB_AGENT_TESSDATA = process.env.JOB_AGENT_TESSDATA || path.join(devRoot, 'tessdata');
+  process.env.JOB_AGENT_RESUME_DIR = process.env.JOB_AGENT_RESUME_DIR || path.join(devData, 'resumes');
+  process.env.JOB_AGENT_PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(devData, 'data', 'profile.json');
+  process.env.JOB_AGENT_PROFILE_DIR = process.env.JOB_AGENT_PROFILE_DIR || path.join(devData, '.edge-profile');
+  process.env.JOB_AGENT_FALLBACK_PROFILE_DIR = process.env.JOB_AGENT_FALLBACK_PROFILE_DIR || path.join(devData, '.edge-profile-2');
+  process.env.JOB_AGENT_TESSDATA = process.env.JOB_AGENT_TESSDATA || path.join(devData, 'tessdata');
   process.env.JOB_AGENT_TESS_WORKER = process.env.JOB_AGENT_TESS_WORKER || '';
 }
 

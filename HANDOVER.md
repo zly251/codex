@@ -1,6 +1,6 @@
 # 求职助手 交接文档
 
-更新时间：2026-08-04
+更新时间：2026-08-05
 
 ## 给下一个 Codex 对话的最短上下文
 
@@ -66,6 +66,9 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 - 稳定性：单实例顶替、看护不自杀式重启、空页 reload、失败保留页面、子进程隐藏窗口。
 - 页面管理：本地控制台通过 CDP 复用同一标签页，BOSS 只保留一个标签页，后台同步/搜索不再反复抢焦点。
 - 去重：启动时合并同一职位的重复投递记录，并建立 `Application(jobId)` 唯一索引。
+- 统一路径：新增 `src/paths.js`，profile/cookie/chat/resume/db 统一落到 `portable`，SEA 打包显式设置 `JOB_AGENT_DATA_DIR`。
+- 跳过已投递：投递前按 `Application(jobId)` 过滤，全部投递完自动实时搜索新职位，UI 可开关并显示跳过数量。
+- OCR：默认使用 `portable/tessdata`，根据模型是否为 gzip 自动选择加载方式。
 - 反馈同步：新增 `/api/boss/sync-feedback`，聊天监控每次扫描后同步，Web 控制台也提供手动按钮。
 - 平台抽象：路由不再直接依赖 BOSS，换平台只需实现 adapter 并设置 `JOB_PLATFORM`。
 - 跨平台：浏览器发现、进程清理、端口检查、打开 URL 均按平台实现。

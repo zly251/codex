@@ -26,15 +26,15 @@ import { extractSkills } from "./src/utils/skills.js";
 import { scoreJob } from "./src/scoring.js";
 import { buildStrategy } from "./src/strategy.js";
 import { ocrImage } from "./src/utils/ocr.js";
+import { PROFILE_PATH, RESUME_DIR, ensureDataDirs } from "./src/paths.js";
 
 var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
 var WEB_DIR = process.env.JOB_AGENT_WEB_DIR || path.join(__dirname, "web");
-var RESUME_DIR = process.env.JOB_AGENT_RESUME_DIR || path.join(__dirname, "resumes");
-var PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(__dirname, "data", "profile.json");
 var PORT = Number(process.env.PORT) || 3456;
 var IMG_EXTS = [".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
 initDb();
+ensureDataDirs();
 console.log("[server] DB ready, port " + PORT);
 
 function autoCreateResumeFromProfile() {

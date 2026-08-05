@@ -178,7 +178,7 @@ async function cdpPortOpen() {
 
 function appendWatchdogLog(msg) {
   try {
-    const root = process.env.JOB_AGENT_ROOT;
+    const root = process.env.JOB_AGENT_DATA_DIR || process.env.JOB_AGENT_ROOT;
     if (!root) return;
     fs.appendFileSync(path.join(root, 'data', 'watchdog.log'), new Date().toISOString() + ' ' + msg + '\n');
   } catch (e) {}
@@ -350,7 +350,7 @@ function startEdgeWatchdog() {
 }
 
 async function main() {
-  const ROOT = process.env.JOB_AGENT_ROOT;
+  const ROOT = process.env.JOB_AGENT_DATA_DIR || process.env.JOB_AGENT_ROOT;
   const serverRunning = await waitFor(SERVER_URL + '/api/stats', 2000);
   const replaced = serverRunning ? await stopExistingInstance() : false;
   if (serverRunning && !replaced) {

@@ -4,12 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "start": "node server.mjs",
     "import:resume": "npx tsx scripts/import-resume.ts"
   },
   "dependencies": {
+    "dotenv": "^17.4.2",
     "iconv-lite": "^0.7.2",
     "puppeteer-core": "^24.0.0",
-    "tesseract.js": "^5.0.0"
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "tsx": "^4.0.0",

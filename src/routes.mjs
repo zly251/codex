@@ -7,12 +7,9 @@ import * as liveLog from "./log.js";
 import { findEdgePath, launchEdge, waitForCDP, DEFAULT_PROFILE, FALLBACK_PROFILE } from "./edgeLauncher.js";
 import { scoreJob, decideJob } from "./scoring.js";
 import { getPlatform } from "./platforms/index.js";
+import { DATA_ROOT, PROFILE_PATH, CHAT_PATH } from "./paths.js";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
-const PROJECT_ROOT = process.env.JOB_AGENT_ROOT || path.join(__dirname, "..");
 
 let browserManager = null;
 let scraper = null;
@@ -20,7 +17,7 @@ let bot = null;
 
 var messages = [];
 try {
-  var _msgPath = path.join(PROJECT_ROOT, "data", "chat.json");
+  var _msgPath = CHAT_PATH;
   if (fs.existsSync(_msgPath)) messages = JSON.parse(fs.readFileSync(_msgPath, "utf8"));
 } catch (e) {}
 
@@ -34,20 +31,19 @@ var state = {
   running: false,
   progress: null,
 };
-var PROFILE_PATH = process.env.JOB_AGENT_PROFILE_PATH || path.join(PROJECT_ROOT, "data", "profile.json");
 const platform = getPlatform();
 var cookieWatcher = null;
 
 async function savePlatformCookies() {
   try {
-    const result = await platform.saveCookies(getManager(), PROJECT_ROOT);
+    const result = await platform.saveCookies(getManager(), DATA_ROOT);
     if (result?.saved) liveLog.add(`${platform.name} 登录 Cookie 已备份 (${result.count} 条)`);
   } catch (e) {}
 }
 
 async function restorePlatformCookies() {
   try {
-    const result = await platform.restoreCookies(getManager(), PROJECT_ROOT);
+    const result = await platform.restoreCookies(getManager(), DATA_ROOT);
     if (result?.restored) liveLog.add(`已恢复 ${platform.name} 登录 Cookie (${result.count} 条)`);
     return result?.restored ? result.count : 0;
   } catch (e) {
@@ -285,8 +281,21 @@ export async function handleApply(req, res, body) {
     const filterKeywords = body?.keywords || "";
     const delayMin = Number(body?.delayMin ?? 8) || 8;
     const delayMax = Number(body?.delayMax ?? 25) || 25;
+    const skipApplied = body?.skipApplied !== false;
+
+    const searchLiveJobs = async function () {
+      const s = getScraper();
+      const kw = filterKeywords.split(/[,\u3001\/]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; })[0] || "C++";
+      const liveJobs = await s.searchJobs({ keyword: kw, pages: 3 });
+      const liveJobsFiltered = liveJobs.filter(function (j) { return !isBlockedCompany(j); });
+      if (liveJobsFiltered.length === 0) return [];
+      await s.saveJobs(liveJobsFiltered, jobDb, companyDb);
+      return jobDb.search({ limit: 200 }).filter(function (j) { return !j.status || j.status === "active"; })
+        .filter(function (j) { return !isBlockedCompany(j); });
+    };
 
     let allJobs = [];
+    let liveSearchDone = false;
     if (jobId) {
       const one = jobDb.findById(jobId);
       if (one) allJobs = [one];
@@ -299,17 +308,11 @@ export async function handleApply(req, res, body) {
     if (allJobs.length === 0 && !jobId) {
       liveLog.add(`数据库为空，实时搜索 ${platform.name}...`);
       try {
-        const s = getScraper();
-        const kw = filterKeywords.split(/[,\u3001\/]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; })[0] || "C++";
-        const liveJobs = await s.searchJobs({ keyword: kw, pages: 3 });
-        const liveJobsFiltered = liveJobs.filter(function (j) { return !isBlockedCompany(j); });
-        if (liveJobsFiltered.length > 0) {
-          await s.saveJobs(liveJobsFiltered, jobDb, companyDb);
-          allJobs = jobDb.search({ limit: 200 }).filter(function (j) { return !j.status || j.status === "active"; });
-          allJobs = allJobs.filter(function (j) { return !isBlockedCompany(j); });
-          if (filterCity) allJobs = allJobs.filter(function (j) { return (j.city || "").includes(filterCity); });
-        }
+        allJobs = await searchLiveJobs();
+        liveSearchDone = true;
+        if (filterCity) allJobs = allJobs.filter(function (j) { return (j.city || "").includes(filterCity); });
       } catch (e) {
+        liveSearchDone = true;
         liveLog.add("实时搜索失败: " + (e.message || "").slice(0, 80));
       }
     }
@@ -318,6 +321,28 @@ export async function handleApply(req, res, body) {
       liveLog.add("当前城市无职位，回退到全部城市");
       allJobs = jobDb.search({ limit: 200 }).filter(function (j) { return !j.status || j.status === "active"; });
       allJobs = allJobs.filter(function (j) { return !isBlockedCompany(j); });
+    }
+
+    let skippedApplied = 0;
+    const appliedIds = new Set(applicationDb.findAll().map(function (a) { return a.jobId; }));
+    if (skipApplied && !jobId) {
+      const before = allJobs.length;
+      allJobs = allJobs.filter(function (j) { return !appliedIds.has(j.id); });
+      skippedApplied = before - allJobs.length;
+      if (skippedApplied > 0) liveLog.add(`跳过已投递职位: ${skippedApplied} 个`);
+    }
+
+    if (skipApplied && !jobId && allJobs.length === 0 && !liveSearchDone) {
+      liveLog.add("当前可投递职位已投递完，实时搜索新职位...");
+      try {
+        allJobs = await searchLiveJobs();
+        if (filterCity) allJobs = allJobs.filter(function (j) { return (j.city || "").includes(filterCity); });
+        const before = allJobs.length;
+        allJobs = allJobs.filter(function (j) { return !appliedIds.has(j.id); });
+        skippedApplied += before - allJobs.length;
+      } catch (e) {
+        liveLog.add("实时搜索失败: " + (e.message || "").slice(0, 80));
+      }
     }
 
     if (filterDistrict && !jobId) {
@@ -361,7 +386,7 @@ export async function handleApply(req, res, body) {
       });
 
     if (jobs.length === 0) {
-      json(res, { ok: true, applied: 0, total: 0, message: "没有匹配的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）" });
+      json(res, { ok: true, applied: 0, total: 0, skippedApplied: skippedApplied, message: "没有匹配的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）" });
       return;
     }
 
@@ -384,6 +409,7 @@ export async function handleApply(req, res, body) {
         ok: true,
         applied: result.applied || 0,
         failed: result.failed || 0,
+        skippedApplied: (result.skipped || 0) + skippedApplied,
         total: jobs.length,
         decisions: decisions,
         results: result.results || [],

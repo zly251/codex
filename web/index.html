@@ -169,6 +169,7 @@ function currentApplyOptions(extra) {
     minMatch: num("min-match", 30) / 100,
     delayMin: num("delay-min", 8),
     delayMax: num("delay-max", 25),
+    skipApplied: !el("skip-applied") || document.getElementById("skip-applied").checked,
   };
   return Object.assign(o, extra || {});
 }
@@ -181,7 +182,7 @@ async function quickApply(n) {
     var r = await fetch("/api/boss/apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(currentApplyOptions({limit:n}))});
     var d = await r.json();
     if (d.ok) {
-      log("完成: 成功 " + d.applied + " / 失败 " + (d.failed||0) + " / 共 " + d.total);
+      log("完成: 成功 " + d.applied + " / 失败 " + (d.failed||0) + " / 跳过 " + (d.skippedApplied||0) + " / 共 " + d.total);
     } else {
       log("失败: " + (d.error||""));
     }
@@ -474,6 +475,7 @@ async function loadAutomation() {
     '<div class="form-group"><label>匹配度≥</label><input id="min-match" type="number" value="30" min="0" max="100" style="width:55px">%</div>' +
     '<div class="form-group"><label>份数</label><input id="limit" type="number" value="20" min="1" max="50" style="width:55px"></div>' +
     '<div class="form-group"><label>随机延迟(秒)</label><input id="delay-min" type="number" value="8" min="1" max="120" style="width:50px">~<input id="delay-max" type="number" value="25" min="1" max="300" style="width:50px"></div>' +
+    '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#555;height:34px"><input id="skip-applied" type="checkbox" checked> 跳过已投递</label>' +
     '<button class="btn btn-primary" onclick="bossApply()" style="height:34px">开始投递</button>' +
     '</div>' +
     '<span id="ar" style="font-size:12px;color:#999"></span></div>';
@@ -545,8 +547,8 @@ async function bossApply() {
     var r = await fetch("/api/boss/apply", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(o)});
     var d = await r.json();
     if (d.ok) {
-      el.innerHTML = "&#x2713; 成功 <b>" + d.applied + "</b> / 失败 <b>" + (d.failed||0) + "</b> / 共 <b>" + d.total + "</b>";
-      log("投递完成: 成功 " + d.applied + " 失败 " + (d.failed||0) + " 共 " + d.total);
+      el.innerHTML = "&#x2713; 成功 <b>" + d.applied + "</b> / 失败 <b>" + (d.failed||0) + "</b> / 跳过 <b>" + (d.skippedApplied||0) + "</b> / 共 <b>" + d.total + "</b>";
+      log("投递完成: 成功 " + d.applied + " 失败 " + (d.failed||0) + " 跳过 " + (d.skippedApplied||0) + " 共 " + d.total);
     } else {
       el.textContent = "失败: " + (d.error||"");
       log("投递失败: " + (d.error||""));

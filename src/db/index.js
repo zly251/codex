@@ -3,12 +3,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { unlinkSync, mkdirSync, existsSync, copyFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
 import { SCHEMA_SQL } from "./schema.js";
-var __dirname = (function(){ try { return dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
-var PROJECT_ROOT = process.env.JOB_AGENT_ROOT || join(__dirname, "..", "..");
-var DATA_ROOT = process.env.JOB_AGENT_DATA_DIR || (process.env.JOB_AGENT_ROOT ? process.env.JOB_AGENT_ROOT : join(PROJECT_ROOT, "portable"));
+import { DATA_ROOT as APP_DATA_ROOT } from "../paths.js";
+var DATA_ROOT = process.env.JOB_AGENT_DATA_DIR || APP_DATA_ROOT;
 var DB_PATH = process.env.JOB_AGENT_DB_PATH || join(DATA_ROOT, "data", "job-agent.db");
 var LEGACY_DB_PATH = join(tmpdir(), "autonomous-job-agent", "dev.db");
 var db = null;
