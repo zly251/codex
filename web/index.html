@@ -3,37 +3,30 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="theme-color" content="#17332d">
+<meta name="theme-color" content="#09090b">
 <link rel="icon" href="data:,">
-<title>求职助手 · 本地求职作战台</title>
+<title>JobAgent · AI 求职控制台</title>
 <style>
 :root {
-  --canvas: #edf3f1;
-  --surface: #ffffff;
-  --surface-soft: #f6faf8;
-  --ink: #17231f;
-  --muted: #66736e;
-  --line: #d9e4e0;
-  --line-soft: #eaf1ee;
-  --primary: #0f766e;
-  --primary-strong: #0b5f59;
-  --primary-soft: #d9efeb;
-  --success: #178a5c;
-  --success-soft: #dff4e9;
-  --danger: #b42318;
-  --danger-soft: #fbe7e5;
-  --warning: #d97706;
-  --warning-soft: #fff2df;
-  --info: #3b6ea0;
-  --info-soft: #e5effa;
-  --violet: #6d5ea8;
-  --violet-soft: #eee8fb;
-  --focus-ring: #2fa89c;
-  --sidebar: #17332d;
-  --sidebar-ink: #eaf5f1;
-  --font-body: "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans SC", sans-serif;
-  --font-display: "Aptos Display", "Segoe UI Variable Display", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --bg: #09090b;
+  --surface: #101014;
+  --surface-2: #15151a;
+  --surface-3: #1b1b21;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
+  --subtle: #6b7280;
+  --accent: #4f8bff;
+  --accent-2: #8b5cf6;
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --cyan: #22d3ee;
+  --info: #38bdf8;
+  --font: "Inter", "SF Pro Display", "Segoe UI Variable Display", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --mono: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  --radius: 12px;
 }
 
 * {
@@ -46,15 +39,11 @@ body {
   padding: 0;
 }
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
   min-height: 100vh;
-  background: var(--canvas);
-  color: var(--ink);
-  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
   font-size: 14px;
   line-height: 1.55;
   overflow-x: hidden;
@@ -65,6 +54,7 @@ input,
 select,
 textarea {
   font: inherit;
+  color: inherit;
 }
 
 button {
@@ -72,7 +62,7 @@ button {
 }
 
 a {
-  color: var(--primary);
+  color: var(--accent);
   text-decoration: none;
 }
 
@@ -85,180 +75,203 @@ input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible {
-  outline: 3px solid var(--focus-ring);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.app-shell {
-  display: grid;
-  grid-template-columns: 248px minmax(0, 1fr);
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  background-clip: padding-box;
+}
+
+.app {
+  display: flex;
   min-height: 100vh;
 }
 
 .sidebar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  height: 100vh;
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 60;
+  width: 248px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 14px;
-  overflow: hidden;
-  background: var(--sidebar);
-  color: var(--sidebar-ink);
+  gap: 24px;
+  padding: 22px 16px;
+  border-right: 1px solid var(--border);
+  background: rgba(13, 13, 16, 0.92);
+  backdrop-filter: blur(18px);
 }
 
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 0 6px;
+  gap: 11px;
+  padding: 0 8px;
 }
 
 .brand-mark {
-  width: 38px;
-  height: 38px;
+  width: 36px;
+  height: 36px;
   display: grid;
   place-items: center;
+  border: 1px solid rgba(79, 139, 255, 0.4);
   border-radius: 10px;
-  background: #ffffff;
-  color: var(--sidebar);
-  font-family: var(--font-display);
-  font-size: 17px;
+  background: linear-gradient(135deg, rgba(79, 139, 255, 0.22), rgba(139, 92, 246, 0.18));
+  color: #fff;
   font-weight: 800;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.16);
+  font-size: 15px;
+  box-shadow: 0 8px 24px rgba(79, 139, 255, 0.16);
 }
 
 .brand-name {
-  font-family: var(--font-display);
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 800;
-  line-height: 1.2;
   letter-spacing: 0.01em;
 }
 
 .brand-sub {
-  margin-top: 3px;
-  color: #a9c7bf;
+  margin-top: 2px;
+  color: var(--subtle);
   font-size: 11px;
 }
 
-.user-chip {
-  padding: 10px 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.user-chip .name {
+.sidebar .section-label {
+  margin: 0 8px 8px;
+  color: var(--subtle);
+  font-size: 11px;
   font-weight: 700;
-  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.user-chip .state {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 3px;
-  color: #9fc3ba;
-  font-size: 11px;
-}
-
-.state-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: #6f8f86;
-}
-
-.state-dot.online {
-  background: #57c497;
+.sidebar > div {
+  min-width: 0;
 }
 
 .nav {
+  min-width: 0;
   display: grid;
   gap: 4px;
 }
 
 .nav-item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
   width: 100%;
   padding: 10px 12px;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  color: #c7ddd6;
-  text-align: left;
-  font-size: 13.5px;
+  color: var(--muted);
+  font-size: 13px;
   font-weight: 600;
-  transition: background 0.14s ease, color 0.14s ease;
+  text-align: left;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.nav-item svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  opacity: 0.9;
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffffff;
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
 }
 
 .nav-item[aria-current="page"] {
-  background: #e8f6f1;
-  color: #17332d;
-  box-shadow: inset 3px 0 0 var(--primary);
+  background: linear-gradient(135deg, rgba(79, 139, 255, 0.14), rgba(139, 92, 246, 0.1));
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(79, 139, 255, 0.22);
 }
 
-.nav-spacer {
-  flex: 1;
+.sidebar-card {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.sidebar-card-label {
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-card-value {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
 .sidebar-footer {
+  margin-top: auto;
   padding: 0 8px;
-  color: #9fc3ba;
+  color: var(--subtle);
   font-size: 11px;
+  line-height: 1.6;
 }
 
 .main {
+  width: 100%;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
+  margin-left: 248px;
 }
 
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 50;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 12px 24px;
-  border-bottom: 1px solid var(--line);
-  background: rgba(237, 243, 241, 0.92);
-  backdrop-filter: blur(12px);
+  gap: 16px;
+  padding: 0 28px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(9, 9, 11, 0.78);
+  backdrop-filter: blur(18px);
 }
 
 .topbar-title {
   min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
 }
 
 .page-title {
   margin: 0;
-  color: var(--ink);
-  font-family: var(--font-display);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 800;
   letter-spacing: 0;
-  white-space: nowrap;
 }
 
 .topbar-sub {
-  color: var(--muted);
+  margin-top: 2px;
+  color: var(--subtle);
   font-size: 12px;
-  white-space: nowrap;
 }
 
-.topbar-meta {
+.topbar-actions {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -267,13 +280,14 @@ a:focus-visible {
 .pill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px;
-  border: 1px solid var(--line);
+  gap: 8px;
+  padding: 6px 11px;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.035);
   color: var(--muted);
   font-size: 12px;
+  font-weight: 600;
   white-space: nowrap;
 }
 
@@ -281,24 +295,26 @@ a:focus-visible {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: var(--muted);
+  background: var(--subtle);
 }
 
 .pill.online .dot {
   background: var(--success);
-  box-shadow: 0 0 0 3px rgba(23, 138, 92, 0.14);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
 }
 
 .pill.busy .dot {
   background: var(--warning);
-  box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.14);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.12);
+  animation: pulse 1.8s ease-in-out infinite;
 }
 
 .content {
   width: 100%;
-  max-width: 1440px;
+  max-width: 1500px;
+  min-width: 0;
   margin: 0 auto;
-  padding: 20px 24px 48px;
+  padding: 24px 28px 56px;
 }
 
 .tab {
@@ -307,13 +323,13 @@ a:focus-visible {
 
 .tab.active {
   display: block;
-  animation: tab-in 0.18s ease-out;
+  animation: tab-in 0.2s ease-out;
 }
 
 @keyframes tab-in {
   from {
-    opacity: 0.35;
-    transform: translateY(3px);
+    opacity: 0;
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
@@ -321,11 +337,21 @@ a:focus-visible {
   }
 }
 
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 .panel {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 16px 40px rgba(0, 0, 0, 0.22);
 }
 
 .panel + .panel {
@@ -334,370 +360,50 @@ a:focus-visible {
 
 .panel-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 16px;
 }
 
 .panel-title {
   margin: 0;
-  color: var(--ink);
-  font-family: var(--font-display);
   font-size: 15px;
   font-weight: 800;
   letter-spacing: 0;
 }
 
 .panel-desc {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--muted);
   font-size: 12px;
-}
-
-.metric-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.metric {
-  --metric-accent: var(--primary);
-  position: relative;
-  width: 100%;
-  min-height: 106px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 14px 14px 13px;
-  overflow: hidden;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-  color: var(--ink);
-  text-align: left;
-}
-
-.metric::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  background: var(--metric-accent);
-}
-
-.metric.metric-job {
-  --metric-accent: var(--primary);
-}
-
-.metric.metric-app {
-  --metric-accent: var(--info);
-}
-
-.metric.metric-warn {
-  --metric-accent: var(--warning);
-}
-
-.metric.metric-success {
-  --metric-accent: var(--success);
-}
-
-.metric.metric-violet {
-  --metric-accent: var(--violet);
-}
-
-.metric.clickable {
-  cursor: pointer;
-  transition: border-color 0.14s ease, box-shadow 0.14s ease, transform 0.14s ease;
-}
-
-.metric.clickable:hover {
-  border-color: var(--primary);
-  box-shadow: 0 8px 24px rgba(15, 118, 110, 0.1);
-  transform: translateY(-1px);
-}
-
-.metric-label {
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.metric-value {
-  font-family: var(--font-display);
-  font-size: 30px;
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.metric-note {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.pipeline-panel {
-  margin-bottom: 16px;
-}
-
-.pipeline {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
-}
-
-.pipeline-step {
-  --pipe-accent: var(--muted);
-  position: relative;
-  min-height: 92px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 12px 10px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--surface-soft);
-}
-
-.pipeline-step + .pipeline-step::before {
-  content: "";
-  position: absolute;
-  left: -8px;
-  top: 50%;
-  width: 8px;
-  height: 2px;
-  background: var(--line);
-}
-
-.pipeline-step.pipe-pending {
-  --pipe-accent: var(--warning);
-}
-
-.pipeline-step.pipe-viewed {
-  --pipe-accent: var(--info);
-}
-
-.pipeline-step.pipe-replied {
-  --pipe-accent: var(--violet);
-}
-
-.pipeline-step.pipe-interview {
-  --pipe-accent: var(--primary);
-}
-
-.pipeline-step.pipe-offer {
-  --pipe-accent: var(--success);
-}
-
-.pipeline-step.pipe-rejected {
-  --pipe-accent: var(--danger);
-}
-
-.pipeline-label {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.pipeline-step strong {
-  color: var(--pipe-accent);
-  font-family: var(--font-display);
-  font-size: 22px;
-  line-height: 1;
-  letter-spacing: 0;
-}
-
-.pipeline-step .pct {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
-  gap: 16px;
-}
-
-.dashboard-grid .panel {
-  margin: 0;
-}
-
-.insight-block {
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--surface-soft);
-}
-
-.insight-block .insight-text {
-  color: var(--ink);
-  font-size: 13px;
-  line-height: 1.65;
-}
-
-.insight-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 12px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.insight-meta strong {
-  color: var(--ink);
-  font-family: var(--font-mono);
-}
-
-.action-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.page-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-}
-
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.input-sm {
-  min-height: 34px;
-  padding: 6px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
-}
-
-.input-sm:focus,
-.input-sm:focus-visible {
-  border-color: var(--primary);
-  outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
-}
-
-.table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-table {
-  width: 100%;
-  min-width: 760px;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-soft);
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  text-align: left;
-  white-space: nowrap;
-}
-
-td {
-  padding: 11px 12px;
-  border-bottom: 1px solid var(--line-soft);
-  vertical-align: middle;
-  font-size: 13px;
-}
-
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-tbody tr:hover {
-  background: var(--surface-soft);
-}
-
-.cell-note {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.cell-clip {
-  max-width: 150px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  white-space: nowrap;
-}
-
-.badge.active,
-.badge.offer {
-  background: var(--success-soft);
-  color: #0d6b49;
-}
-
-.badge.closed {
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.badge.pending {
-  background: var(--warning-soft);
-  color: #a85b09;
-}
-
-.badge.replied {
-  background: var(--info-soft);
-  color: #275e91;
-}
-
-.badge.interview {
-  background: var(--violet-soft);
-  color: #5f4aa5;
-}
-
-.badge.withdrawn {
-  background: #edf1f2;
-  color: #5b6b68;
 }
 
 .btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
   min-height: 36px;
   padding: 0 14px;
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 650;
   white-space: nowrap;
-  transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease, transform 0.14s ease;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .btn:active {
@@ -705,128 +411,70 @@ tbody tr:hover {
 }
 
 .btn-primary {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: #ffffff;
+  background: linear-gradient(135deg, var(--accent), #6c6cff);
+  border-color: rgba(79, 139, 255, 0.5);
+  color: #fff;
+  box-shadow: 0 8px 24px rgba(79, 139, 255, 0.2);
 }
 
 .btn-primary:hover {
-  background: var(--primary-strong);
-  border-color: var(--primary-strong);
-}
-
-.btn-secondary {
-  background: var(--surface);
-  border-color: var(--line);
-  color: var(--ink);
-}
-
-.btn-secondary:hover {
-  border-color: var(--primary);
-  color: var(--primary);
+  background: linear-gradient(135deg, #5d96ff, #7d7dff);
+  border-color: rgba(79, 139, 255, 0.7);
 }
 
 .btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #ffffff;
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
 }
 
 .btn-danger:hover {
-  background: #8f1c13;
-  border-color: #8f1c13;
+  background: rgba(239, 68, 68, 0.24);
 }
 
-.btn-warn {
-  background: var(--warning-soft);
-  border-color: #e8cda5;
-  color: #a85b09;
+.btn-success {
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.35);
+  color: #86efac;
 }
 
-.btn-warn:hover {
-  border-color: var(--warning);
+.btn-success:hover {
+  background: rgba(34, 197, 94, 0.22);
 }
 
 .btn-sm {
-  min-height: 28px;
+  min-height: 29px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 12px;
 }
 
 .btn[disabled] {
-  opacity: 0.55;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.status-bar {
-  display: flex;
+.icon-btn {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  margin-bottom: 16px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-.status-dot {
-  width: 10px;
-  height: 10px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-  background: var(--muted);
-}
-
-.status-dot.online {
-  background: var(--success);
-  box-shadow: 0 0 0 4px rgba(23, 138, 92, 0.14);
-}
-
-.status-dot.busy {
-  background: var(--warning);
-  box-shadow: 0 0 0 4px rgba(217, 119, 6, 0.14);
-}
-
-.status-main {
-  min-width: 0;
-}
-
-.status-title {
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.status-sub {
-  margin-top: 2px;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  font-size: 11px;
 }
 
-.status-actions {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-  flex-wrap: wrap;
+.icon-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 
-.progress-text {
-  color: var(--muted);
-  font-family: var(--font-mono);
-  font-size: 11px;
-}
-
-.progress-text.is-running {
-  color: var(--primary);
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  align-items: end;
+.icon-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .field {
@@ -834,7 +482,7 @@ tbody tr:hover {
   gap: 6px;
 }
 
-.field > label {
+.field label {
   color: var(--muted);
   font-size: 12px;
   font-weight: 600;
@@ -844,12 +492,13 @@ tbody tr:hover {
 .field select,
 .field textarea {
   width: 100%;
-  min-height: 36px;
-  padding: 7px 10px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-  color: var(--ink);
+  min-height: 38px;
+  padding: 8px 11px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  outline: none;
 }
 
 .field textarea {
@@ -860,9 +509,37 @@ tbody tr:hover {
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
-  border-color: var(--primary);
+  border-color: rgba(79, 139, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(79, 139, 255, 0.12);
+}
+
+.input-sm {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14);
+}
+
+.input-sm:focus {
+  border-color: rgba(79, 139, 255, 0.55);
+  box-shadow: 0 0 0 3px rgba(79, 139, 255, 0.12);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form-actions {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 14px;
 }
 
 .span-2 {
@@ -871,29 +548,6 @@ tbody tr:hover {
 
 .span-3 {
   grid-column: span 3;
-}
-
-.form-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  margin-top: 14px;
-}
-
-.check-line {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-height: 34px;
-  color: var(--muted);
-  font-size: 13px;
-}
-
-input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--primary);
 }
 
 .range-pair {
@@ -906,109 +560,57 @@ input[type="checkbox"] {
   min-width: 0;
 }
 
+.check-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
 .result-line {
   color: var(--muted);
   font-size: 12px;
 }
 
-.step-tag {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--primary-soft);
-  color: var(--primary-strong);
-  font-size: 11px;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.filter-pills {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-bottom: 14px;
-}
-
-.detail-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 18px;
-}
-
-.detail-item {
-  color: var(--ink);
-  font-size: 13px;
-}
-
-.detail-label {
-  display: block;
-  margin-bottom: 2px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.editor-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.editor-row {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) 70px;
-  gap: 10px;
-  align-items: start;
-  padding: 14px;
-  margin-bottom: 10px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: var(--surface-soft);
-}
-
-.editor-row .wide {
-  grid-column: 1 / 4;
-}
-
-.editor-row .wide textarea {
-  min-height: 76px;
-}
-
-.editor-empty {
-  padding: 20px;
-  border: 1px dashed var(--line);
-  border-radius: 9px;
-  color: var(--muted);
-  font-size: 12px;
-  text-align: center;
-}
-
-.editor-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.editor-actions .result-line {
-  color: var(--primary);
-}
-
 .empty-state {
-  padding: 34px 20px;
+  padding: 42px 24px;
   color: var(--muted);
   text-align: center;
+}
+
+.empty-state .empty-icon {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--subtle);
+}
+
+.empty-state .empty-icon svg {
+  width: 20px;
+  height: 20px;
 }
 
 .empty-state strong {
   display: block;
   margin-bottom: 5px;
-  color: var(--ink);
+  color: var(--text);
   font-size: 15px;
 }
 
 .empty-state span {
-  display: block;
   font-size: 13px;
 }
 
@@ -1017,96 +619,942 @@ input[type="checkbox"] {
   justify-content: center;
   gap: 8px;
   flex-wrap: wrap;
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
-.upload-hint {
+.status-card {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 20px;
+}
+
+.status-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(79, 139, 255, 0.08), transparent 42%, rgba(139, 92, 246, 0.05));
+}
+
+.status-main {
+  position: relative;
+  min-width: 0;
+}
+
+.status-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+}
+
+.status-description {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+}
+
+.progress-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.progress-ring-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.ring {
+  position: relative;
+  width: 78px;
+  height: 78px;
+  flex: 0 0 auto;
+}
+
+.ring svg {
+  width: 78px;
+  height: 78px;
+  transform: rotate(-90deg);
+}
+
+.ring .ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 7;
+}
+
+.ring .ring-value {
+  fill: none;
+  stroke: url(#ringGradient);
+  stroke-width: 7;
+  stroke-linecap: round;
+}
+
+.ring span {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--mono);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.progress-copy {
+  min-width: 0;
+}
+
+.progress-copy strong {
+  display: block;
+  font-size: 13px;
+}
+
+.progress-copy span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-bar {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.progress-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  box-shadow: 0 0 16px rgba(79, 139, 255, 0.4);
+  transition: width 0.3s ease;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metric {
+  position: relative;
+  min-height: 112px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 15px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+}
+
+.metric-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.metric-label svg {
+  width: 14px;
+  height: 14px;
+  color: var(--metric-color, var(--accent));
+}
+
+.metric-value {
+  font-family: var(--mono);
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.metric-note {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.metric-bar {
+  position: absolute;
+  left: 15px;
+  right: 15px;
+  bottom: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.metric-bar i {
+  display: block;
+  height: 100%;
+  background: var(--metric-color, var(--accent));
+  box-shadow: 0 0 12px var(--metric-color, var(--accent));
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.split-grid .panel {
+  margin: 0;
+}
+
+.activity-list {
+  display: grid;
+  gap: 0;
+}
+
+.activity-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  gap: 12px;
+  padding: 11px 0;
+}
+
+.activity-item:not(:last-child)::after {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 28px;
+  bottom: -4px;
+  width: 1px;
+  background: var(--border);
+}
+
+.activity-dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(79, 139, 255, 0.12);
+}
+
+.activity-dot.success {
+  background: var(--success);
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.1);
+}
+
+.activity-dot.warning {
+  background: var(--warning);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.1);
+}
+
+.activity-dot.danger {
+  background: var(--danger);
+  box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.1);
+}
+
+.activity-time {
+  color: var(--subtle);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+
+.activity-text {
+  overflow: hidden;
+  color: #d4d4d8;
+  font-size: 12px;
+  line-height: 1.55;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.funnel-row {
+  display: grid;
+  gap: 10px;
+}
+
+.funnel-item {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.funnel-item strong {
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: right;
+}
+
+.funnel-track {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.funnel-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.jobs-layout {
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.filter-panel {
+  position: sticky;
+  top: 84px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.feed {
+  display: grid;
+  gap: 12px;
+}
+
+.job-card {
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: start;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.032), rgba(255, 255, 255, 0.012));
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.job-card:hover {
+  border-color: rgba(79, 139, 255, 0.34);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+
+.match-box {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.match-label {
+  color: var(--subtle);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.job-main {
+  min-width: 0;
+}
+
+.job-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.job-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.job-company {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.job-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
   margin-top: 8px;
   color: var(--muted);
   font-size: 12px;
 }
 
-.log-area {
-  margin-top: 16px;
-  max-height: 240px;
-  overflow: auto;
+.job-meta strong {
+  color: #d4d4d8;
+  font-weight: 650;
+}
+
+.tag-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tag.match {
+  border-color: rgba(79, 139, 255, 0.3);
+  color: #93c5fd;
+}
+
+.job-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pipeline-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pipeline-stat {
   padding: 14px;
-  border-radius: 10px;
-  background: #14221e;
-  color: #b9d6cc;
-  font-family: var(--font-mono);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.pipeline-stat-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pipeline-stat-value {
+  margin-top: 8px;
+  font-family: var(--mono);
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.board {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.board-column {
+  flex: 0 0 260px;
+  min-height: 360px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 10px;
+}
+
+.board-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d4d4d8;
   font-size: 12px;
-  line-height: 1.6;
+  font-weight: 750;
+}
+
+.board-count {
+  min-width: 22px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: center;
+}
+
+.board-body {
+  display: grid;
+  gap: 8px;
+}
+
+.pipeline-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.pipeline-card h4 {
+  margin: 0 0 5px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pipeline-card .company {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pipeline-card .meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.pipeline-card .note {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pipeline-card .actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.pipeline-card select {
+  min-width: 0;
+  flex: 1;
+}
+
+.resume-layout {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.analysis-panel {
+  position: sticky;
+  top: 84px;
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+
+.analysis-score {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.analysis-copy strong {
+  display: block;
+  font-size: 15px;
+}
+
+.analysis-copy span {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.analysis-bars {
+  display: grid;
+  gap: 12px;
+}
+
+.analysis-bar {
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-bar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.analysis-bar-head strong {
+  color: #d4d4d8;
+  font-family: var(--mono);
+}
+
+.analysis-track {
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.analysis-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+.suggestion-list {
+  display: grid;
+  gap: 8px;
+}
+
+.suggestion {
+  display: flex;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.025);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.suggestion svg {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  color: var(--warning);
+}
+
+.resume-main {
+  display: grid;
+  gap: 16px;
+}
+
+.resume-section {
+  padding: 18px;
+}
+
+.resume-section .panel-head {
+  margin-bottom: 12px;
+}
+
+.editor-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) 64px;
+  gap: 10px;
+  align-items: start;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.editor-row .wide {
+  grid-column: 1 / 4;
+}
+
+.editor-empty {
+  padding: 20px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.upload-list {
+  display: grid;
+  gap: 8px;
+}
+
+.resume-file {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.resume-file-main {
+  min-width: 0;
+}
+
+.resume-file-main strong {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resume-file-main span {
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.task-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.task-grid .panel {
+  margin: 0;
+}
+
+.task-list {
+  display: grid;
+  gap: 10px;
+}
+
+.task-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.task-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  background: rgba(79, 139, 255, 0.12);
+  color: var(--accent);
+}
+
+.task-icon.success {
+  background: rgba(34, 197, 94, 0.12);
+  color: var(--success);
+}
+
+.task-icon.warning {
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--warning);
+}
+
+.task-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.task-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.task-copy strong {
+  display: block;
+  font-size: 13px;
+}
+
+.task-copy span {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.log-console {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #08090c;
+  color: #a7f3d0;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
   white-space: pre-wrap;
 }
 
-@media (max-width: 1120px) {
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--muted);
+  font-family: var(--font);
+}
+
+.log-head strong {
+  color: var(--text);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--subtle);
+}
+
+.status-dot.online {
+  background: var(--success);
+  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.1);
+}
+
+.status-dot.busy {
+  background: var(--warning);
+  box-shadow: 0 0 0 5px rgba(245, 158, 11, 0.1);
+}
+
+.status-main-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.status-title-copy {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.status-sub-copy {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.progress-text {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.progress-text.is-running {
+  color: var(--accent);
+}
+
+@media (max-width: 1180px) {
   .metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .pipeline {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .pipeline-step + .pipeline-step::before {
-    display: none;
-  }
-
-  .dashboard-grid {
+  .status-card,
+  .split-grid,
+  .jobs-layout,
+  .resume-layout,
+  .task-grid {
     grid-template-columns: 1fr;
   }
 
-  .dashboard-grid .panel + .panel {
-    margin-top: 16px;
+  .filter-panel,
+  .analysis-panel {
+    position: static;
+  }
+
+  .pipeline-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .form-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .span-3 {
-    grid-column: span 2;
-  }
-
-  .editor-grid,
-  .editor-row {
-    grid-template-columns: 1fr;
-  }
-
-  .editor-row .wide {
-    grid-column: auto;
-  }
-}
-
-@media (max-width: 720px) {
-  .app-shell {
-    grid-template-columns: 1fr;
+  .app {
+    display: block;
   }
 
   .sidebar {
     position: sticky;
     top: 0;
+    width: 100%;
     height: auto;
-    display: block;
-    padding: 12px 12px;
+    flex-direction: row;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
   }
 
   .brand {
-    margin-bottom: 10px;
+    flex: 0 0 auto;
   }
 
   .brand-sub,
-  .user-chip,
+  .sidebar .section-label,
+  .sidebar-card,
   .sidebar-footer {
     display: none;
   }
 
   .nav {
     display: flex;
-    gap: 6px;
+    gap: 4px;
     overflow-x: auto;
     scrollbar-width: none;
   }
@@ -1121,60 +1569,55 @@ input[type="checkbox"] {
     white-space: nowrap;
   }
 
-  .topbar {
-    padding: 10px 12px;
+  .main {
+    margin-left: 0;
   }
 
-  .topbar-sub {
-    display: none;
+  .topbar {
+    padding: 0 16px;
   }
 
   .content {
-    padding: 14px 12px 36px;
+    padding: 18px 14px 40px;
   }
 
-  .panel {
-    padding: 14px;
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .span-3 {
+    grid-column: span 2;
+  }
+
+  .job-card {
+    grid-template-columns: 70px minmax(0, 1fr);
+  }
+
+  .job-actions {
+    grid-column: 1 / -1;
+  }
+
+  .editor-row {
+    grid-template-columns: 1fr;
+  }
+
+  .editor-row .wide {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .topbar-sub,
+  .topbar-actions .btn {
+    display: none;
   }
 
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
   }
 
-  .metric {
-    min-height: 94px;
-  }
-
-  .pipeline {
+  .pipeline-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .status-actions {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .page-toolbar {
-    align-items: stretch;
-  }
-
-  .toolbar-actions {
-    width: 100%;
-  }
-
-  .toolbar-actions .input-sm {
-    flex: 1 1 120px;
-  }
-}
-
-@media (max-width: 480px) {
-  .metric-value {
-    font-size: 26px;
-  }
-
-  .pipeline {
-    grid-template-columns: 1fr;
   }
 
   .form-grid {
@@ -1186,7 +1629,25 @@ input[type="checkbox"] {
     grid-column: auto;
   }
 
-  .detail-grid {
+  .status-card {
+    gap: 14px;
+  }
+
+  .status-title {
+    font-size: 20px;
+  }
+
+  .job-card {
+    grid-template-columns: 1fr;
+  }
+
+  .match-box {
+    justify-items: start;
+    grid-auto-flow: column;
+    align-items: center;
+  }
+
+  .pipeline-summary {
     grid-template-columns: 1fr;
   }
 }
@@ -1203,50 +1664,50 @@ input[type="checkbox"] {
 </style>
 </head>
 <body>
-<div class="app-shell">
+<div class="app">
   <aside class="sidebar">
     <div class="brand">
-      <div class="brand-mark" aria-hidden="true">求</div>
+      <div class="brand-mark">J</div>
       <div>
-        <div class="brand-name">求职助手</div>
-        <div class="brand-sub">本地求职作战台</div>
+        <div class="brand-name">JobAgent</div>
+        <div class="brand-sub">AI 求职控制台</div>
       </div>
     </div>
-    <div class="user-chip">
-      <div class="name" id="sidebar-name">---</div>
-      <div class="state"><span class="state-dot" id="sidebar-dot"></span><span id="sidebar-status">未连接</span></div>
+    <div>
+      <div class="section-label">工作台</div>
+      <nav class="nav" aria-label="主导航">
+        <button class="nav-item" data-tab="dashboard" type="button">Agent 状态</button>
+        <button class="nav-item" data-tab="jobs" type="button">岗位推荐</button>
+        <button class="nav-item" data-tab="pipeline" type="button">投递 Pipeline</button>
+        <button class="nav-item" data-tab="resume" type="button">简历 AI</button>
+        <button class="nav-item" data-tab="tasks" type="button">任务监控</button>
+      </nav>
     </div>
-    <nav class="nav" aria-label="主导航">
-      <button class="nav-item" data-tab="dashboard" type="button">概览</button>
-      <button class="nav-item" data-tab="jobs" type="button">职位</button>
-      <button class="nav-item" data-tab="automation" type="button">自动化</button>
-      <button class="nav-item" data-tab="applications" type="button">投递</button>
-      <button class="nav-item" data-tab="resumes" type="button">简历</button>
-      <button class="nav-item" data-tab="resume-editor" type="button">简历编辑</button>
-      <button class="nav-item" data-tab="profile" type="button">个人设置</button>
-    </nav>
-    <div class="nav-spacer"></div>
-    <div class="sidebar-footer">本地控制台 · 数据保存在 portable</div>
+    <div class="sidebar-card">
+      <div class="sidebar-card-label">运行模式</div>
+      <div class="sidebar-card-value"><span id="sidebar-mode">本地 Agent</span><span class="status-dot" id="sidebar-dot"></span></div>
+    </div>
+    <div class="sidebar-footer">
+      本地运行 · 数据保存在 portable<br>仅控制本机求职流程
+    </div>
   </aside>
   <main class="main">
     <header class="topbar">
       <div class="topbar-title">
-        <h1 class="page-title" id="page-title">概览</h1>
-        <span class="topbar-sub">本地求职代理</span>
+        <div class="page-title" id="page-title">Agent 状态</div>
+        <div class="topbar-sub" id="topbar-sub">AI 求职 Agent</div>
       </div>
-      <div class="topbar-meta">
+      <div class="topbar-actions">
         <span class="pill" id="global-status"><span class="dot"></span><span class="pill-label">未连接</span></span>
-        <button class="btn btn-secondary btn-sm" type="button" onclick="refreshStatus()">刷新状态</button>
+        <button class="btn btn-sm" type="button" onclick="refreshStatus()">刷新状态</button>
       </div>
     </header>
     <div class="content">
       <div id="tab-dashboard" class="tab active"></div>
       <div id="tab-jobs" class="tab"></div>
-      <div id="tab-automation" class="tab"></div>
-      <div id="tab-applications" class="tab"></div>
-      <div id="tab-resumes" class="tab"></div>
-      <div id="tab-resume-editor" class="tab"></div>
-      <div id="tab-profile" class="tab"></div>
+      <div id="tab-pipeline" class="tab"></div>
+      <div id="tab-resume" class="tab"></div>
+      <div id="tab-tasks" class="tab"></div>
     </div>
   </main>
 </div>
@@ -1260,16 +1721,39 @@ var _logLines = [];
 var _lastServerLogId = 0;
 var _pollTimer = null;
 var _statusBusy = false;
+var _pipelineLoaded = false;
 
 var TAB_LABELS = {
-  dashboard: "概览",
-  jobs: "职位",
-  automation: "自动化",
-  applications: "投递",
-  resumes: "简历",
-  "resume-editor": "简历编辑",
-  profile: "个人设置"
+  dashboard: "Agent 状态",
+  jobs: "岗位推荐",
+  pipeline: "投递 Pipeline",
+  resume: "简历 AI",
+  tasks: "任务监控"
 };
+
+function icon(name, cls) {
+  var paths = {
+    home: '<path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1v-10.5Z"/>',
+    briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    columns: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 3v18"/>',
+    file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2Z"/><polyline points="14 2 14 8 20 8"/>',
+    activity: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>',
+    search: '<circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>',
+    send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+    play: '<polygon points="6 3 20 12 6 21 6 3"/>',
+    stop: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/>',
+    sparkles: '<path d="m12 3 1.9 5.7L19.6 10l-5.7 1.9L12 17.6l-1.9-5.7L4.4 10l5.7-1.9L12 3Z"/>',
+    plus: '<path d="M12 5v14"/><path d="M5 12h14"/>',
+    trash: '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+    chevron: '<polyline points="9 18 15 12 9 6"/>',
+    zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8Z"/>',
+    user: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>',
+    check: '<polyline points="20 6 9 17 4 12"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>'
+  };
+  return '<svg class="' + (cls || "") + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (paths[name] || "") + "</svg>";
+}
 
 function log(msg) {
   _logLines.push(new Date().toLocaleTimeString() + "  " + msg);
@@ -1299,6 +1783,8 @@ function escAttr(value) {
 function setPageTitle(name) {
   var t = document.getElementById("page-title");
   if (t) t.textContent = name || "";
+  var sub = document.getElementById("topbar-sub");
+  if (sub) sub.textContent = "AI 求职 Agent";
 }
 
 // ─── 导航 ───
@@ -1331,100 +1817,111 @@ document.querySelectorAll(".nav-item").forEach(function(el) {
 function loadTab(name) {
   if (name === "dashboard") loadDashboard();
   else if (name === "jobs") loadJobs();
-  else if (name === "resumes") loadResumes();
-  else if (name === "resume-editor") loadResumeEditor();
-  else if (name === "applications") loadApplications();
-  else if (name === "automation") loadAutomation();
-  else if (name === "profile") loadProfile();
+  else if (name === "pipeline") loadPipeline();
+  else if (name === "resume") loadResume();
+  else if (name === "tasks") loadTasks();
 }
 
-// ─── 概览 ───
-function metricHtml(m) {
-  var tag = m.tab ? "button" : "div";
-  var extra = m.tab ? ' type="button" onclick="goTab(\'' + m.tab + '\')"' : "";
-  var cls = "metric " + m.cls + (m.tab ? " clickable" : "");
-  return '<' + tag + ' class="' + cls + '"' + extra + '>' +
-    '<span class="metric-label">' + m.label + '</span>' +
-    '<span class="metric-value">' + m.value + '</span>' +
-    '<span class="metric-note">' + m.note + '</span>' +
-    '</' + tag + '>';
+// ─── 通用组件 ───
+function ringHtml(pct) {
+  var p = Math.max(0, Math.min(100, Number(pct) || 0));
+  var r = 32;
+  var c = 2 * Math.PI * r;
+  var off = c * (1 - p / 100);
+  return '<div class="ring"><svg viewBox="0 0 78 78"><defs><linearGradient id="ringGradient" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#4f8bff"/><stop offset="100%" stop-color="#8b5cf6"/></linearGradient></defs><circle class="ring-track" cx="39" cy="39" r="' + r + '"></circle><circle class="ring-value" cx="39" cy="39" r="' + r + '" stroke-dasharray="' + c + '" stroke-dashoffset="' + off + '"></circle></svg><span>' + p + '%</span></div>';
 }
 
+function statusTone(bs) {
+  if (!bs.browserConnected) return { dot: "", label: "未连接", title: "浏览器未连接" };
+  if (bs.running) return { dot: "busy", label: "运行中", title: "自动化任务运行中" };
+  return { dot: "online", label: "已连接", title: "Agent 已就绪" };
+}
+
+function toList(value) {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return String(value || "").split(/[,，\s]+/).filter(Boolean);
+}
+
+function setSidebarStatus(connected) {
+  var dot = document.getElementById("sidebar-dot");
+  var mode = document.getElementById("sidebar-mode");
+  if (dot) dot.className = "status-dot" + (connected ? " online" : "");
+  if (mode) mode.textContent = connected ? "Agent 在线" : "本地待机";
+}
+
+// ─── Agent 状态 ───
 async function loadDashboard() {
   var d = await api("/api/stats");
   var bs = await api("/api/boss/status").catch(function() { return {}; });
   bossConnected = bs.browserConnected || false;
-
+  var tone = statusTone(bs);
   var totalApps = d.totalApplications || 0;
-  function pct(v) {
-    return totalApps ? Math.round(((v || 0) / totalApps) * 100) + "%" : "0%";
-  }
+  var pct = function(v) { return totalApps ? Math.round(((v || 0) / totalApps) * 100) : 0; };
+  var progress = bs.running && bs.progress && bs.progress.total
+    ? Math.round((bs.progress.current / bs.progress.total) * 100)
+    : (bs.running ? 42 : 0);
+  var progressLabel = bs.running && bs.progress && bs.progress.total
+    ? bs.progress.current + " / " + bs.progress.total + " " + (bs.progress.step || "")
+    : (bs.running ? "正在执行自动化任务" : "等待新任务");
 
-  var metrics =
-    metricHtml({ label: "职位总数", value: d.totalJobs || 0, note: d.totalJobs ? "已收录岗位" : "先搜索职位", cls: "metric-job", tab: "jobs" }) +
-    metricHtml({ label: "有效职位", value: d.activeJobs || 0, note: "当前可沟通", cls: "metric-success" }) +
-    metricHtml({ label: "投递记录", value: d.totalApplications || 0, note: "已发起沟通", cls: "metric-app", tab: "applications" }) +
-    metricHtml({ label: "建议匹配度", value: (d.strategy && d.strategy.recommendedMinMatch != null ? d.strategy.recommendedMinMatch : "-") + "%", note: "低于此分少投", cls: "metric-warn" }) +
-    metricHtml({ label: "回复率", value: (d.conversion && d.conversion.replyRate || 0) + "%", note: "已回复占比", cls: "metric-violet" });
-
-  var steps = [
-    { label: "待处理", v: d.pending || 0, cls: "pipe-pending" },
-    { label: "已查看", v: d.viewed || 0, cls: "pipe-viewed" },
-    { label: "已回复", v: d.replied || 0, cls: "pipe-replied" },
-    { label: "面试", v: d.interviews || 0, cls: "pipe-interview" },
-    { label: "Offer", v: d.offers || 0, cls: "pipe-offer" },
-    { label: "不合适", v: d.rejected || 0, cls: "pipe-rejected" }
+  var metrics = [
+    { label: "职位池", value: d.totalJobs || 0, note: "已收录岗位", cls: "metric-accent", icon: "briefcase", p: Math.min(100, d.totalJobs || 0) },
+    { label: "有效岗位", value: d.activeJobs || 0, note: "可沟通", cls: "metric-success", icon: "zap", p: d.activeJobs && d.totalJobs ? Math.round(d.activeJobs / d.totalJobs * 100) : 0 },
+    { label: "投递记录", value: d.totalApplications || 0, note: "已发起沟通", cls: "metric-info", icon: "send", p: Math.min(100, d.totalApplications || 0) },
+    { label: "回复率", value: (d.conversion && d.conversion.replyRate || 0) + "%", note: "已回复占比", cls: "metric-violet", icon: "activity", p: d.conversion && d.conversion.replyRate || 0 },
+    { label: "Offer", value: d.offers || 0, note: "当前成果", cls: "metric-success", icon: "check", p: pct(d.offers) }
   ];
-
-  var pipelineHtml = steps.map(function(s) {
-    return '<div class="pipeline-step ' + s.cls + '">' +
-      '<span class="pipeline-label">' + s.label + '</span>' +
-      '<strong>' + s.v + '</strong>' +
-      '<span class="pct">' + pct(s.v) + '</span>' +
-      '</div>';
+  var metricHtml = metrics.map(function(m, i) {
+    return '<div class="metric" style="--metric-color:var(--' + m.cls.replace("metric-", "") + ')">' +
+      '<div class="metric-label">' + icon(m.icon) + m.label + '</div>' +
+      '<div class="metric-value">' + m.value + '</div>' +
+      '<div class="metric-note">' + m.note + '</div>' +
+      '<div class="metric-bar"><i style="width:' + m.p + '%"></i></div></div>';
   }).join("");
 
-  if (!totalApps) {
-    pipelineHtml = '<div class="empty-state">' +
-      '<strong>投递记录还是空的</strong>' +
-      '<span>先搜索职位并开始自动打招呼，反馈会同步到这里。</span>' +
-      '<div class="empty-actions">' +
-      '<button class="btn btn-primary" type="button" onclick="goTab(\'automation\')">搜索职位</button>' +
-      '<button class="btn btn-secondary" type="button" onclick="goTab(\'resume-editor\')">完善简历</button>' +
-      '</div></div>';
-  }
+  var logs = bs.logs || [];
+  var activity = logs.slice(-6).reverse().map(function(l) {
+    var tone2 = /失败|错误|未确认/.test(l.msg) ? "danger" : /完成|成功|已/.test(l.msg) ? "success" : "";
+    return '<div class="activity-item"><span class="activity-dot ' + tone2 + '"></span><div><div class="activity-text">' + escapeHtml(l.msg) + '</div><div class="activity-time">' + new Date(l.t).toLocaleTimeString() + "</div></div></div>";
+  }).join("") || '<div class="empty-state"><span>暂无运行日志</span></div>';
+
+  var funnel = [
+    ["待处理", d.pending || 0], ["已查看", d.viewed || 0], ["已回复", d.replied || 0],
+    ["面试", d.interviews || 0], ["Offer", d.offers || 0], ["不合适", d.rejected || 0]
+  ].map(function(f) {
+    var p = totalApps ? Math.round(f[1] / totalApps * 100) : 0;
+    return '<div class="funnel-item"><span>' + f[0] + '</span><div class="funnel-track"><i style="width:' + p + '%"></i></div><strong>' + f[1] + '</strong></div>';
+  }).join("");
 
   var insight = (d.strategy && d.strategy.insight) || "先补充个人档案和结构化简历，再从小批量投递开始观察回复率。";
-  var strategyHtml = '<section class="panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">策略建议</h2><p class="panel-desc">基于当前投递反馈给出下一步</p></div></div>' +
-    '<div class="insight-block">' +
-    '<div class="insight-text">' + escapeHtml(insight) + '</div>' +
-    '<div class="insight-meta"><span>平均投递分 <strong>' + (d.strategy && d.strategy.avgAppliedScore || 0) + '</strong></span><span>回复率 <strong>' + (d.conversion && d.conversion.replyRate || 0) + '%</strong></span></div>' +
-    '</div></section>';
-
-  var quickHtml = '<section class="panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">快速操作</h2><p class="panel-desc">按当前筛选条件发起小批量投递</p></div></div>' +
-    '<div class="action-row">' +
-    '<button class="btn btn-primary" type="button" onclick="quickApply(5)">投递 5 份</button>' +
-    '<button class="btn btn-primary" type="button" onclick="quickApply(10)">投递 10 份</button>' +
-    '<button class="btn btn-primary" type="button" onclick="quickApply(20)">投递 20 份</button>' +
-    '<button class="btn btn-danger" type="button" onclick="stopApply()">停止投递</button>' +
-    '</div></section>';
-
   var el = document.getElementById("tab-dashboard");
   el.innerHTML =
-    '<div class="metric-grid">' + metrics + '</div>' +
-    '<section class="panel pipeline-panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">投递状态轨道</h2><p class="panel-desc">按 HR 反馈实时更新</p></div>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="goTab(\'applications\')">查看投递</button></div>' +
-    pipelineHtml +
-    '</section>' +
-    '<div class="dashboard-grid">' + strategyHtml + quickHtml + '</div>';
+    '<section class="panel status-card">' +
+    '<div class="status-main">' +
+    '<div class="status-eyebrow"><span class="status-dot ' + tone.dot + '"></span>' + tone.label + ' · BOSS 直聘</div>' +
+    '<h2 class="status-title">' + tone.title + '</h2>' +
+    '<div class="status-description">' + escapeHtml(insight) + '</div>' +
+    '<div class="status-actions">' +
+    '<button class="btn btn-primary" type="button" onclick="quickApply(5)">' + icon("play") + '投递 5 份</button>' +
+    '<button class="btn btn-primary" type="button" onclick="quickApply(10)">' + icon("play") + '投递 10 份</button>' +
+    '<button class="btn btn-success" type="button" onclick="bossSyncFeedback()">' + icon("refresh") + '同步反馈</button>' +
+    '<button class="btn btn-danger" type="button" onclick="stopApply()">' + icon("stop") + '停止投递</button>' +
+    '</div></div>' +
+    '<div class="progress-card">' +
+    '<div class="progress-ring-row">' + ringHtml(progress) + '<div class="progress-copy"><strong>' + escapeHtml(progressLabel) + '</strong><span>实时任务进度</span></div></div>' +
+    '<div class="progress-bar"><i style="width:' + progress + '%"></i></div>' +
+    '<div class="status-sub-copy">已打招呼 ' + (bs.appliedCount || 0) + ' 次</div>' +
+    '</div></section>' +
+    '<div class="metric-grid">' + metricHtml + '</div>' +
+    '<div class="split-grid">' +
+    '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">运行记录</h3><p class="panel-desc">Agent 最近操作</p></div><button class="btn btn-sm" type="button" onclick="refreshDashboard()">' + icon("refresh") + '刷新</button></div><div class="activity-list">' + activity + '</div></section>' +
+    '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">投递漏斗</h3><p class="panel-desc">按状态分布</p></div></div><div class="funnel-row">' + funnel + '</div></section>' +
+    '</div>';
 }
 
 function refreshDashboard() {
   loadDashboard();
-  log("概览已刷新");
+  log("Agent 状态已刷新");
 }
 
 function currentApplyOptions(extra) {
@@ -1453,11 +1950,8 @@ async function quickApply(n) {
   try {
     var r = await fetch("/api/boss/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(currentApplyOptions({ limit: n })) });
     var d = await r.json();
-    if (d.ok) {
-      log("完成: 成功 " + d.applied + " / 失败 " + (d.failed || 0) + " / 跳过 " + (d.skippedApplied || 0) + " / 共 " + d.total);
-    } else {
-      log("失败: " + (d.error || ""));
-    }
+    if (d.ok) log("完成: 成功 " + d.applied + " / 失败 " + (d.failed || 0) + " / 跳过 " + (d.skippedApplied || 0) + " / 共 " + d.total);
+    else log("失败: " + (d.error || ""));
   } catch (e) {
     log("错误: " + e.message);
   }
@@ -1473,7 +1967,7 @@ async function stopApply() {
   } catch (e) {}
 }
 
-// ─── 职位 ───
+// ─── 岗位推荐流 ───
 async function loadJobs(filters) {
   filters = filters || {};
   var qs = "?limit=200";
@@ -1482,49 +1976,39 @@ async function loadJobs(filters) {
   if (filters.status) qs += "&status=" + filters.status;
   var d = await api("/api/jobs" + qs);
   var el = document.getElementById("tab-jobs");
-
-  var h = '<div class="page-toolbar">' +
-    '<div><h2 class="panel-title">职位</h2><p class="panel-desc">共 ' + (d.total || 0) + ' 条职位</p></div>' +
-    '<div class="toolbar-actions">' +
-    '<input id="job-filter-kw" class="input-sm" placeholder="搜索职位/技能" style="width:180px" value="' + escAttr(filters.keyword || "") + '">' +
-    '<input id="job-filter-city" class="input-sm" placeholder="城市" style="width:96px" value="' + escAttr(filters.city || "") + '">' +
-    '<select id="job-filter-status" class="input-sm"><option value="">全部状态</option><option value="active">有效</option><option value="closed">已关闭</option></select>' +
-    '<button class="btn btn-primary btn-sm" type="button" onclick="loadJobs({keyword:document.getElementById(\'job-filter-kw\').value,city:document.getElementById(\'job-filter-city\').value,status:document.getElementById(\'job-filter-status\').value})">搜索职位</button>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="markAllClosed()">标记过期职位</button>' +
-    '</div></div>';
+  var h = '<div class="jobs-layout">' +
+    '<aside class="panel filter-panel">' +
+    '<div><h3 class="panel-title">推荐筛选</h3><p class="panel-desc">调整岗位推荐流</p></div>' +
+    '<div class="field"><label for="job-filter-kw">关键词</label><input id="job-filter-kw" value="' + escAttr(filters.keyword || "") + '" placeholder="C++, Qt, 嵌入式"></div>' +
+    '<div class="field"><label for="job-filter-city">城市</label><input id="job-filter-city" value="' + escAttr(filters.city || "") + '" placeholder="台州"></div>' +
+    '<div class="field"><label for="job-filter-status">状态</label><select id="job-filter-status"><option value="">全部状态</option><option value="active">有效</option><option value="closed">已关闭</option></select></div>' +
+    '<div class="form-actions">' +
+    '<button class="btn btn-primary" type="button" onclick="loadJobs({keyword:document.getElementById(\'job-filter-kw\').value,city:document.getElementById(\'job-filter-city\').value,status:document.getElementById(\'job-filter-status\').value})">' + icon("search") + '筛选岗位</button>' +
+    '<button class="btn btn-sm" type="button" onclick="markAllClosed()">标记过期</button>' +
+    '</div></aside>' +
+    '<div><div class="panel-head"><div><h3 class="panel-title">岗位推荐流</h3><p class="panel-desc">共 ' + (d.total || 0) + ' 个职位</p></div><span class="pill">' + icon("sparkles") + '匹配驱动</span></div><div class="feed">';
 
   if (!d.jobs || !d.jobs.length) {
-    h += '<section class="panel"><div class="empty-state">' +
-      '<strong>没有找到匹配职位</strong>' +
-      '<span>换关键词、城市或去自动化页重新搜索。</span>' +
-      '<div class="empty-actions">' +
-      '<button class="btn btn-primary" type="button" onclick="goTab(\'automation\')">搜索职位</button>' +
-      '<button class="btn btn-secondary" type="button" onclick="loadJobs()">清空筛选</button>' +
-      '</div></div></section>';
-    el.innerHTML = h;
-    return;
+    h += '<section class="panel"><div class="empty-state"><div class="empty-icon">' + icon("search") + '</div><strong>没有找到匹配职位</strong><span>调整筛选条件，或去任务监控页重新搜索。</span><div class="empty-actions"><button class="btn btn-primary" type="button" onclick="goTab(\'tasks\')">去搜索职位</button><button class="btn" type="button" onclick="loadJobs()">清空筛选</button></div></div></section>';
+  } else {
+    d.jobs.forEach(function(j, i) {
+      var pct = j.matchPct != null ? j.matchPct : 0;
+      var skills = toList(j.technologies).slice(0, 6).map(function(s) { return '<span class="tag">' + escapeHtml(s) + "</span>"; }).join("");
+      var matched = toList(j.matchedSkills).slice(0, 4).map(function(s) { return '<span class="tag match">' + escapeHtml(s) + "</span>"; }).join("");
+      h += '<article class="job-card">' +
+        '<div class="match-box">' + ringHtml(pct) + '<div class="match-label">匹配</div></div>' +
+        '<div class="job-main">' +
+        '<div class="job-title-row"><h3 class="job-title">' + escapeHtml(j.title || "-") + '</h3><span class="job-company">' + escapeHtml(j.companyName || "-") + '</span></div>' +
+        '<div class="job-meta"><strong>' + escapeHtml(j.salaryRaw || "薪资面议") + '</strong><span>' + escapeHtml(j.city || "-") + (j.district ? " · " + escapeHtml(j.district) : "") + '</span><span>' + (j.status === "active" ? "有效" : "已关闭") + '</span></div>' +
+        '<div class="tag-list">' + skills + matched + '</div>' +
+        '</div>' +
+        '<div class="job-actions">' +
+        '<button class="btn btn-primary btn-sm" type="button" onclick="applyOne(\'' + (j.id || "") + '\')">' + icon("send") + '沟通</button>' +
+        '<button class="btn btn-sm" type="button" onclick="markClosed(' + j.id + ')">关闭</button>' +
+        '</div></article>';
+    });
   }
-
-  h += '<div class="table-wrap"><table><thead><tr>' +
-    '<th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>匹配</th><th>状态</th><th>操作</th>' +
-    '</tr></thead><tbody>';
-  d.jobs.forEach(function(j, i) {
-    var pct = j.matchPct != null ? j.matchPct + "%" : "-";
-    var mc = j.matchPct >= 60 ? "active" : j.matchPct >= 30 ? "pending" : "closed";
-    h += '<tr>' +
-      '<td class="cell-note">' + (i + 1) + '</td>' +
-      '<td><a href="' + escAttr(j.url || "#") + '" target="_blank" rel="noopener">' + escapeHtml(j.title || "-") + '</a></td>' +
-      '<td>' + escapeHtml(j.companyName || "-") + '</td>' +
-      '<td>' + escapeHtml(j.salaryRaw || "-") + '</td>' +
-      '<td>' + escapeHtml(j.city || "-") + (j.district ? " " + escapeHtml(j.district) : "") + '</td>' +
-      '<td><span class="badge ' + mc + '">' + pct + '</span></td>' +
-      '<td><span class="badge ' + (j.status || "active") + '">' + escapeHtml(j.status || "active") + '</span></td>' +
-      '<td>' +
-      '<button class="btn btn-primary btn-sm" type="button" onclick="applyOne(\'' + (j.id || "") + '\')">沟通</button> ' +
-      '<button class="btn btn-secondary btn-sm" type="button" onclick="markClosed(' + j.id + ')">关闭</button>' +
-      '</td></tr>';
-  });
-  h += '</tbody></table></div>';
+  h += '</div></div></div>';
   el.innerHTML = h;
 }
 
@@ -1555,80 +2039,77 @@ async function markAllClosed() {
   } catch (e) {}
 }
 
-// ─── 简历 ───
-async function loadResumes() {
-  var p = profile || await api("/api/profile").catch(function() { return {}; });
-  profile = p;
-  var d = await api("/api/resumes");
-  var el = document.getElementById("tab-resumes");
-  var h = '<section class="panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">当前档案</h2><p class="panel-desc">用于职位匹配和打招呼</p></div>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="goTab(\'profile\')">编辑档案</button></div>';
+// ─── 投递 Pipeline ───
+var STATUS_NAMES = { pending: "待处理", viewed: "已查看", replied: "已回复", interview: "面试中", offer: "Offer", rejected: "不合适", withdrawn: "已撤回" };
+var PIPELINE_ORDER = ["pending", "viewed", "replied", "interview", "offer", "rejected", "withdrawn"];
 
-  if (p && p.name) {
-    h += '<div class="detail-grid">' +
-      '<div class="detail-item"><span class="detail-label">姓名</span>' + escapeHtml(p.name || "-") + '</div>' +
-      '<div class="detail-item"><span class="detail-label">状态</span>' + escapeHtml(p.status || "待补充") + '</div>' +
-      '<div class="detail-item"><span class="detail-label">目标</span>' + escapeHtml(p.targetRole || "待补充") + '</div>' +
-      '<div class="detail-item"><span class="detail-label">学历</span>' + escapeHtml(p.education || "待补充") + '</div>' +
-      '<div class="detail-item"><span class="detail-label">经验</span>' + escapeHtml(p.experience || "待补充") + '</div>' +
-      '<div class="detail-item"><span class="detail-label">技能</span>' + escapeHtml(p.skills || "") + '</div>' +
-      '</div>';
-  } else {
-    h += '<div class="empty-state"><strong>还没有个人档案</strong><span>补充姓名、技能和目标职位后，投递匹配会更准确。</span>' +
-      '<div class="empty-actions"><button class="btn btn-primary" type="button" onclick="goTab(\'profile\')">补充档案</button></div></div>';
+async function loadPipeline() {
+  var d = await api("/api/applications");
+  var apps = d.applications || [];
+  _pipelineLoaded = true;
+  var el = document.getElementById("tab-pipeline");
+  var grouped = {};
+  PIPELINE_ORDER.forEach(function(s) { grouped[s] = []; });
+  apps.forEach(function(a) {
+    var s = STATUS_NAMES[a.status] ? a.status : "pending";
+    if (!grouped[s]) grouped[s] = [];
+    grouped[s].push(a);
+  });
+  var total = apps.length;
+  var summary = PIPELINE_ORDER.map(function(s) {
+    var count = (grouped[s] || []).length;
+    return '<div class="pipeline-stat"><div class="pipeline-stat-label">' + STATUS_NAMES[s] + '</div><div class="pipeline-stat-value">' + count + '</div></div>';
+  }).join("");
+
+  var board = PIPELINE_ORDER.map(function(s) {
+    var items = grouped[s] || [];
+    var cards = items.map(function(a) {
+      return '<div class="pipeline-card">' +
+        '<h4>' + escapeHtml(a.jobTitle || "-") + '</h4>' +
+        '<div class="company">' + escapeHtml(a.companyName || "-") + '</div>' +
+        '<div class="meta"><span>' + escapeHtml(a.salary || "-") + '</span><span>' + escapeHtml((a.time || "").slice(0, 10)) + '</span></div>' +
+        (a.notes ? '<div class="note">' + escapeHtml(a.notes) + '</div>' : "") +
+        '<div class="actions">' +
+        '<select class="input-sm" onchange="updateAppStatus(' + a.id + ',this.value)">' +
+        '<option value="">改状态</option>' +
+        Object.keys(STATUS_NAMES).map(function(k) { return '<option value="' + k + '"' + (k === a.status ? " selected" : "") + '>' + STATUS_NAMES[k] + '</option>'; }).join("") +
+        '</select>' +
+        '<button class="icon-btn" type="button" title="删除投递" onclick="deleteApp(' + a.id + ')">' + icon("trash") + '</button>' +
+        '</div></div>';
+    }).join("") || '<div class="empty-state"><span>暂无记录</span></div>';
+    return '<div class="board-column"><div class="board-head"><div class="board-title">' + STATUS_NAMES[s] + '</div><span class="board-count">' + items.length + '</span></div><div class="board-body">' + cards + '</div></div>';
+  }).join("");
+
+  el.innerHTML =
+    '<div class="pipeline-summary">' + summary + '</div>' +
+    (total ? "" : '<section class="panel"><div class="empty-state"><div class="empty-icon">' + icon("columns") + '</div><strong>投递 Pipeline 还是空的</strong><span>先搜索并投递职位，反馈会自动进入对应阶段。</span><div class="empty-actions"><button class="btn btn-primary" type="button" onclick="goTab(\'tasks\')">去启动任务</button><button class="btn" type="button" onclick="loadPipeline()">刷新</button></div></div></section>') +
+    '<div class="board">' + board + '</div>';
+}
+
+async function updateAppStatus(id, status) {
+  if (!status) return;
+  try {
+    var r = await fetch("/api/applications/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: status }) });
+    var d = await r.json();
+    log(d.ok ? ("已更新投递 #" + id + " -> " + status) : ("更新失败: " + (d.error || "")));
+    loadPipeline();
+  } catch (e) {
+    log("更新失败: " + e.message);
   }
-  h += '</section>';
+}
 
-  h += '<section class="panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">上传简历</h2><p class="panel-desc">支持 PDF/Word/图片，自动识别技能</p></div></div>' +
-    '<input type="file" id="resume-file" accept=".pdf,.doc,.docx,.png,.jpg" onchange="uploadResume()">' +
-    '<div class="upload-hint">上传后会把识别出的技能加入本地档案。</div></section>';
-
-  if (d.resumes && d.resumes.length > 0) {
-    h += '<div class="table-wrap"><table><thead><tr><th>文件名</th><th>技能</th><th>时间</th><th>操作</th></tr></thead><tbody>';
-    d.resumes.forEach(function(r) {
-      h += '<tr><td>' + escapeHtml(r.name || "-") + '</td><td class="cell-clip">' + escapeHtml((r.skills || "").substring(0, 60)) + '</td>' +
-        '<td class="cell-note">' + escapeHtml((r.createdAt || "").slice(0, 10)) + '</td>' +
-        '<td><button class="btn btn-danger btn-sm" type="button" onclick="deleteResume(' + r.id + ')">删除</button></td></tr>';
-    });
-    h += '</tbody></table></div>';
-  } else {
-    h += '<div class="empty-state"><strong>还没有上传的简历</strong><span>可以上传 PDF、Word 或图片，或直接使用简历编辑页。</span>' +
-      '<div class="empty-actions"><button class="btn btn-primary" type="button" onclick="goTab(\'resume-editor\')">编辑简历</button></div></div>';
+async function deleteApp(id) {
+  try {
+    var r = await fetch("/api/applications/" + id, { method: "DELETE" });
+    var d = await r.json();
+    log(d.ok ? ("已删除投递 #" + id) : ("删除失败: " + (d.error || "")));
+    loadPipeline();
+  } catch (e) {
+    log("删除失败: " + e.message);
   }
-  el.innerHTML = h;
 }
 
-async function uploadResume() {
-  var file = document.getElementById("resume-file").files[0];
-  if (!file) return;
-  log("上传简历: " + file.name);
-  var reader = new FileReader();
-  reader.onload = async function() {
-    var base64 = reader.result.split(",")[1];
-    try {
-      var r = await api("/api/resumes/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileData: base64 }) });
-      if (r.ok) {
-        log("上传成功, 识别技能: " + (r.skills || []).join(","));
-        loadResumes();
-      } else {
-        log("上传失败: " + (r.error || ""));
-      }
-    } catch (e) {
-      log("上传错误: " + e.message);
-    }
-  };
-  reader.readAsDataURL(file);
-}
-
-async function deleteResume(id) {
-  await fetch("/api/resumes/" + id, { method: "DELETE" });
-  log("已删除简历 #" + id);
-  loadResumes();
-}
-
-// ─── 简历编辑 ───
+// ─── 简历 AI ───
 var resumeEditorData = null;
 var EDITOR_FIELDS = {
   work: [
@@ -1679,7 +2160,7 @@ function renderEditorRows(prefix) {
     var fields = EDITOR_FIELDS[prefix].map(function(f) {
       return editorFieldHtml(prefix, idx, f, item[f.key] || "");
     }).join("");
-    return '<div class="editor-row">' + fields + '<button class="btn btn-danger btn-sm" type="button" onclick="removeEditorRow(\'' + prefix + '\',' + idx + ')">删除</button></div>';
+    return '<div class="editor-row">' + fields + '<button class="icon-btn" type="button" title="删除" onclick="removeEditorRow(\'' + prefix + '\',' + idx + ')">' + icon("trash") + '</button></div>';
   }).join("");
 }
 
@@ -1714,16 +2195,57 @@ function setEditorMsg(msg) {
   if (el) el.textContent = msg;
 }
 
-async function loadResumeEditor() {
+async function loadResume() {
+  var p = profile || await api("/api/profile").catch(function() { return {}; });
+  profile = p;
   var d = await api("/api/resume/editor").catch(function() { return { resume: {} }; });
   resumeEditorData = d.resume || {};
   var r = resumeEditorData;
-  var el = document.getElementById("tab-resume-editor");
+  var files = await api("/api/resumes").catch(function() { return { resumes: [] }; });
+  var el = document.getElementById("tab-resume");
   var statusOptions = editorOptions(["", "在职", "离职", "应届生", "在读"], r.status || "");
   var eduOptions = editorOptions(["", "大专", "本科", "硕士", "博士"], r.education || "");
+  var skills = String(r.skills || "").split(/[,，\s]+/).filter(Boolean);
+  var skillChecks = ["C++", "Qt", "CMake", "Linux", "OpenGL", "Git"];
+  var skillPct = skillChecks.filter(function(s) { return skills.some(function(x) { return x.toLowerCase().indexOf(s.toLowerCase()) !== -1; }); }).length / skillChecks.length * 100;
+  var fields = ["name", "targetRole", "phone", "email", "education", "experience", "summary", "skills"];
+  var complete = fields.filter(function(k) { return String(r[k] || "").trim(); }).length / fields.length * 100;
+  var workScore = Math.min(100, 40 + (r.work || []).length * 15);
+  var projectScore = Math.min(100, 40 + (r.projects || []).length * 12);
+  var overall = Math.round((complete * 0.45 + skillPct * 0.25 + workScore * 0.15 + projectScore * 0.15));
+
+  var suggestions = [];
+  if (!r.phone) suggestions.push("补充手机号，招聘方才能直接联系你。");
+  if (!r.email) suggestions.push("补充邮箱，便于接收面试和 Offer 通知。");
+  if (!(r.projects || []).length) suggestions.push("至少补充 1 个代表性项目，突出结果和职责。");
+  if (!(r.work || []).length) suggestions.push("工作经历为空，可先写实习或项目经验。");
+  if (skills.length < 6) suggestions.push("技能数量偏少，补充与目标岗位相关的关键词。");
+  if (!suggestions.length) suggestions.push("简历完整度较高，可继续导出 PDF/Word 投递。");
+  var suggestionHtml = suggestions.map(function(s) { return '<div class="suggestion">' + icon("zap") + escapeHtml(s) + "</div>"; }).join("");
+
+  var analysisHtml =
+    '<aside class="analysis-panel panel">' +
+    '<div class="analysis-score">' + ringHtml(overall) + '<div class="analysis-copy"><strong>简历强度</strong><span>综合完整度与技能覆盖</span></div></div>' +
+    '<div class="analysis-bars">' +
+    '<div class="analysis-bar"><div class="analysis-bar-head"><span>基础信息完整度</span><strong>' + Math.round(complete) + '%</strong></div><div class="analysis-track"><i style="width:' + complete + '%"></i></div></div>' +
+    '<div class="analysis-bar"><div class="analysis-bar-head"><span>技能覆盖</span><strong>' + Math.round(skillPct) + '%</strong></div><div class="analysis-track"><i style="width:' + skillPct + '%"></i></div></div>' +
+    '<div class="analysis-bar"><div class="analysis-bar-head"><span>工作经历</span><strong>' + (r.work || []).length + ' 条</strong></div><div class="analysis-track"><i style="width:' + workScore + '%"></i></div></div>' +
+    '<div class="analysis-bar"><div class="analysis-bar-head"><span>项目经历</span><strong>' + (r.projects || []).length + ' 条</strong></div><div class="analysis-track"><i style="width:' + projectScore + '%"></i></div></div>' +
+    '</div>' +
+    '<div><h4 class="panel-title">优化建议</h4><div class="suggestion-list" style="margin-top:10px">' + suggestionHtml + '</div></div>' +
+    '</aside>';
+
+  var fileHtml = '<div class="upload-list">';
+  (files.resumes || []).forEach(function(f) {
+    fileHtml += '<div class="resume-file"><div class="resume-file-main"><strong>' + escapeHtml(f.name || "-") + '</strong><span>' + escapeHtml((f.createdAt || "").slice(0, 10)) + '</span></div><button class="icon-btn" type="button" title="删除" onclick="deleteResume(' + f.id + ')">' + icon("trash") + '</button></div>';
+  });
+  fileHtml += '</div>';
+
   el.innerHTML =
-    '<section class="panel">' +
-    '<div class="panel-head"><div><h2 class="panel-title">基本信息</h2><p class="panel-desc">保存后会同步到投递档案</p></div></div>' +
+    '<div class="resume-layout">' + analysisHtml +
+    '<div class="resume-main">' +
+    '<section class="panel resume-section">' +
+    '<div class="panel-head"><div><h3 class="panel-title">简历 AI 分析</h3><p class="panel-desc">根据当前档案生成建议，保存后同步到投递</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="re-name">姓名</label><input id="re-name" value="' + escAttr(r.name || "") + '"></div>' +
     '<div class="field"><label for="re-target">目标岗位</label><input id="re-target" value="' + escAttr(r.targetRole || "") + '"></div>' +
@@ -1740,25 +2262,26 @@ async function loadResumeEditor() {
     '<div class="field span-3"><label for="re-greeting">打招呼语</label><textarea id="re-greeting" rows="2">' + escapeHtml(r.greeting || "您好，我对该职位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
     '</div></section>' +
 
-    '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">工作经历</h2><p class="panel-desc">按时间倒序填写</p></div>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="addEditorRow(\'work\')">添加工作</button></div>' +
-    '<div id="re-work"></div></section>' +
+    '<section class="panel resume-section"><div class="panel-head"><div><h3 class="panel-title">工作经历</h3><p class="panel-desc">按时间倒序填写</p></div><button class="btn btn-sm" type="button" onclick="addEditorRow(\'work\')">' + icon("plus") + '添加</button></div><div id="re-work"></div></section>' +
+    '<section class="panel resume-section"><div class="panel-head"><div><h3 class="panel-title">项目经历</h3><p class="panel-desc">突出与目标岗位相关的成果</p></div><button class="btn btn-sm" type="button" onclick="addEditorRow(\'projects\')">' + icon("plus") + '添加</button></div><div id="re-projects"></div></section>' +
+    '<section class="panel resume-section"><div class="panel-head"><div><h3 class="panel-title">教育经历</h3><p class="panel-desc">学历、学校和时间</p></div><button class="btn btn-sm" type="button" onclick="addEditorRow(\'educationList\')">' + icon("plus") + '添加</button></div><div id="re-educationList"></div></section>' +
 
-    '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">项目经历</h2><p class="panel-desc">突出与目标岗位相关的成果</p></div>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="addEditorRow(\'projects\')">添加项目</button></div>' +
-    '<div id="re-projects"></div></section>' +
-
-    '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">教育经历</h2><p class="panel-desc">学历、学校和时间</p></div>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="addEditorRow(\'educationList\')">添加教育</button></div>' +
-    '<div id="re-educationList"></div></section>' +
-
-    '<section class="panel"><div class="panel-head"><div><h2 class="panel-title">保存与导出</h2><p class="panel-desc">导出前会先保存当前内容</p></div></div>' +
-    '<div class="editor-actions">' +
-    '<button class="btn btn-primary" type="button" onclick="saveResumeEditorData()">保存简历</button>' +
-    '<button class="btn btn-primary" type="button" onclick="exportResume(\'pdf\')">导出 PDF</button>' +
-    '<button class="btn btn-primary" type="button" onclick="exportResume(\'docx\')">导出 Word</button>' +
+    '<section class="panel resume-section">' +
+    '<div class="panel-head"><div><h3 class="panel-title">保存与导出</h3><p class="panel-desc">导出前会先保存当前内容</p></div></div>' +
+    '<div class="form-actions">' +
+    '<button class="btn btn-primary" type="button" onclick="saveResumeEditorData()">' + icon("check") + '保存简历</button>' +
+    '<button class="btn btn-primary" type="button" onclick="exportResume(\'pdf\')">' + icon("file") + '导出 PDF</button>' +
+    '<button class="btn btn-primary" type="button" onclick="exportResume(\'docx\')">' + icon("file") + '导出 Word</button>' +
     '<span id="re-msg" class="result-line" aria-live="polite"></span>' +
-    '</div></section>';
+    '</div></section>' +
+
+    '<section class="panel resume-section">' +
+    '<div class="panel-head"><div><h3 class="panel-title">简历文件</h3><p class="panel-desc">上传 PDF/Word/图片，自动识别技能</p></div></div>' +
+    '<input type="file" id="resume-file" accept=".pdf,.doc,.docx,.png,.jpg" onchange="uploadResume()">' +
+    '<div class="upload-hint" style="margin-top:8px;color:var(--subtle);font-size:12px">识别出的技能会加入本地档案。</div>' +
+    '<div style="margin-top:12px">' + fileHtml + '</div>' +
+    '</section>' +
+    '</div></div>';
   renderEditorRows("work");
   renderEditorRows("projects");
   renderEditorRows("educationList");
@@ -1786,10 +2309,7 @@ async function saveResumeEditorData() {
       resumeEditorData = r.resume;
       setEditorMsg("已保存");
       var p = await api("/api/profile").catch(function() { return {}; });
-      if (p && p.name) {
-        profile = p;
-        document.getElementById("sidebar-name").textContent = p.name;
-      }
+      if (p && p.name) profile = p;
       return true;
     }
     setEditorMsg("保存失败: " + (r.error || ""));
@@ -1817,169 +2337,90 @@ async function exportResume(format) {
   }
 }
 
-// ─── 投递 ───
-var appStatusFilter = "";
-var STATUS_NAMES = { pending: "待处理", viewed: "已查看", replied: "已回复", interview: "面试中", offer: "Offer", rejected: "不合适", withdrawn: "已撤回" };
-
-async function loadApplications(status) {
-  appStatusFilter = status || appStatusFilter || "";
-  var qs = appStatusFilter ? "?status=" + appStatusFilter : "";
-  var d = await api("/api/applications" + qs);
-  var el = document.getElementById("tab-applications");
-  var filters = ["", "pending", "viewed", "replied", "interview", "offer", "rejected", "withdrawn"];
-  var filterHtml = filters.map(function(s) {
-    var label = s ? (STATUS_NAMES[s] || s) : "全部";
-    var cls = appStatusFilter === s ? "btn btn-primary btn-sm" : "btn btn-secondary btn-sm";
-    return '<button class="' + cls + '" type="button" onclick="loadApplications(\'' + s + '\')">' + label + '</button>';
-  }).join("");
-
-  var apps = d.applications || [];
-  var h = '<div class="page-toolbar"><div><h2 class="panel-title">投递记录</h2><p class="panel-desc">共 ' + apps.length + ' 条记录</p></div></div>' +
-    '<div class="filter-pills">' + filterHtml + '</div>';
-
-  if (!apps.length) {
-    h += '<section class="panel"><div class="empty-state">' +
-      '<strong>还没有投递记录</strong>' +
-      '<span>先搜索职位并开始自动打招呼，反馈会同步到这里。</span>' +
-      '<div class="empty-actions"><button class="btn btn-primary" type="button" onclick="goTab(\'automation\')">去自动化投递</button></div>' +
-      '</div></section>';
-    el.innerHTML = h;
-    return;
-  }
-
-  h += '<div class="table-wrap"><table><thead><tr>' +
-    '<th>#</th><th>职位</th><th>公司</th><th>薪资</th><th>城市</th><th>简历</th><th>状态</th><th>备注</th><th>时间</th><th>操作</th>' +
-    '</tr></thead><tbody>';
-  apps.forEach(function(a) {
-    h += '<tr>' +
-      '<td class="cell-note">' + a.id + '</td>' +
-      '<td>' + escapeHtml(a.jobTitle || "-") + '</td>' +
-      '<td>' + escapeHtml(a.companyName || "-") + '</td>' +
-      '<td>' + escapeHtml(a.salary || "-") + '</td>' +
-      '<td>' + escapeHtml(a.city || "-") + '</td>' +
-      '<td>' + escapeHtml(a.resumeName || "-") + '</td>' +
-      '<td><span class="badge ' + (a.status || "pending") + '">' + (STATUS_NAMES[a.status] || a.status) + '</span></td>' +
-      '<td class="cell-clip" title="' + escAttr(a.notes || "") + '">' + escapeHtml(a.notes || "") + '</td>' +
-      '<td class="cell-note">' + escapeHtml((a.time || "").slice(0, 10)) + '</td>' +
-      '<td>' +
-      '<select class="input-sm" onchange="updateAppStatus(' + a.id + ',this.value)" style="font-size:11px;min-height:28px">' +
-      '<option value="">改状态</option>' +
-      filters.filter(function(s) { return s; }).map(function(s) { return '<option value="' + s + '">' + (STATUS_NAMES[s] || s) + '</option>'; }).join("") +
-      '</select>' +
-      '<button class="btn btn-danger btn-sm" style="margin-left:4px" type="button" onclick="deleteApp(' + a.id + ')">删除</button>' +
-      '</td></tr>';
-  });
-  h += '</tbody></table></div>';
-  el.innerHTML = h;
-}
-
-async function updateAppStatus(id, status) {
-  if (!status) return;
-  try {
-    var r = await fetch("/api/applications/" + id, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: status }) });
-    var d = await r.json();
-    log(d.ok ? ("已更新投递 #" + id + " -> " + status) : ("更新失败: " + (d.error || "")));
-    loadApplications();
-  } catch (e) {
-    log("更新失败: " + e.message);
-  }
-}
-
-async function deleteApp(id) {
-  try {
-    var r = await fetch("/api/applications/" + id, { method: "DELETE" });
-    var d = await r.json();
-    log(d.ok ? ("已删除投递 #" + id) : ("删除失败: " + (d.error || "")));
-    loadApplications();
-  } catch (e) {
-    log("删除失败: " + e.message);
-  }
-}
-
-// ─── 个人设置 ───
-async function loadProfile() {
-  var p = profile || await api("/api/profile").catch(function() { return {}; });
-  profile = p;
-  var el = document.getElementById("tab-profile");
-  var sOpts = ["", "在职", "离职", "应届生", "在读"].map(function(s) { return '<option value="' + s + '"' + (p.status === s ? " selected" : "") + '>' + (s || "请选择") + '</option>'; }).join("");
-  var eOpts = ["", "大专", "本科", "硕士", "博士"].map(function(s) { return '<option value="' + s + '"' + (p.education === s ? " selected" : "") + '>' + (s || "请选择") + '</option>'; }).join("");
-  el.innerHTML =
-    '<section class="panel" style="max-width:720px">' +
-    '<div class="panel-head"><div><h2 class="panel-title">个人设置</h2><p class="panel-desc">会用于职位匹配、评分和打招呼</p></div></div>' +
-    '<div class="form-grid">' +
-    '<div class="field"><label for="pf-name">姓名</label><input id="pf-name" value="' + escAttr(p.name || "") + '"></div>' +
-    '<div class="field"><label for="pf-status">就业状态</label><select id="pf-status">' + sOpts + '</select></div>' +
-    '<div class="field"><label for="pf-edu">学历</label><select id="pf-edu">' + eOpts + '</select></div>' +
-    '<div class="field"><label for="pf-exp">经验年限</label><input id="pf-exp" value="' + escAttr(p.experience || "") + '" placeholder="如: 3年"></div>' +
-    '<div class="field"><label for="pf-skills">技能（逗号分隔）</label><input id="pf-skills" value="' + escAttr(p.skills || "") + '" placeholder="C++,Qt,Python,Linux,嵌入式"></div>' +
-    '<div class="field"><label for="pf-target">目标职位</label><input id="pf-target" value="' + escAttr(p.targetRole || "") + '" placeholder="如: C++开发工程师"></div>' +
-    '</div>' +
-    '<div class="form-actions">' +
-    '<button class="btn btn-primary" type="button" onclick="saveProfile()">保存设置</button>' +
-    '<span id="pf-msg" class="result-line" style="color:var(--success);display:none">已保存</span>' +
-    '</div></section>';
-}
-
-async function saveProfile() {
-  var data = {
-    name: document.getElementById("pf-name").value,
-    status: document.getElementById("pf-status").value,
-    education: document.getElementById("pf-edu").value,
-    experience: document.getElementById("pf-exp").value,
-    skills: document.getElementById("pf-skills").value,
-    targetRole: document.getElementById("pf-target").value
+async function uploadResume() {
+  var file = document.getElementById("resume-file").files[0];
+  if (!file) return;
+  log("上传简历: " + file.name);
+  var reader = new FileReader();
+  reader.onload = async function() {
+    var base64 = reader.result.split(",")[1];
+    try {
+      var r = await api("/api/resumes/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileData: base64 }) });
+      if (r.ok) {
+        log("上传成功, 识别技能: " + (r.skills || []).join(","));
+        loadResume();
+      } else {
+        log("上传失败: " + (r.error || ""));
+      }
+    } catch (e) {
+      log("上传错误: " + e.message);
+    }
   };
-  try {
-    await api("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
-    profile = data;
-    document.getElementById("sidebar-name").textContent = data.name || "---";
-    var msg = document.getElementById("pf-msg");
-    msg.style.display = "inline";
-    setTimeout(function() { msg.style.display = "none"; }, 2000);
-    log("个人设置已保存");
-  } catch (e) {
-    log("保存失败: " + e.message);
-  }
+  reader.readAsDataURL(file);
 }
 
-// ─── 自动化 ───
-async function loadAutomation() {
-  var el = document.getElementById("tab-automation");
+async function deleteResume(id) {
+  await fetch("/api/resumes/" + id, { method: "DELETE" });
+  log("已删除简历 #" + id);
+  loadResume();
+}
+
+// ─── 任务监控 ───
+async function loadTasks() {
+  var el = document.getElementById("tab-tasks");
   var bs = await api("/api/boss/status").catch(function() { return {}; });
   bossConnected = bs.browserConnected || false;
-  var dotCls = bossConnected ? (bs.running ? "busy" : "online") : "offline";
+  var dotCls = bossConnected ? (bs.running ? "busy" : "online") : "";
   var statusTxt = bossConnected ? "浏览器已连接" : "浏览器未连接";
   var statusDetail = bs.lastSearch ? "上次搜索: " + bs.lastSearch.keyword + " (" + bs.lastSearch.count + "个)" : "尚未搜索";
   var progress = bs.running && bs.progress && bs.progress.total
     ? "进度 " + bs.progress.current + "/" + bs.progress.total + " " + (bs.progress.step || "")
     : (bs.running ? "自动化运行中..." : "空闲");
 
-  var h =
-    '<div class="status-bar">' +
-    '<span class="status-dot ' + dotCls + '"></span>' +
-    '<div class="status-main">' +
-    '<div class="status-title" id="browser-txt">' + statusTxt + '</div>' +
-    '<div class="status-sub">' + escapeHtml(statusDetail) + '</div>' +
-    '</div>' +
-    '<span id="prog" class="progress-text">' + escapeHtml(progress) + '</span>' +
-    '<div class="status-actions">' +
-    '<button class="btn btn-primary btn-sm" type="button" onclick="bossConnect()">连接 Edge</button>' +
-    '<button class="btn btn-secondary btn-sm" type="button" onclick="refreshStatus()">刷新状态</button>' +
-    '</div></div>';
+  var taskCards = [
+    { title: "连接 Edge", desc: bs.browserConnected ? "浏览器会话可用" : "未连接浏览器", icon: "zap", cls: bs.browserConnected ? "success" : "warning" },
+    { title: "岗位搜索", desc: bs.lastSearch ? bs.lastSearch.keyword + " · " + bs.lastSearch.count + " 个职位" : "等待搜索任务", icon: "search", cls: bs.lastSearch ? "success" : "" },
+    { title: "自动投递", desc: "已打招呼 " + (bs.appliedCount || 0) + " 次", icon: "send", cls: bs.appliedCount ? "success" : "" },
+    { title: "反馈同步", desc: bs.chatActive ? "聊天监控运行中" : "聊天监控未启动", icon: "activity", cls: bs.chatActive ? "success" : "" }
+  ].map(function(t) {
+    return '<div class="task-card"><div class="task-icon ' + t.cls + '">' + icon(t.icon) + '</div><div class="task-copy"><strong>' + t.title + '</strong><span>' + escapeHtml(t.desc) + '</span></div></div>';
+  }).join("");
 
-  h += '<section class="panel"><div class="panel-head">' +
-    '<div><h2 class="panel-title">搜索职位</h2><p class="panel-desc">抓取当前城市与关键词下的职位</p></div>' +
-    '<span class="step-tag">先搜索</span></div>' +
+  var h =
+    '<div class="task-grid">' +
+    '<div><section class="panel status-card">' +
+    '<div class="status-main">' +
+    '<div class="status-eyebrow"><span class="status-dot ' + dotCls + '"></span>' + (bs.running ? "任务运行中" : "任务空闲") + '</div>' +
+    '<h2 class="status-title">自动化任务监控</h2>' +
+    '<div class="status-description">搜索、投递、聊天反馈和日志在这里集中控制。</div>' +
+    '<div class="status-actions">' +
+    '<button class="btn btn-primary" type="button" onclick="bossConnect()">' + icon("zap") + '连接 Edge</button>' +
+    '<button class="btn" type="button" onclick="refreshStatus()">' + icon("refresh") + '刷新状态</button>' +
+    '</div></div>' +
+    '<div class="progress-card">' +
+    '<div class="progress-copy"><strong id="browser-txt">' + statusTxt + '</strong><span>' + escapeHtml(statusDetail) + '</span></div>' +
+    '<span id="prog" class="progress-text">' + escapeHtml(progress) + '</span>' +
+    '<div class="progress-bar"><i style="width:' + (bs.running ? 48 : 0) + '%"></i></div>' +
+    '</div></section>' +
+    '<section class="panel" style="margin-top:16px"><div class="panel-head"><div><h3 class="panel-title">任务卡片</h3><p class="panel-desc">当前 Agent 模块状态</p></div></div><div class="task-list">' + taskCards + '</div></section></div>' +
+    '<section class="panel">' +
+    '<div class="panel-head"><div><h3 class="panel-title">快速控制</h3><p class="panel-desc">常用自动化入口</p></div></div>' +
+    '<div class="task-list">' +
+    '<div class="task-card"><div class="task-icon">' + icon("search") + '</div><div class="task-copy"><strong>搜索职位</strong><span>抓取当前城市和关键词下的岗位</span></div><button class="btn btn-sm" type="button" onclick="bossSearch()">执行</button></div>' +
+    '<div class="task-card"><div class="task-icon">' + icon("send") + '</div><div class="task-copy"><strong>自动打招呼</strong><span>按匹配度批量发起沟通</span></div><button class="btn btn-sm" type="button" onclick="bossApply()">执行</button></div>' +
+    '<div class="task-card"><div class="task-icon">' + icon("activity") + '</div><div class="task-copy"><strong>聊天监控</strong><span>扫描会话并同步反馈</span></div><button class="btn btn-sm" type="button" id="chat-btn" onclick="bossChatStart()">开始</button></div>' +
+    '</div></section>' +
+    '</div>';
+
+  h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">搜索参数</h3><p class="panel-desc">职位抓取配置</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="kw">关键词</label><input id="kw" value="C++"></div>' +
     '<div class="field"><label for="city-input">城市</label><input id="city-input" placeholder="台州"></div>' +
     '<div class="field"><label for="pages">搜索页数</label><input id="pages" value="3" type="number"></div>' +
     '</div>' +
-    '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossSearch()">搜索职位</button><span id="sr" class="result-line" aria-live="polite"></span></div></section>';
+    '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossSearch()">' + icon("search") + '搜索职位</button><span id="sr" class="result-line" aria-live="polite"></span></div></section>';
 
-  h += '<section class="panel"><div class="panel-head">' +
-    '<div><h2 class="panel-title">自动打招呼</h2><p class="panel-desc">按筛选条件批量发起沟通</p></div>' +
-    '<span class="step-tag">再投递</span></div>' +
+  h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">投递参数</h3><p class="panel-desc">自动打招呼筛选和节奏</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="filter-city">城市</label><input id="filter-city" value="台州"></div>' +
     '<div class="field"><label for="filter-district">区域</label><input id="filter-district" placeholder="椒江"></div>' +
@@ -1990,38 +2431,26 @@ async function loadAutomation() {
     '</div>' +
     '<label class="check-line"><input id="skip-applied" type="checkbox" checked> 跳过已投递职位</label>' +
     '<div class="field" style="margin-top:12px"><label for="greeting">打招呼语</label><textarea id="greeting" rows="2">' + escapeHtml((profile && profile.greeting) || "您好，我对该职位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
-    '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossApply()">开始投递</button><span id="ar" class="result-line" aria-live="polite"></span></div></section>';
+    '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossApply()">' + icon("play") + '开始投递</button><button class="btn btn-danger" type="button" onclick="stopApply()">' + icon("stop") + '停止</button><span id="ar" class="result-line" aria-live="polite"></span></div></section>';
 
-  h += '<section class="panel"><div class="panel-head">' +
-    '<div><h2 class="panel-title">聊天监控</h2><p class="panel-desc">扫描会话并同步反馈到投递状态</p></div>' +
-    '<span class="step-tag">持续跟进</span></div>' +
+  h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">聊天与反馈</h3><p class="panel-desc">扫描会话并同步投递状态</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="interval">轮询间隔（秒）</label><input id="interval" type="number" value="30"></div>' +
     '</div>' +
     '<div class="form-actions">' +
-    '<button class="btn btn-primary" type="button" id="chat-btn" onclick="bossChatStart()">开始监控</button>' +
-    '<button class="btn btn-secondary" type="button" onclick="bossChatStop()">停止监控</button>' +
-    '<button class="btn btn-primary" type="button" onclick="bossSyncFeedback()">同步反馈</button>' +
+    '<button class="btn btn-primary" type="button" onclick="bossChatStart()">' + icon("play") + '开始监控</button>' +
+    '<button class="btn" type="button" onclick="bossChatStop()">' + icon("stop") + '停止监控</button>' +
+    '<button class="btn btn-success" type="button" onclick="bossSyncFeedback()">' + icon("refresh") + '同步反馈</button>' +
     '<span id="cr" class="result-line" aria-live="polite"></span>' +
     '</div></section>';
 
-  h += '<div class="log-area" id="log-area" aria-live="polite">--- 日志 ---</div>';
+  h += '<div class="log-console"><div class="log-head"><strong>Agent 日志</strong><span>最近 30 条</span></div><div id="log-area" aria-live="polite">--- 日志 ---</div></div>';
   el.innerHTML = h;
 }
 
 async function refreshStatus() {
   await pollStatusOnce();
   log("状态已刷新: " + (bossConnected ? "已连接" : "未连接"));
-}
-
-function setSidebarStatus(connected) {
-  var s = document.getElementById("sidebar-status");
-  var dot = document.getElementById("sidebar-dot");
-  if (s) {
-    s.textContent = connected ? "已连接" : "未连接";
-    s.style.color = connected ? "#57c497" : "#9fc3ba";
-  }
-  if (dot) dot.className = "state-dot " + (connected ? "online" : "");
 }
 
 async function bossConnect() {
@@ -2116,12 +2545,12 @@ async function bossChatStart() {
     } else {
       el.textContent = "失败: " + (r.error || "");
       btn.disabled = false;
-      btn.textContent = "开始监控";
+      btn.textContent = "开始";
     }
   } catch (e) {
     el.textContent = "失败: " + e.message;
     btn.disabled = false;
-    btn.textContent = "开始监控";
+    btn.textContent = "开始";
   }
 }
 
@@ -2130,33 +2559,34 @@ async function bossChatStop() {
     await fetch("/api/boss/chat/stop");
     document.getElementById("cr").textContent = "已停止";
     document.getElementById("chat-btn").disabled = false;
-    document.getElementById("chat-btn").textContent = "开始监控";
+    document.getElementById("chat-btn").textContent = "开始";
     log("聊天监控已停止");
   } catch (e) {}
 }
 
 async function bossSyncFeedback() {
   var el = document.getElementById("cr");
-  el.textContent = "同步中...";
+  if (el) el.textContent = "同步中...";
   log("开始同步 BOSS 反馈...");
   try {
     var r = await fetch("/api/boss/sync-feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
     var d = await r.json();
     if (d.ok) {
-      el.innerHTML = "已更新 <b>" + d.updatedCount + "</b> 条，扫描 <b>" + d.scanned + "</b> 个会话";
+      if (el) el.innerHTML = "已更新 <b>" + d.updatedCount + "</b> 条，扫描 <b>" + d.scanned + "</b> 个会话";
       log("反馈同步完成: 更新 " + d.updatedCount + " / 扫描 " + d.scanned);
+      if (_pipelineLoaded) loadPipeline();
       loadDashboard();
     } else {
-      el.textContent = "同步失败: " + (d.error || "");
+      if (el) el.textContent = "同步失败: " + (d.error || "");
       log("反馈同步失败: " + (d.error || ""));
     }
   } catch (e) {
-    el.textContent = "同步失败: " + e.message;
+    if (el) el.textContent = "同步失败: " + e.message;
     log("反馈同步错误: " + e.message);
   }
 }
 
-// ─── 实时状态轮询（不重绘页面，避免闪烁） ───
+// ─── 实时状态轮询 ───
 async function pollStatusOnce() {
   if (_statusBusy) return;
   _statusBusy = true;
@@ -2174,8 +2604,8 @@ async function pollStatusOnce() {
 
     var bt = document.getElementById("browser-txt");
     if (bt) bt.textContent = bossConnected ? "浏览器已连接" : "浏览器未连接";
-    var dot = document.querySelector(".status-dot");
-    if (dot) dot.className = "status-dot " + (bossConnected ? (bs.running ? "busy" : "online") : "offline");
+    var dot = document.querySelector(".status-card .status-dot");
+    if (dot) dot.className = "status-dot" + (bossConnected ? (bs.running ? " busy" : " online") : "");
     var prog = document.getElementById("prog");
     if (prog) {
       if (bs.running && bs.progress && bs.progress.total) {
@@ -2215,10 +2645,7 @@ function startPolling() {
 (async function() {
   try {
     var p = await api("/api/profile");
-    if (p && p.name) {
-      profile = p;
-      document.getElementById("sidebar-name").textContent = p.name;
-    }
+    if (p && p.name) profile = p;
   } catch (e) {}
   var initialTab = "dashboard";
   try {
