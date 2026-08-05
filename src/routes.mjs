@@ -364,6 +364,7 @@ export async function handleApply(req, res, body) {
     }
 
     const profile = getProfile();
+    const greeting = body?.greeting || profile.greeting || "";
     const scored = allJobs.map(function (j) {
       const s = scoreJob(j, profile);
       try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
@@ -402,6 +403,7 @@ export async function handleApply(req, res, body) {
         minMatch: minMatch,
         delayMin: delayMin,
         delayMax: delayMax,
+        greeting: greeting,
         onProgress: function (p) { state.progress = p; },
       });
       state.appliedCount += (result.applied || 0);

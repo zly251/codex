@@ -46,6 +46,7 @@ function normalizeResume(data) {
     experience: cleanText(d.experience),
     summary: cleanText(d.summary),
     skills: cleanText(d.skills),
+    greeting: cleanText(d.greeting),
     work: cleanItems(d.work, ["company", "title", "period", "content"]),
     projects: cleanItems(d.projects, ["name", "role", "period", "content"]),
     educationList: cleanItems(d.educationList, ["school", "degree", "period", "content"]),
@@ -71,6 +72,7 @@ export function loadResumeEditor(profile) {
     experience: cleanText(saved?.experience ?? p.experience),
     summary: cleanText(saved?.summary),
     skills: cleanText(saved?.skills ?? p.skills),
+    greeting: cleanText(saved?.greeting ?? p.greeting),
     work: cleanItems(saved?.work, ["company", "title", "period", "content"]),
     projects: cleanItems(saved?.projects, ["name", "role", "period", "content"]),
     educationList: cleanItems(saved?.educationList, ["school", "degree", "period", "content"]),
@@ -98,6 +100,7 @@ export function saveResumeEditor(data, profilePath) {
       "experience",
       "summary",
       "skills",
+      "greeting",
     ];
     for (const key of fields) {
       if (resume[key]) profile[key] = resume[key];

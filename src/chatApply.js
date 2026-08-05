@@ -2,6 +2,8 @@ import * as applicationDb from "./db/application.js";
 import * as companyDb from "./db/company.js";
 import * as jobDb from "./db/job.js";
 import * as liveLog from "./log.js";
+import path from "node:path";
+import { DATA_ROOT } from "./paths.js";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const randBetween = (min, max) => min + Math.random() * Math.max(0, max - min);
@@ -28,6 +30,9 @@ const SEND_SELECTORS = [
   ".primary-btn",
   ".confirm-btn",
 ];
+
+const SEND_TEXTS = ["发送", "提交", "确定"];
+const START_TEXTS = ["立即沟通", "立即开聊", "沟通"];
 
 const BLOCKED_HINTS = ["验证码", "安全验证", "访问异常", "访问过于频繁", "系统繁忙", "请登录", "扫码登录"];
 const SENT_MARKERS = ["送达", "已发送", "消息已发送", "发送成功", "已沟通", "继续沟通", "查看聊天", "打招呼成功", "已读"];
@@ -203,6 +208,65 @@ export class AutoApplyBot {
     return true;
   }
 
+  async _clickTextControl(page, texts, opts = {}) {
+    const tags = opts.tags || ["button", "a", "[role=button]", "[class*='send']", "[class*='submit']", "[class*='btn']"];
+    const mode = opts.match || "exact";
+    const found = await page.evaluate((texts, tags, mode) => {
+      const list = [];
+      for (const sel of tags) {
+        for (const el of document.querySelectorAll(sel)) {
+          if (!el.offsetParent || el.getClientRects().length === 0) continue;
+          if (el.disabled) continue;
+          const txt = (el.textContent || "").trim();
+          if (!txt) continue;
+          if (mode === "includes") {
+            if (!texts.some((t) => txt.includes(t))) continue;
+          } else if (!texts.includes(txt)) {
+            continue;
+          }
+          list.push(el);
+        }
+      }
+      if (list.length === 0) return false;
+      list.sort((a, b) => (a.textContent || "").trim().length - (b.textContent || "").trim().length);
+      const target = list[0];
+      target.scrollIntoView({ block: "center", behavior: "smooth" });
+      return true;
+    }, texts, tags, mode).catch(() => false);
+    if (!found) return false;
+    await randSleep(800, 1500);
+    const pt = await page.evaluate((texts, tags, mode) => {
+      const list = [];
+      for (const sel of tags) {
+        for (const el of document.querySelectorAll(sel)) {
+          if (!el.offsetParent || el.getClientRects().length === 0) continue;
+          if (el.disabled) continue;
+          const txt = (el.textContent || "").trim();
+          if (!txt) continue;
+          if (mode === "includes") {
+            if (!texts.some((t) => txt.includes(t))) continue;
+          } else if (!texts.includes(txt)) {
+            continue;
+          }
+          list.push(el);
+        }
+      }
+      if (list.length === 0) return null;
+      list.sort((a, b) => (a.textContent || "").trim().length - (b.textContent || "").trim().length);
+      const r = list[0].getBoundingClientRect();
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) };
+    }, texts, tags, mode).catch(() => null);
+    if (!pt) return false;
+    await this._humanClick(page, pt.x, pt.y);
+    return true;
+  }
+
+  async _clickSendButton(page) {
+    const selectorHit = await this._clickFirst(page, SEND_SELECTORS);
+    if (selectorHit) return true;
+    return await this._clickTextControl(page, SEND_TEXTS, { match: "includes" });
+  }
+
   async _clickButtonByText(page, text) {
     const found = await page.evaluate((txt) => {
       for (const b of document.querySelectorAll("button")) {
@@ -230,15 +294,34 @@ export class AutoApplyBot {
   }
 
   async _humanType(page, text) {
-    const ok = await page.evaluate(() => {
-      const el = document.querySelector("textarea, [contenteditable], [class*='input']");
+    const selectors = [
+      ".chat-container textarea",
+      "[class*='chat'] textarea",
+      "textarea",
+      ".chat-container [contenteditable]",
+      "[class*='chat'] [contenteditable]",
+      "[contenteditable]",
+      "[class*='chat'] [class*='input']",
+      "[class*='input']",
+    ];
+    const focused = await page.evaluate((selectors) => {
+      let el = null;
+      for (const s of selectors) {
+        const found = document.querySelector(s);
+        if (found && found.offsetParent !== null) { el = found; break; }
+      }
       if (!el) return false;
       el.scrollIntoView({ block: "center", behavior: "smooth" });
       el.focus();
       el.click();
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+        el.value = "";
+      } else if (el.isContentEditable) {
+        el.innerText = "";
+      }
       return true;
-    }).catch(() => false);
-    if (!ok) return false;
+    }, selectors).catch(() => false);
+    if (!focused) return false;
     await randSleep(500, 900);
     for (const ch of String(text || "")) {
       await page.keyboard.type(ch, { delay: 0 }).catch(() => {});
@@ -246,7 +329,30 @@ export class AutoApplyBot {
       if (Math.random() < 0.05) await randSleep(400, 1100);
     }
     await randSleep(400, 800);
-    return true;
+    const typed = await page.evaluate(() => {
+      const el = document.querySelector("textarea, [contenteditable], [class*='input']");
+      if (!el) return false;
+      const val = el.value || (el.isContentEditable ? el.innerText : "") || "";
+      return val.trim().length > 0;
+    }).catch(() => false);
+    if (typed) return true;
+    return await page.evaluate((text, selectors) => {
+      let el = null;
+      for (const s of selectors) {
+        const found = document.querySelector(s);
+        if (found && found.offsetParent !== null) { el = found; break; }
+      }
+      if (!el) return false;
+      el.focus();
+      if (el.tagName === "TEXTAREA" || el.tagName === "INPUT") {
+        el.value = text;
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+      } else if (el.isContentEditable) {
+        el.innerText = text;
+        el.dispatchEvent(new InputEvent("input", { bubbles: true }));
+      }
+      return true;
+    }, String(text || ""), selectors).catch(() => false);
   }
 
   async _checkPageState(page) {
@@ -262,10 +368,21 @@ export class AutoApplyBot {
         const dialog = document.querySelector(".dialog-footer, .chat-dialog, [class*='dialog']");
         const chatArea = document.querySelector(".chat-container, [class*='chat']");
         const chatText = chatArea ? chatArea.innerText : body;
+        const input = document.querySelector("textarea, [contenteditable], [class*='chat'] [class*='input'], [class*='input']");
+        const inputValue = input ? (input.value || (input.isContentEditable ? input.innerText : "") || "").trim() : "";
+        const sendVisible = Array.from(document.querySelectorAll("button, a, [role=button], [class*='send'], [class*='submit'], [class*='btn']")).some((el) => {
+          if (!el.offsetParent || el.getClientRects().length === 0 || el.disabled) return false;
+          const txt = (el.textContent || "").trim();
+          return ["发送", "提交", "确定"].some((t) => txt.includes(t));
+        });
         return {
           textLen: body.length,
           btn,
           dialogVisible: !!(dialog && dialog.offsetParent !== null),
+          inputExists: !!input,
+          inputValue,
+          hasSendVisible: sendVisible,
+          chatTextLen: chatText.length,
           hasDelivered: markers.some(function (s) { return chatText.includes(s); }),
           hasGreeted: ["继续沟通", "查看聊天", "已沟通"].some((t) => btn.includes(t)),
         };
@@ -436,6 +553,16 @@ export class AutoApplyBot {
     try { options.onProgress?.({ current, total, title, step }); } catch (e) {}
   }
 
+  _isVerified(before, after) {
+    if (!after) return false;
+    if (after.hasDelivered || after.hasGreeted) return true;
+    if (before) {
+      if (before.inputValue && !after.inputValue && after.chatTextLen > before.chatTextLen) return true;
+      if (before.dialogVisible && !after.dialogVisible && before.hasSendVisible) return true;
+    }
+    return false;
+  }
+
   async autoApply(jobs, options = {}) {
     const page = await this._getPage();
     let applied = 0;
@@ -485,17 +612,21 @@ export class AutoApplyBot {
             return { applied, failed, total: applied + failed, results };
           }
           log(`[${i + 1}/${total}] 页面无法查看（${blockedHint || "内容为空"}），保留页面继续: ${title}`);
-          try { await page.screenshot({ path: "data/last_blocked.png", fullPage: false }).catch(() => {}); } catch (e) {}
+          try { await page.screenshot({ path: path.join(DATA_ROOT, "data", "last_blocked.png"), fullPage: false }).catch(() => {}); } catch (e) {}
           await this._closeCurrentPage();
           if (this.running && i < total - 1) await this._humanWait(delayMin, delayMax);
           continue;
         }
 
         this._progress(options, i + 1, total, title, "定位沟通按钮");
-        const clicked = await this._clickFirst(page, START_CHAT_SELECTORS, {
+        let clicked = await this._clickFirst(page, START_CHAT_SELECTORS, {
           skipTexts: ["继续沟通", "查看聊天"],
           onLocate: () => this._progress(options, i + 1, total, title, "移动鼠标点击沟通"),
         });
+        if (clicked !== "skip" && clicked !== true) {
+          const fallback = await this._clickTextControl(page, START_TEXTS, { match: "includes" });
+          if (fallback) clicked = true;
+        }
 
         if (clicked === "skip") {
           results.push({ job: title, status: "skip", reason: "already chatted" });
@@ -505,40 +636,62 @@ export class AutoApplyBot {
         }
 
         if (clicked) {
-          this._progress(options, i + 1, total, title, "等待发送弹窗");
+          this._progress(options, i + 1, total, title, "等待聊天弹窗");
           await this._humanWait(2, 4);
-          const sent = await this._clickFirst(page, SEND_SELECTORS, {
-            onLocate: () => this._progress(options, i + 1, total, title, "点击发送按钮"),
-          });
-          if (!sent) {
-            log(`[${i + 1}/${total}] 未找到发送按钮，尝试回车发送`);
-            await page.keyboard.press("Enter").catch(() => {});
-            await randSleep(800, 1500);
+          let state1 = await this._checkPageState(page);
+          if (!state1 || !(state1.inputExists || state1.hasSendVisible)) {
+            const retry = await this._clickTextControl(page, START_TEXTS, { match: "includes" });
+            if (retry) {
+              await this._humanWait(2, 4);
+              state1 = await this._checkPageState(page);
+            }
           }
-          await this._humanWait(2, 3.5);
 
-          const v1 = await this._checkPageState(page);
-          await this._humanWait(2, 4);
-          const v2 = await this._checkPageState(page);
-          const verified = !!(v2 && (v2.hasDelivered || v2.hasGreeted));
-          log(`[${i + 1}/${total}] 复核确认: ${verified ? "已打过招呼" : "未确认到打招呼"} (送达=${v2?.hasDelivered ? "是" : "否"}, 按钮状态=${v2?.btn || "无"})`);
-
-          if (verified) {
+          if (state1 && (state1.hasDelivered || state1.hasGreeted)) {
             applied++;
             try { applicationDb.create({ jobId: job.id, resumeId: job.resumeId || null, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
             results.push({ job: title, status: "ok", verified: true });
-            log(`[${i + 1}/${total}] 复核通过，确认已打招呼: ${title}`);
+            log(`[${i + 1}/${total}] 已存在沟通状态，确认打过招呼: ${title}`);
           } else {
-            failed++;
-            results.push({ job: title, status: "unverified", reason: "复核未确认" });
-            log(`[${i + 1}/${total}] 复核未确认，记入失败: ${title}`);
-            try { await page.screenshot({ path: "data/last_unverified.png", fullPage: false }).catch(() => {}); } catch (e) {}
+            const greeting = options.greeting || this.style.greeting || "您好，我对该职位很感兴趣，方便沟通一下吗？";
+            if (greeting && state1?.inputExists) {
+              this._progress(options, i + 1, total, title, "输入打招呼语");
+              const typed = await this._humanType(page, greeting);
+              if (!typed) log(`[${i + 1}/${total}] 未找到聊天输入框，继续尝试发送`);
+              await randSleep(600, 1200);
+            }
+            this._progress(options, i + 1, total, title, "点击发送按钮");
+            const sent = await this._clickSendButton(page);
+            if (!sent) {
+              log(`[${i + 1}/${total}] 未找到发送按钮，尝试回车发送`);
+              await page.keyboard.press("Enter").catch(() => {});
+              await randSleep(800, 1500);
+            }
+            await this._humanWait(2, 3.5);
+
+            const v1 = await this._checkPageState(page);
+            await this._humanWait(2, 4);
+            const v2 = await this._checkPageState(page);
+            const verified = this._isVerified(state1, v1) || this._isVerified(state1, v2);
+            log(`[${i + 1}/${total}] 复核确认: ${verified ? "已打过招呼" : "未确认到打招呼"} (送达=${v2?.hasDelivered ? "是" : "否"}, 按钮状态=${v2?.btn || "无"}, 输入框=${v2?.inputValue ? "有内容" : "已清空"})`);
+
+            if (verified) {
+              applied++;
+              try { applicationDb.create({ jobId: job.id, resumeId: job.resumeId || null, status: "pending", notes: "打招呼-复核通过" }); } catch (e) {}
+              results.push({ job: title, status: "ok", verified: true });
+              log(`[${i + 1}/${total}] 复核通过，确认已打招呼: ${title}`);
+            } else {
+              failed++;
+              results.push({ job: title, status: "unverified", reason: "复核未确认" });
+              log(`[${i + 1}/${total}] 复核未确认，记入失败: ${title}`);
+              try { await page.screenshot({ path: path.join(DATA_ROOT, "data", "last_unverified.png"), fullPage: false }).catch(() => {}); } catch (e) {}
+            }
           }
         } else {
           failed++;
           results.push({ job: title, status: "no_button" });
           log(`[${i + 1}/${total}] 未找到沟通按钮: ${title}`);
-          try { await page.screenshot({ path: "data/last_fail.png", fullPage: false }).catch(() => {}); } catch (e) {}
+          try { await page.screenshot({ path: path.join(DATA_ROOT, "data", "last_fail.png"), fullPage: false }).catch(() => {}); } catch (e) {}
         }
       } catch (e) {
         failed++;

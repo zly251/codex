@@ -181,6 +181,7 @@ function currentApplyOptions(extra) {
     minMatch: num("min-match", 30) / 100,
     delayMin: num("delay-min", 8),
     delayMax: num("delay-max", 25),
+    greeting: (el("greeting")||{}).value || (profile && profile.greeting) || "",
     skipApplied: !el("skip-applied") || document.getElementById("skip-applied").checked,
   };
   return Object.assign(o, extra || {});
@@ -451,6 +452,7 @@ async function loadResumeEditor() {
     "</div>" +
     '<div class="form-group"><label>个人优势</label><textarea id="re-summary" rows="3" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml(r.summary || "") + "</textarea></div>" +
     '<div class="form-group"><label>技能（逗号分隔）</label><textarea id="re-skills" rows="3" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml(r.skills || "") + "</textarea></div>" +
+    '<div class="form-group"><label>打招呼语</label><textarea id="re-greeting" rows="2" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml(r.greeting || "您好，我对该职位很感兴趣，方便沟通一下吗？") + "</textarea></div>" +
     "</div>" +
     '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">工作经历</h3><div id="re-work"></div><button class="btn-sm primary" onclick="addEditorRow(\'work\')">添加工作</button></div>' +
     '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">项目经历</h3><div id="re-projects"></div><button class="btn-sm primary" onclick="addEditorRow(\'projects\')">添加项目</button></div>' +
@@ -473,6 +475,7 @@ async function saveResumeEditorData() {
   data.experience = document.getElementById("re-experience").value;
   data.summary = document.getElementById("re-summary").value;
   data.skills = document.getElementById("re-skills").value;
+  data.greeting = document.getElementById("re-greeting").value;
   data.work = collectEditorRows("work");
   data.projects = collectEditorRows("projects");
   data.educationList = collectEditorRows("educationList");
@@ -667,6 +670,7 @@ async function loadAutomation() {
     '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#555;height:34px"><input id="skip-applied" type="checkbox" checked> 跳过已投递</label>' +
     '<button class="btn btn-primary" onclick="bossApply()" style="height:34px">开始投递</button>' +
     '</div>' +
+    '<div class="form-group"><label>打招呼语</label><textarea id="greeting" rows="2" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml((profile && profile.greeting) || "您好，我对该职位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
     '<span id="ar" style="font-size:12px;color:#999"></span></div>';
 
   // Step 3: 监控 (只保留控制，实际自动回复不可靠)
