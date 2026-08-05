@@ -69,6 +69,7 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 - 统一路径：新增 `src/paths.js`，profile/cookie/chat/resume/db 统一落到 `portable`，SEA 打包显式设置 `JOB_AGENT_DATA_DIR`。
 - 跳过已投递：投递前按 `Application(jobId)` 过滤，全部投递完自动实时搜索新职位，UI 可开关并显示跳过数量。
 - OCR：默认使用 `portable/tessdata`，根据模型是否为 gzip 自动选择加载方式。
+- 简历编辑：新增“简历编辑”板块，可维护基本信息、工作/项目/教育经历，支持导出 PDF 和 Word。
 - 反馈同步：新增 `/api/boss/sync-feedback`，聊天监控每次扫描后同步，Web 控制台也提供手动按钮。
 - 平台抽象：路由不再直接依赖 BOSS，换平台只需实现 adapter 并设置 `JOB_PLATFORM`。
 - 跨平台：浏览器发现、进程清理、端口检查、打开 URL 均按平台实现。

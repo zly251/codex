@@ -46,7 +46,16 @@ tr:hover{background:#f5f7fa}
 .status-dot.online{background:#2e7d32}.status-dot.offline{background:#999}
 .log-area{background:#1a1a2e;color:#aaccff;border-radius:6px;padding:12px;font-size:12px;max-height:200px;overflow-y:auto;margin-top:12px;font-family:Consolas,monospace;white-space:pre-wrap}
 select.filter{width:auto;padding:4px 8px;border:1px solid #ddd;border-radius:4px;font-size:12px}
+.editor-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.editor-field label{display:block;font-size:12px;color:#666;margin-bottom:4px}
+.editor-field input,.editor-field select,.editor-field textarea{width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px}
+.editor-field textarea{min-height:80px;resize:vertical}
+.editor-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) 70px;gap:10px;align-items:start;padding:12px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:10px;background:#fafafa}
+.editor-row .wide{grid-column:1 / 4}
+.editor-row .wide textarea{min-height:70px}
+.editor-actions{display:flex;gap:8px;align-items:center;margin-top:12px}
 @media(max-width:768px){.layout{flex-direction:column}.sidebar{width:100%}.nav-item{display:inline-block}.content{padding:12px}}
+@media(max-width:900px){.editor-grid{grid-template-columns:1fr}.editor-row{grid-template-columns:1fr}.editor-row .wide{grid-column:auto}}
 </style></head><body>
 <div class="layout" id="app">
 <div class="sidebar">
@@ -57,6 +66,7 @@ select.filter{width:auto;padding:4px 8px;border:1px solid #ddd;border-radius:4px
 <div class="nav-item" data-tab="automation">&#x1f916; 自动化</div>
 <div class="nav-item" data-tab="applications">投递</div>
 <div class="nav-item" data-tab="resumes">简历</div>
+<div class="nav-item" data-tab="resume-editor">简历编辑</div>
 <div class="nav-spacer"></div>
 <div class="nav-item" data-tab="profile">个人设置</div>
 </div>
@@ -66,6 +76,7 @@ select.filter{width:auto;padding:4px 8px;border:1px solid #ddd;border-radius:4px
 <div id="tab-automation" class="tab"></div>
 <div id="tab-applications" class="tab"></div>
 <div id="tab-resumes" class="tab"></div>
+<div id="tab-resume-editor" class="tab"></div>
 <div id="tab-profile" class="tab"></div>
 </div></div>
 <script>
@@ -106,6 +117,7 @@ function loadTab(name) {
   if (name === "dashboard") loadDashboard();
   else if (name === "jobs") loadJobs();
   else if (name === "resumes") loadResumes();
+  else if (name === "resume-editor") loadResumeEditor();
   else if (name === "applications") loadApplications();
   else if (name === "automation") loadAutomation();
   else if (name === "profile") loadProfile();
@@ -322,6 +334,183 @@ async function deleteResume(id) {
   await fetch("/api/resumes/" + id, {method:"DELETE"});
   log("已删除简历 #" + id);
   loadResumes();
+}
+// 简历编辑
+var resumeEditorData = null;
+var EDITOR_FIELDS = {
+  work: [
+    { key: "company", label: "公司" },
+    { key: "title", label: "职位" },
+    { key: "period", label: "时间" },
+    { key: "content", label: "工作内容", area: true, wide: true }
+  ],
+  projects: [
+    { key: "name", label: "项目" },
+    { key: "role", label: "角色" },
+    { key: "period", label: "时间" },
+    { key: "content", label: "项目内容", area: true, wide: true }
+  ],
+  educationList: [
+    { key: "school", label: "学校" },
+    { key: "degree", label: "学历" },
+    { key: "period", label: "时间" },
+    { key: "content", label: "说明", area: true, wide: true }
+  ]
+};
+
+function escapeHtml(value) {
+  return String(value || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+function escAttr(value) {
+  return escapeHtml(value);
+}
+
+function editorOptions(values, current) {
+  return values.map(function(v) {
+    return '<option value="' + escAttr(v) + '"' + (String(v) === String(current || "") ? " selected" : "") + ">" + escapeHtml(v || "请选择") + "</option>";
+  }).join("");
+}
+
+function editorFieldHtml(prefix, idx, field, value) {
+  var id = prefix + "-" + idx + "-" + field.key;
+  var label = '<label for="' + id + '">' + field.label + "</label>";
+  var cls = "editor-field" + (field.wide ? " wide" : "");
+  if (field.area) {
+    return '<div class="' + cls + '">' + label + '<textarea id="' + id + '" data-editor-row="' + prefix + '" data-editor-idx="' + idx + '" data-editor-key="' + field.key + '">' + escapeHtml(value || "") + "</textarea></div>";
+  }
+  return '<div class="' + cls + '">' + label + '<input id="' + id + '" data-editor-row="' + prefix + '" data-editor-idx="' + idx + '" data-editor-key="' + field.key + '" value="' + escAttr(value || "") + '"></div>';
+}
+
+function renderEditorRows(prefix) {
+  var rows = resumeEditorData[prefix] || [];
+  var box = document.getElementById("re-" + prefix);
+  if (!box) return;
+  box.innerHTML = rows.map(function(item, idx) {
+    var fields = EDITOR_FIELDS[prefix].map(function(f) {
+      return editorFieldHtml(prefix, idx, f, item[f.key] || "");
+    }).join("");
+    return '<div class="editor-row">' + fields + '<button class="btn-sm danger" onclick="removeEditorRow(\'' + prefix + '\',' + idx + ')">删除</button></div>';
+  }).join("");
+}
+
+function collectEditorRows(prefix) {
+  var map = {};
+  document.querySelectorAll('[data-editor-row="' + prefix + '"]').forEach(function(el) {
+    var idx = Number(el.getAttribute("data-editor-idx"));
+    var key = el.getAttribute("data-editor-key");
+    if (!map[idx]) map[idx] = {};
+    map[idx][key] = el.value.trim();
+  });
+  return Object.keys(map).sort(function(a, b) { return Number(a) - Number(b); }).map(function(idx) {
+    return map[idx];
+  });
+}
+
+function addEditorRow(prefix) {
+  resumeEditorData[prefix] = collectEditorRows(prefix);
+  resumeEditorData[prefix].push({});
+  renderEditorRows(prefix);
+}
+
+function removeEditorRow(prefix, idx) {
+  var rows = collectEditorRows(prefix);
+  rows.splice(idx, 1);
+  resumeEditorData[prefix] = rows;
+  renderEditorRows(prefix);
+}
+
+function setEditorMsg(msg) {
+  var el = document.getElementById("re-msg");
+  if (el) el.textContent = msg;
+}
+
+async function loadResumeEditor() {
+  var d = await api("/api/resume/editor").catch(function() { return { resume: {} }; });
+  resumeEditorData = d.resume || {};
+  var r = resumeEditorData;
+  var el = document.getElementById("tab-resume-editor");
+  var statusOptions = editorOptions(["", "在职", "离职", "应届生", "在读"], r.status || "");
+  var eduOptions = editorOptions(["", "大专", "本科", "硕士", "博士"], r.education || "");
+  el.innerHTML =
+    '<h2>简历编辑</h2>' +
+    '<div class="card">' +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>姓名</label><input id="re-name" value="' + escAttr(r.name || "") + '"></div>' +
+    '<div class="form-group"><label>目标岗位</label><input id="re-target" value="' + escAttr(r.targetRole || "") + '"></div>' +
+    '<div class="form-group"><label>求职状态</label><select id="re-status">' + statusOptions + "</select></div>" +
+    "</div>" +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>手机</label><input id="re-phone" value="' + escAttr(r.phone || "") + '"></div>' +
+    '<div class="form-group"><label>邮箱</label><input id="re-email" value="' + escAttr(r.email || "") + '"></div>' +
+    '<div class="form-group"><label>所在地</label><input id="re-city" value="' + escAttr(r.city || "") + '"></div>' +
+    "</div>" +
+    '<div class="form-row">' +
+    '<div class="form-group"><label>学历</label><select id="re-education">' + eduOptions + "</select></div>" +
+    '<div class="form-group"><label>经验年限</label><input id="re-experience" value="' + escAttr(r.experience || "") + '" placeholder="3年"></div>' +
+    "</div>" +
+    '<div class="form-group"><label>个人优势</label><textarea id="re-summary" rows="3" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml(r.summary || "") + "</textarea></div>" +
+    '<div class="form-group"><label>技能（逗号分隔）</label><textarea id="re-skills" rows="3" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px">' + escapeHtml(r.skills || "") + "</textarea></div>" +
+    "</div>" +
+    '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">工作经历</h3><div id="re-work"></div><button class="btn-sm primary" onclick="addEditorRow(\'work\')">添加工作</button></div>' +
+    '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">项目经历</h3><div id="re-projects"></div><button class="btn-sm primary" onclick="addEditorRow(\'projects\')">添加项目</button></div>' +
+    '<div class="card"><h3 style="font-size:14px;margin:0 0 12px">教育经历</h3><div id="re-educationList"></div><button class="btn-sm primary" onclick="addEditorRow(\'educationList\')">添加教育</button></div>' +
+    '<div class="card"><div class="editor-actions"><button class="btn btn-primary" onclick="saveResumeEditorData()">保存简历</button><button class="btn btn-primary" onclick="exportResume(\'pdf\')">导出 PDF</button><button class="btn btn-primary" onclick="exportResume(\'docx\')">导出 Word</button><span id="re-msg" style="color:#1565c0;font-size:13px"></span></div></div>';
+  renderEditorRows("work");
+  renderEditorRows("projects");
+  renderEditorRows("educationList");
+}
+
+async function saveResumeEditorData() {
+  var data = resumeEditorData || {};
+  data.name = document.getElementById("re-name").value;
+  data.targetRole = document.getElementById("re-target").value;
+  data.status = document.getElementById("re-status").value;
+  data.phone = document.getElementById("re-phone").value;
+  data.email = document.getElementById("re-email").value;
+  data.city = document.getElementById("re-city").value;
+  data.education = document.getElementById("re-education").value;
+  data.experience = document.getElementById("re-experience").value;
+  data.summary = document.getElementById("re-summary").value;
+  data.skills = document.getElementById("re-skills").value;
+  data.work = collectEditorRows("work");
+  data.projects = collectEditorRows("projects");
+  data.educationList = collectEditorRows("educationList");
+  try {
+    var r = await api("/api/resume/editor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+    if (r.ok) {
+      resumeEditorData = r.resume;
+      setEditorMsg("已保存");
+      var p = await api("/api/profile").catch(function() { return {}; });
+      if (p && p.name) {
+        profile = p;
+        document.getElementById("sidebar-name").textContent = p.name;
+      }
+      return true;
+    }
+    setEditorMsg("保存失败: " + (r.error || ""));
+    return false;
+  } catch (e) {
+    setEditorMsg("保存失败: " + e.message);
+    return false;
+  }
+}
+
+async function exportResume(format) {
+  setEditorMsg("正在生成...");
+  var ok = await saveResumeEditorData();
+  if (!ok) return;
+  try {
+    var a = document.createElement("a");
+    a.href = "/api/resume/export?format=" + encodeURIComponent(format);
+    a.download = "resume." + format;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setEditorMsg("已生成");
+  } catch (e) {
+    setEditorMsg("生成失败: " + e.message);
+  }
 }
 // ─── 投递 ───
 var appStatusFilter = "";

@@ -27,6 +27,7 @@ import { scoreJob } from "./src/scoring.js";
 import { buildStrategy } from "./src/strategy.js";
 import { ocrImage } from "./src/utils/ocr.js";
 import { PROFILE_PATH, RESUME_DIR, ensureDataDirs } from "./src/paths.js";
+import { loadResumeEditor, saveResumeEditor, generateDocxBuffer, generatePdfBuffer, resumeToText } from "./src/resumeExport.js";
 
 var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
 var WEB_DIR = process.env.JOB_AGENT_WEB_DIR || path.join(__dirname, "web");
@@ -162,6 +163,64 @@ function apiJobs(req, res) {
 
 function apiResumes(req, res) { json(res, { resumes: resume.findAll() }); }
 
+function apiGetResumeEditor(req, res) {
+  json(res, { ok: true, resume: loadResumeEditor(getProfile() || {}) });
+}
+
+function apiSaveResumeEditor(req, res) {
+  readJsonBody(req, function (data) {
+    try {
+      const saved = saveResumeEditor(data, PROFILE_PATH);
+      const skills = saved.skills || "";
+      const rawText = resumeToText(saved);
+      const existing = resume.findDefault() || resume.findAll()[0];
+      const payload = {
+        name: saved.name || existing?.name || "个人简历",
+        targetRole: saved.targetRole,
+        tags: skills,
+        skills: skills,
+        description: saved.summary,
+        rawText: rawText,
+        fileType: "editor",
+      };
+      if (existing) {
+        resume.update(existing.id, payload);
+      } else {
+        resume.create({ ...payload, isDefault: true });
+      }
+      json(res, { ok: true, resume: saved });
+    } catch (e) {
+      json(res, { error: e.message }, 500);
+    }
+  });
+}
+
+async function apiExportResume(req, res) {
+  try {
+    const format = (new URL(req.url, "http://localhost").searchParams.get("format") || "pdf").toLowerCase();
+    const saved = loadResumeEditor(getProfile() || {});
+    if (format === "docx") {
+      const buf = await generateDocxBuffer(saved);
+      res.writeHead(200, {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "Content-Disposition": 'attachment; filename="resume.docx"',
+        "Content-Length": buf.length,
+      });
+      res.end(buf);
+      return;
+    }
+    const buf = await generatePdfBuffer(saved);
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Disposition": 'attachment; filename="resume.pdf"',
+      "Content-Length": buf.length,
+    });
+    res.end(buf);
+  } catch (e) {
+    json(res, { error: e.message }, 500);
+  }
+}
+
 function apiUploadResume(req, res) {
   var body = '';
   req.on('data', function(c) { body += c; });
@@ -251,6 +310,9 @@ var httpServer = http.createServer(function(req, res) {
   var p = url.pathname;
   if (p === "/api/profile" && req.method === "POST") { apiSaveProfile(req, res); return; }
   if (p === "/api/resumes/upload" && req.method === "POST") { apiUploadResume(req, res); return; }
+  if (p === "/api/resume/editor" && req.method === "GET") { apiGetResumeEditor(req, res); return; }
+  if (p === "/api/resume/editor" && req.method === "POST") { apiSaveResumeEditor(req, res); return; }
+  if (p === "/api/resume/export" && req.method === "GET") { apiExportResume(req, res); return; }
 
   if (req.method === "DELETE" && /^\/api\/resumes\/\d+$/.test(p)) {
     var id = parseInt(p.split('/').pop(), 10);

@@ -8,6 +8,7 @@
     "import:resume": "npx tsx scripts/import-resume.ts"
   },
   "dependencies": {
+    "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "iconv-lite": "^0.7.2",
     "puppeteer-core": "^24.0.0",

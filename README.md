@@ -22,6 +22,7 @@
 - 投递失败时保留最后一个平台页面，不再关闭浏览器
 - 反馈漏斗统计（待处理/已查看/已回复/面试/Offer）与策略建议
 - 本地 Web 控制台，默认 http://localhost:3456
+- 结构化简历编辑，支持维护工作/项目/教育经历，并导出 PDF/Word
 
 ## 平台抽象
 
@@ -86,6 +87,7 @@ Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打�
 - 用户档案：`portable/data/profile.json`
 - Cookie 备份：`portable/data/boss-cookies.json`
 - 聊天记录：`portable/data/chat.json`
+- 简历编辑存档：`portable/resumes/resume-editor.json`
 - 本地数据库：`portable/data/job-agent.db`，旧临时库首次启动会自动迁移
 
 ## 打包为 Windows exe
@@ -119,6 +121,9 @@ packaging/         SEA 打包与启动器
 
 ## API
 
+- `GET /api/resume/editor`：读取结构化简历编辑内容
+- `POST /api/resume/editor`：保存结构化简历编辑内容
+- `GET /api/resume/export?format=pdf|docx`：导出 PDF 或 Word
 - `POST /api/boss/sync-feedback`：扫描 BOSS 聊天会话，按 HR 最后消息更新投递状态。
 
 ## Git

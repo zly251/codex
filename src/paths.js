@@ -27,6 +27,9 @@ export const PROFILE_PATH =
   path.join(DATA_ROOT, "data", "profile.json");
 export const RESUME_DIR =
   process.env.JOB_AGENT_RESUME_DIR || path.join(DATA_ROOT, "resumes");
+export const RESUME_EDITOR_PATH =
+  process.env.JOB_AGENT_RESUME_EDITOR_PATH ||
+  path.join(RESUME_DIR, "resume-editor.json");
 export const CHAT_PATH =
   process.env.JOB_AGENT_CHAT_PATH ||
   path.join(DATA_ROOT, "data", "chat.json");
