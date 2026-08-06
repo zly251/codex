@@ -11,6 +11,7 @@
 - 自动选择并关联简历，历史投递记录自动补挂简历
 - 批量投递打招呼，单职位手动沟通
 - 自动输入自定义打招呼语，并通过聊天状态变化复核发送结果
+- 打招呼后自动生成并发送简历截图，规避 HR 未回复时不能发附件的限制
 - 投递记录自动去重，同一职位只保留一条记录
 - 投递前跳过已投递职位，已投递完自动实时搜索新职位
 - 聊天会话监控，支持查看和发送消息
@@ -81,6 +82,68 @@ npm start
 
 Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打开的页面扫码登录，Cookie 会自动备份。
 
+## 操作台
+
+![求职助手操作台](docs/console-screenshot.png)
+
+## 操作步骤
+
+### 1. 启动求职助手
+
+双击桌面 `求职助手.exe`，或使用 `launcher.ps1` 启动。启动后会自动连接本机浏览器，并打开本地控制台。
+
+控制台地址：
+
+```text
+http://127.0.0.1:3456
+```
+
+首次使用如果浏览器没有登录 BOSS 直聘，会自动打开扫码页。登录成功后 Cookie 会备份到 `portable/data/boss-cookies.json`。
+
+### 2. 连接浏览器
+
+进入“任务监控”页面，点击“连接 Edge”或“刷新状态”。状态变为“浏览器已连接”后，才能执行搜索和投递。
+
+### 3. 搜索职位
+
+在“搜索参数”中填写：
+
+- 关键词：例如 `C++`
+- 城市：例如 `台州`
+- 搜索页数：建议 `3`
+
+点击“搜索职位”，完成后会显示抓取到的职位数量，并写入本地数据库。
+
+### 4. 自动打招呼并投递简历
+
+在“投递参数”中设置：
+
+- 城市、区域、关键词
+- 最低匹配度
+- 投递份数
+- 随机延迟范围
+- 打招呼语
+
+保持以下选项开启：
+
+- 跳过已投递职位
+- 打招呼后发送简历截图
+
+点击“开始投递”。任务会自动打开职位、发送打招呼，并在 BOSS 未回复时直接发送简历截图。
+
+### 5. 聊天监控与反馈同步
+
+在“聊天与反馈”中设置轮询间隔，可按需开启：
+
+- 自动回复未读新消息
+- HR 回复后自动发送简历截图
+
+点击“开始监控”后，系统会持续扫描 BOSS 会话；也可以点击“同步反馈”手动把回复、面试、Offer 等状态写回投递记录。
+
+### 6. 查看投递结果
+
+进入“投递 Pipeline”查看待处理、已查看、已回复、面试、Offer 等状态；底部“Agent 日志”可查看最近 30 条任务日志。
+
 ## 数据位置
 
 - 运行数据：`portable/`
@@ -93,15 +156,35 @@ Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打�
 
 ## 打包为 Windows exe
 
+以后改完源码，统一执行一条命令即可完整重打：
+
 ```powershell
-npx esbuild packaging/entry.cjs --bundle --platform=node --format=cjs --outfile=dist/sea-entry.cjs
-npx esbuild server.mjs --bundle --platform=node --format=cjs --outfile=dist/sea-server.cjs
-node --experimental-sea-config sea-config.json
-Copy-Item E:\node.exe dist\求职助手.exe
-postject dist\求职助手.exe NODE_SEA_BLOB dist\sea-prep.blob --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2
+npm run build:exe
 ```
 
-postject 后会损坏签名，需要把 PE subsystem 从 3 改为 2（GUI）。
+脚本会自动完成：图标生成、esbuild 打包（`sea-entry.cjs` / `sea-server.cjs` / `sea-worker.cjs`）、SEA blob 生成、Node SEA 注入、GUI 子系统修复并断言、图标与版本信息写入，最后自动复制到**当前用户**桌面（不写死本机路径）。产物位于：
+
+- `dist\求职助手.exe`
+- `%USERPROFILE%\Desktop\求职助手.exe`（脚本自动复制到当前用户桌面）
+
+构建输入（必须齐全）：
+
+| 输入 | 说明 |
+|---|---|
+| `E:\node.exe` | SEA 基础可执行文件，构建开始时会提前校验存在并输出版本 |
+| `node_modules/` | esbuild / postject / rcedit / tesseract.js 等打包依赖，`npm install` 安装 |
+| `tessdata/*.gz` | OCR 语言模型（`chi_sim` / `eng`），随 exe 嵌入 |
+| `.env` | 环境变量配置，**会嵌入 exe 内** |
+
+`dist/sea-worker.cjs`（tesseract worker 打包产物）不在上表内：它由构建脚本自动生成，无需手工准备。
+
+> ⚠️ `.env` 会随构建嵌入 exe：请勿把 exe 外传给他人；修改 `.env` 后必须重新执行 `npm run build:exe` 才会生效。
+
+打包依赖在首次安装时已包含：
+
+```powershell
+npm install
+```
 
 macOS / Linux 当前使用 Node 直接运行，暂不生成单文件安装包。
 
