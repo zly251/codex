@@ -1,6 +1,10 @@
 # Job Agent one-click launcher (double-click 求职助手.bat)
 $ErrorActionPreference = "SilentlyContinue"
-$ProjectDir = "E:\autonomous-job-agent"
+if ($PSScriptRoot) {
+  $ProjectDir = $PSScriptRoot
+} else {
+  $ProjectDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+}
 $ServerUrl  = "http://localhost:3456"
 $LogFile    = Join-Path $ProjectDir "data\launcher.log"
 $ProfileDir = Join-Path $ProjectDir ".edge-profile"
@@ -38,7 +42,9 @@ function Find-Edge {
 }
 
 function Find-Node {
-  if (Test-Path "E:\node.exe") { return "E:\node.exe" }
+  if ($env:JOB_AGENT_NODE -and (Test-Path -LiteralPath $env:JOB_AGENT_NODE)) { return $env:JOB_AGENT_NODE }
+  $localNode = Join-Path $ProjectDir "node.exe"
+  if (Test-Path -LiteralPath $localNode) { return $localNode }
   $cmd = Get-Command node -ErrorAction SilentlyContinue
   if ($cmd) { return $cmd.Source }
   return $null

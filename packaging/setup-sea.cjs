@@ -20,7 +20,6 @@ function defaultRoot() {
   if (process.env.JOB_AGENT_DATA_DIR) return process.env.JOB_AGENT_DATA_DIR;
   const candidates = [
     process.env.JOB_AGENT_HOME,
-    process.platform === 'win32' ? 'E:\\autonomous-job-agent' : null,
     path.join(os.homedir(), '.autonomous-job-agent'),
   ].filter(Boolean);
   const existing = candidates.find(function (p) { return fs.existsSync(p); });
@@ -42,24 +41,13 @@ function hasCookies(dir) {
 }
 
 function pickPrimaryProfile() {
-  const legacy = process.platform === 'win32' ? 'E:\\autonomous-job-agent\\.edge-profile' : null;
-  if (legacy && hasCookies(legacy)) return legacy;
   const portableProfile = path.join(ROOT, '.edge-profile');
   if (hasCookies(portableProfile)) return portableProfile;
   return portableProfile;
 }
 
 function migrateLegacyProfile() {
-  const legacyProfile = process.platform === 'win32' ? 'E:\\autonomous-job-agent\\data\\profile.json' : null;
-  if (!legacyProfile) return;
-  const targetProfile = path.join(ROOT, 'data', 'profile.json');
-  if (fs.existsSync(targetProfile) || !fs.existsSync(legacyProfile)) return;
-  try {
-    fs.copyFileSync(legacyProfile, targetProfile);
-    console.error('[setup] profile migrated to ' + targetProfile);
-  } catch (e) {
-    console.error('[setup] profile migrate failed: ' + (e && e.message));
-  }
+  return;
 }
 
 function extractAssets() {
@@ -77,6 +65,8 @@ function extractAssets() {
     'worker/tesseract-core-lstm.wasm': path.join(ROOT, 'worker', 'tesseract-core-lstm.wasm'),
     'worker/tesseract-core.wasm': path.join(ROOT, 'worker', 'tesseract-core.wasm'),
     '.env': path.join(ROOT, '.env'),
+    'scripts/tray_agent.ps1': path.join(ROOT, 'scripts', 'tray_agent.ps1'),
+    'packaging/job-agent.ico': path.join(ROOT, 'packaging', 'job-agent.ico'),
   };
   for (const [name, dest] of Object.entries(assets)) {
     try {

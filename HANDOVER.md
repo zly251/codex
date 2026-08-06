@@ -1,19 +1,17 @@
 # 求职助手 交接文档
 
-更新时间：2026-08-05
+更新时间：2026-08-06
 
 ## 给下一个 Codex 对话的最短上下文
 
-- 项目源码：`E:\autonomous-job-agent`
-- 运行中：桌面 `C:\Users\asus\Desktop\求职助手.exe`，服务 `http://127.0.0.1:3456`
+- 项目源码：当前仓库根目录
+- 运行中：`dist\求职助手.exe` 或桌面 `求职助手.exe`，服务 `http://127.0.0.1:3456`
 - Git 远端：`https://github.com/zly251/codex.git`
 - Git 分支：`autonomous-job-agent`，不要覆盖远端 `main`
-- Git 元数据：`D:\autonomous-job-agent-repo\.git`
-- Git 工作区：`E:\autonomous-job-agent`
 - 已推送：`06e6f8c`（清理）、`a378bec`（debug 清理）、`4d4d355`（平台抽象+跨平台）
 - 当前登录态：Cookie 已备份；失效时自动打开 BOSS 扫码页
-- 仓库状态：反馈同步功能已开发、打包并验证
-- E 盘删除权限已补：`LAPTOP-5M3QFS52\asus:(OI)(CI)(D,DC)`
+- 仓库状态：打招呼、简历附件投递、自动回复、去重、并发锁、发送成功判定等功能已开发、打包并验证
+- 仓库内不写本机盘符和用户绝对路径；需要本机路径时使用环境变量或相对路径
 
 ## 项目用途
 
@@ -42,7 +40,7 @@
 开发运行：
 
 ```bash
-cd /d E:\autonomous-job-agent
+cd 项目目录
 npm install
 npx tsx server.mjs
 ```
@@ -52,13 +50,15 @@ npx tsx server.mjs
 Git 操作：
 
 ```powershell
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent status
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent add .
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent commit -m "说明"
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent push origin HEAD:autonomous-job-agent
+git status
+git add .
+git commit -m "说明"
+git push origin HEAD:autonomous-job-agent
 ```
 
-Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
+以后改完源码（含 `.env`），执行 `npm run build:exe` 即可完整重打：脚本会自动完成 esbuild 打包（`sea-entry.cjs` / `sea-server.cjs` / `sea-worker.cjs`，worker 产物自动生成）、SEA blob、postject 注入、GUI 子系统修复并断言、图标与版本信息写入，并自动替换当前用户桌面的 `求职助手.exe`，无需再手动跑 esbuild / postject / rcedit。
+
+> ⚠️ exe 内嵌 `.env`（环境变量配置随构建写入 exe），请勿将 exe 外传；修改 `.env` 后必须重新执行 `npm run build:exe` 才会生效。
 
 ## 关键改动与验证
 
@@ -73,6 +73,10 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 - 前端设计：按 frontend-design 方法重做 Web 控制台，采用深青/冷灰绿配色、投递状态轨道和明确动作按钮，支持移动端、键盘焦点与 reduced motion。
 - 打招呼优化：投递前自动输入自定义打招呼语，发送按钮支持按文字兜底定位，复核增加输入框清空和聊天状态变化判断。
 - 反馈同步：新增 `/api/boss/sync-feedback`，聊天监控每次扫描后同步，Web 控制台也提供手动按钮。
+- 简历投递：附件投递与发送成功判定已补全，简历已发送状态按强特征识别，避免误判。
+- 自动回复：新增聊天回复执行、发送成功复核和代际校验，防止旧任务覆盖新会话状态。
+- 简历截图：BOSS 未回复前不能发附件时，改为生成简历截图后直传 BOSS 图片接口，再调用 ImageBtn `sendImageMsg` 发出；已真机验证“打招呼后自动发简历截图”。
+- 打包流程：`npm run build:exe` 一键完整重打（自动生成 tesseract worker 产物 `dist/sea-worker.cjs`、PE subsystem 断言），产物在 `dist\求职助手.exe` 并自动复制到当前用户桌面；exe 图标已改为与托盘一致的“求”字蓝底圆形图标。exe 内嵌 `.env`，勿外传。
 - 平台抽象：路由不再直接依赖 BOSS，换平台只需实现 adapter 并设置 `JOB_PLATFORM`。
 - 跨平台：浏览器发现、进程清理、端口检查、打开 URL 均按平台实现。
 - 清理：所有历史 debug/test/临时脚本已从 git 和本地删除，`.gitignore` 已补规则。
@@ -82,7 +86,7 @@ Windows exe 打包步骤见 `README.md`，当前桌面 exe 已是最新版。
 - 只实现了 BOSS adapter，其他平台尚未实现。
 - BOSS 页面结构或风控变化时，优先看 `portable/data/watchdog.log` 和控制台日志。
 - 不提交 `.env`、`node_modules/`、`portable/`、`dist/`、`.edge-profile/`、临时脚本。
-- E 盘 ACL 已修复，但不要随意修改系统级权限。
+- 不要提交本机绝对路径、用户名、盘符 ACL 或本机专属配置。
 
 ## 下次接手建议
 

@@ -171,7 +171,7 @@ npm run build:exe
 
 | 输入 | 说明 |
 |---|---|
-| `E:\node.exe` | SEA 基础可执行文件，构建开始时会提前校验存在并输出版本 |
+| `node.exe` | SEA 基础可执行文件，构建脚本会自动检测；也可用 `-NodeExe` 指定 |
 | `node_modules/` | esbuild / postject / rcedit / tesseract.js 等打包依赖，`npm install` 安装 |
 | `tessdata/*.gz` | OCR 语言模型（`chi_sim` / `eng`），随 exe 嵌入 |
 | `.env` | 环境变量配置，**会嵌入 exe 内** |
@@ -213,19 +213,17 @@ packaging/         SEA 打包与启动器
 ## Git
 
 - 远端：https://github.com/zly251/codex
-- Git 元数据：`D:\autonomous-job-agent-repo\.git`
-- 工作区：`E:\autonomous-job-agent`
 - 项目分支：`autonomous-job-agent`（远端 `main` 已被其他工作区占用，不覆盖）
-- E 盘 `.git` 被 ACL 拒绝写入，提交时必须指定 `--git-dir` 和 `--work-tree`
+- 仓库内不写本机盘符和用户绝对路径；需要本机路径时使用环境变量、相对路径或 `-NodeExe` 等参数
 
 ```powershell
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent status
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent add .
-git --git-dir=D:\autonomous-job-agent-repo\.git --work-tree=E:\autonomous-job-agent commit -m "说明"
-git --git-dir=D:\autonomous-job-agent-repo\.git push
+git status
+git add .
+git commit -m "说明"
+git push origin HEAD:autonomous-job-agent
 ```
 
-提交前检查 `git status`，只提交应用源码、配置和文档，不提交诊断脚本、临时文件、日志、模型和 API Key。
+提交前检查 `git status`，只提交应用源码、配置和文档，不提交诊断脚本、临时文件、日志、模型和 API Key。如果本机仓库元数据和工作区分离，按当前机器实际位置临时指定 `--git-dir` 和 `--work-tree`，不要把路径写进仓库。
 
 ## License
 
