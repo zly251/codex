@@ -4,9 +4,19 @@ import * as applicationDb from "./db/application.js";
 import * as resumeDb from "./db/resume.js";
 import { BrowserManager } from "./browser/browserManager.js";
 import * as liveLog from "./log.js";
-import { findEdgePath, launchEdge, waitForCDP, DEFAULT_PROFILE, FALLBACK_PROFILE } from "./edgeLauncher.js";
+import {
+  findEdgePath,
+  DEFAULT_PROFILE,
+  FALLBACK_PROFILE,
+} from "./edgeLauncher.js";
 import { scoreJob, decideJob } from "./scoring.js";
+import { sortJobsForApply } from "./salary.js";
 import { getPlatform } from "./platforms/index.js";
+import { loadResumeEditor } from "./resumeExport.js";
+import {
+  buildSafeResumeText,
+  getProviderConfig,
+} from "./llmProvider.js";
 import { DATA_ROOT, PROFILE_PATH, CHAT_PATH } from "./paths.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -27,6 +37,7 @@ var state = {
   lastError: null,
   appliedCount: 0,
   chatActive: false,
+  replying: false,
   applyStatus: null,
   running: false,
   progress: null,
@@ -141,30 +152,20 @@ export function getStatus() {
   };
 }
 
-async function ensureEdgeLaunched(host, port) {
+async function ensureBrowserLaunched() {
   const exe = findEdgePath();
-  if (!exe) throw new Error("未找到 Edge，请先安装 Microsoft Edge");
-  try {
-    await waitForCDP(host, port, 2000);
-    return true;
-  } catch (e) {}
-  const profiles = [DEFAULT_PROFILE, FALLBACK_PROFILE].filter(function (dir) {
-    try {
-      return fs.existsSync(path.join(dir, "Default", "Cookies")) ||
-        fs.existsSync(path.join(dir, "Default", "Network", "Cookies"));
-    } catch (e) { return false; }
-  });
-  if (profiles.length === 0) profiles.push(DEFAULT_PROFILE);
+  if (!exe) throw new Error("未找到浏览器，请安装 Edge 或 Chrome，或设置 BROWSER_PATH 环境变量");
   let lastErr = null;
+  const profiles = [DEFAULT_PROFILE, FALLBACK_PROFILE];
   for (const dir of profiles) {
     try {
       liveLog.add("自动启动浏览器: " + exe);
-      await launchEdge({ profileDir: dir, host, port });
-      await waitForCDP(host, port, 20000);
-      liveLog.add("浏览器 CDP 端口已就绪");
+      await getManager().ensureEdge({ profileDir: dir });
+      liveLog.add("浏览器已启动并连接");
       return true;
     } catch (e) {
       lastErr = e;
+      liveLog.add("浏览器启动失败: " + (e?.message || e));
     }
   }
   throw new Error("浏览器启动失败: " + (lastErr?.message || ""));
@@ -173,23 +174,37 @@ async function ensureEdgeLaunched(host, port) {
 export async function handleLaunch(req, res, body) {
   try {
     const mgr = getManager();
-    const host = body?.host || "127.0.0.1";
-    const port = body?.port || 9222;
     if (mgr.browser?.connected) {
-      json(res, { ok: true, launched: false, message: "Edge 已连接" });
+      json(res, { ok: true, launched: false, message: "浏览器已连接" });
       return;
     }
-    try {
-      await mgr.connect(host, port);
-      await afterBrowserConnect();
-      json(res, { ok: true, launched: false, message: "Edge 已连接" });
-      return;
-    } catch (e) {}
-    await ensureEdgeLaunched(host, port);
-    await mgr.connect(host, port);
+    await ensureBrowserLaunched();
     await afterBrowserConnect();
     state.status = "connected";
-    json(res, { ok: true, launched: true, message: "Edge 已启动并连接" });
+    // 确保 BOSS 页面已打开（用 CDP HTTP API 开新标签，避免 puppeteer newPage 卡顿）
+    try {
+      const pages = await mgr.browser.pages();
+      const jobPage = pages.find(function (p) {
+        try { return String(p.url()).includes("zhipin.com"); } catch (e) { return false; }
+      });
+      if (jobPage) {
+        await jobPage.bringToFront().catch(function () {});
+      } else {
+        await fetch("http://127.0.0.1:9222/json/new?" + encodeURIComponent("https://www.zhipin.com"), {
+          method: "PUT",
+          signal: AbortSignal.timeout(10000),
+        }).catch(function () {
+          // 兜底：直接在当前页导航
+          const pg = pages.find(function (p) {
+            try { return String(p.url()).startsWith("about:") || String(p.url()).startsWith("edge://"); } catch (e) { return false; }
+          }) || pages[0];
+          if (pg) pg.goto("https://www.zhipin.com", { waitUntil: "domcontentloaded", timeout: 20000 }).catch(function () {});
+        });
+      }
+    } catch (e) {
+      liveLog.add("打开 BOSS 页面失败: " + (e?.message || e));
+    }
+    json(res, { ok: true, launched: true, message: "浏览器已启动并连接" });
   } catch (e) {
     state.lastError = e.message;
     json(res, { ok: false, error: e.message }, 400);
@@ -199,22 +214,9 @@ export async function handleLaunch(req, res, body) {
 export async function handleConnect(req, res, body) {
   try {
     const mgr = getManager();
-    const host = body?.host || "127.0.0.1";
-    const port = body?.port || 9222;
-    let connected = false;
-    for (let i = 0; i < 5; i++) {
-      try {
-        await mgr.connect(host, port);
-        connected = true;
-        break;
-      } catch (e) {
-        if (i < 4) await new Promise((r) => setTimeout(r, 1500));
-      }
-    }
-    if (!connected) {
-      liveLog.add("CDP 未就绪，自动启动 Edge");
-      await ensureEdgeLaunched(host, port);
-      await mgr.connect(host, port);
+    if (!mgr.browser?.connected) {
+      liveLog.add("启动浏览器");
+      await ensureBrowserLaunched();
     }
     await afterBrowserConnect();
     state.status = "connected";
@@ -258,7 +260,7 @@ export async function handleApply(req, res, body) {
   try {
     const mgr = getManager();
     const b = getBot();
-    if (b.running || state.running || state.chatActive) {
+    if (b.running || state.running || state.chatActive || state.replying || b._checking) {
       json(res, { ok: false, error: "已有投递任务运行中，请先停止", busy: true }, 409);
       return;
     }
@@ -368,7 +370,7 @@ export async function handleApply(req, res, body) {
     const scored = allJobs.map(function (j) {
       const s = scoreJob(j, profile);
       try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
-      return { job: j, match: s.score / 100, score: s.score };
+      return { job: j, match: s.score / 100, score: s.score, salaryRank: s.salaryRank, salaryStatus: s.salaryStatus };
     });
 
     const decisions = { AUTO_APPLY: 0, REVIEW: 0, IGNORE: 0 };
@@ -376,14 +378,17 @@ export async function handleApply(req, res, body) {
       decisions[decideJob(s.score, minMatch * 100)]++;
     });
 
-    const jobs = scored
-      .filter(function (s) { return s.match >= minMatch; })
-      .sort(function (a, b) { return b.match - a.match; })
+    const jobs = sortJobsForApply(
+      scored.filter(function (s) { return s.match >= minMatch; })
+    )
       .slice(0, limit)
       .map(function (s) {
         const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
         const resume = resumeDb.findBestMatch(techs);
-        return Object.assign({}, s.job, { resumeId: resume ? resume.id : null });
+        return Object.assign({}, s.job, {
+          companyName: getJobCompanyName(s.job),
+          resumeId: resume ? resume.id : null,
+        });
       });
 
     if (jobs.length === 0) {
@@ -404,6 +409,9 @@ export async function handleApply(req, res, body) {
         delayMin: delayMin,
         delayMax: delayMax,
         greeting: greeting,
+        profile: profile,
+        sendResume: body?.sendResume !== false,
+        sendResumeScreenshot: body?.sendResumeScreenshot !== false,
         onProgress: function (p) { state.progress = p; },
       });
       state.appliedCount += (result.applied || 0);
@@ -435,22 +443,101 @@ export async function handleChatStart(req, res, body) {
       json(res, { ok: false, error: "浏览器未连接" }, 400);
       return;
     }
+    logProviderWarning(liveLog);
     const b = getBot();
-    if (b.running || state.running || state.chatActive) {
+    let requestedResume = null;
+    if (body?.resumeId) {
+      requestedResume = resumeDb.findById(Number(body.resumeId));
+      if (!requestedResume) {
+        json(res, { ok: false, error: "未找到指定简历" }, 400);
+        return;
+      }
+      resumeDb.update(requestedResume.id, { isDefault: true });
+    }
+    // b._checking：stop() 只置 running=false，旧轮 check 可能仍在 sendReply 中执行；
+    // 此时启动新监控会与旧轮并发驱动同一页面，返回 409 等旧 check 结束再启动。
+    if (b.running || state.running || state.chatActive || state.replying || b._checking) {
       json(res, { ok: false, error: "已有任务运行中，请先停止", busy: true }, 409);
       return;
     }
     b.running = true;
     state.chatActive = true;
-    b.monitorChat(async (chat) => {
-      const profile = getProfile();
+    const once = body?.once === true;
+    const resetChatState = () => {
+      b.running = false;
+      state.chatActive = false;
+      state.replying = false;
+      state.status = "idle";
+    };
+    const startMonitor = () => b.monitorChat(async (chat, ctx) => {
+      const profile = getProfile() || {};
       const skills = profile?.skills || "";
       const name = profile?.name || "用户";
-      const reply = await b.generateReply(chat.msg, name, skills);
-      await b.sendReply(chat.name, reply);
-    }, body?.interval || 30000).catch((e) => {
+      const app = b._findApplicationForChat(chat);
+      const job = app?.jobId ? jobDb.findById(app.jobId) : null;
+      const resume = b._findResumeForChat(chat);
+      const resumeEditor = loadResumeEditor(profile);
+      const expectedSalary = String(resumeEditor?.expectedSalary ?? "");
+      const safeResumeText = buildSafeResumeText({
+        profile,
+        resume,
+        resumeEditor,
+        expectedSalary,
+      });
+      const reply = await b.generateReply(chat.msg, name, skills, {
+        profile,
+        job,
+        resume,
+        resumeEditor,
+        safeResumeText,
+        chatText: chat.text || "",
+        expectedSalary,
+        onWarning: (msg) => liveLog.add(msg),
+      });
+      if (reply && reply.needManual) return reply;
+      // 传入 monitorChat 本轮代际：stop()/重启后旧 sendReply 会在关键步骤间检测到
+      // 代际失效而停止驱动页面，避免新旧两轮并发驱动同一页面。
+      return await b.sendReply(chat.name, reply, chat, { generation: ctx?.generation });
+    }, body?.interval || 30000, {
+      autoReply: body?.autoReply !== false,
+      sendResume: body?.sendResume !== false,
+      sendResumeScreenshot: body?.sendResumeScreenshot !== false,
+      once,
+      // 运行期致命错误（浏览器断开/页面关闭）：monitorChat 已复位 b.running，这里复位
+      // state 各锁并记录日志，否则 state.chatActive 残留 true，后续所有任务入口都会 409。
+      onFatal: (e) => {
+        b.running = false;
+        state.running = false;
+        state.chatActive = false;
+        state.replying = false;
+        state.status = "idle";
+        liveLog.add("聊天监控异常终止: " + (e?.message || "").slice(0, 120));
+      },
+    });
+
+    if (once) {
+      try {
+        const result = await startMonitor();
+        resetChatState();
+        const stats = result || { scanned: 0, replied: 0, manual: 0, resumeSent: 0 };
+        liveLog.add(`[chat] once scan done: scanned=${stats.scanned} replied=${stats.replied} manual=${stats.manual} resumeSent=${stats.resumeSent}`);
+        json(res, { ok: true, message: "once_chat_scan_done", ...stats });
+      } catch (e) {
+        state.lastError = e.message;
+        resetChatState();
+        liveLog.add("[chat] once scan failed: " + (e.message || "").slice(0, 120));
+        json(res, { ok: false, error: e.message }, 500);
+      }
+      return;
+    }
+
+    startMonitor().catch((e) => {
       state.lastError = e.message;
-      state.chatActive = false;
+      // 首轮启动失败（如 _getPage 抛错、浏览器中途断开）必须复位全部锁，否则
+      // b.running 残留 true，后续所有任务入口都会 409；state.replying 也要复位避免假锁。
+      // 同时把状态置回 idle 并记录 liveLog，避免前端误以为监控已启动。
+      resetChatState();
+      liveLog.add("聊天监控启动失败: " + (e.message || "").slice(0, 120));
     });
     json(res, { ok: true, message: "连接成功" });
   } catch (e) {
@@ -458,8 +545,88 @@ export async function handleChatStart(req, res, body) {
   }
 }
 
+export function logProviderWarning(logger = liveLog) {
+  const config = getProviderConfig();
+  if (config.warning && typeof logger?.add === "function") {
+    logger.add(config.warning);
+  }
+  return config.warning || null;
+}
+
+export async function handleChatReply(req, res, body) {
+  try {
+    const mgr = getManager();
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接" }, 400);
+      return;
+    }
+    const text = String(body?.text || body?.message || "").trim();
+    if (!text) {
+      json(res, { ok: false, error: "回复内容为空" }, 400);
+      return;
+    }
+    const b = getBot();
+    // b._checking：stop() 只置 running=false，旧轮 check 可能仍在 sendReply 中执行；
+    // 此时手动回复会与旧轮并发驱动同一页面（旧轮可能正点到发送按钮），返回 409 等旧 check 结束。
+    if (b.running || state.running || state.chatActive || state.replying || b._checking) {
+      json(res, { ok: false, busy: true, error: "已有任务运行中" }, 409);
+      return;
+    }
+    const hrName = String(body?.hrName || body?.name || "").trim();
+    state.replying = true;
+    try {
+      const result = await b.sendReply(hrName, text, body?.chat || null);
+      json(res, { ok: !!result?.ok, ...result });
+    } finally {
+      state.replying = false;
+    }
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+export async function handleChatSendResume(req, res, body) {
+  try {
+    const mgr = getManager();
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接" }, 400);
+      return;
+    }
+    const b = getBot();
+    if (b.running || state.running || state.chatActive || state.replying || b._checking) {
+      json(res, { ok: false, busy: true, error: "已有任务运行中" }, 409);
+      return;
+    }
+    const resume = body?.resumeId
+      ? resumeDb.findById(Number(body.resumeId))
+      : resumeDb.findDefault() || resumeDb.findAll()[0];
+    if (!resume) {
+      json(res, { ok: false, error: "未找到可发送的简历" }, 400);
+      return;
+    }
+    resumeDb.update(resume.id, { isDefault: true });
+    b.running = true;
+    state.replying = true;
+    try {
+      const result = await b._sendResumeForChat(body?.chat || null, resume, {
+        generation: b.generation,
+        sendResumeScreenshot: body?.sendResumeScreenshot !== false,
+      });
+      json(res, { ok: !!result?.ok, ...result });
+    } finally {
+      b.running = false;
+      state.replying = false;
+    }
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
 export function handleChatStop(req, res) {
   if (bot) bot.stop();
+  // 不复位进行中的回复锁 state.replying：若回复正在浏览器里执行，提前置 false
+  // 会让新请求与进行中的回复并发驱动同一页面。state.replying 由 handleChatReply 的
+  // finally 复位；这里不复位是为了避免进行中回复与后续请求并发。
   state.chatActive = false;
   state.running = false;
   state.status = "idle";
@@ -474,7 +641,7 @@ export async function handleFeedbackSync(req, res) {
       return;
     }
     const b = getBot();
-    if (b.running || state.running || state.chatActive) {
+    if (b.running || state.running || state.chatActive || state.replying || b._checking) {
       json(res, { ok: false, error: "已有任务运行中，请先停止", busy: true }, 409);
       return;
     }

@@ -22,10 +22,13 @@
 - `src/platforms/index.js`：平台注册表，默认 `JOB_PLATFORM=boss`
 - `src/platforms/boss.js`：BOSS 直聘 adapter
 - `src/routes.mjs`：HTTP API 和投递流程，通过 `platform.createScraper()/createBot()` 解耦
-- `src/edgeLauncher.js`：Windows/macOS/Linux 浏览器发现与启动
+- `src/edgeLauncher.js`：Windows/macOS/Linux 浏览器（Edge/Chrome/Chromium）发现与启动
+- `src/browser/browserManager.js`：浏览器连接管理，`ensureEdge()` 统一启动+attach
 - `src/scrapers/bossApi.js`、`src/chatApply.js`、`src/scoring.js`：核心业务
 - `packaging/entry.cjs`、`packaging/setup-sea.cjs`：SEA exe 启动器
 - `server.mjs`、`web/index.html`：本地控制台
+
+> 浏览器链路已统一为 Edge/Chrome（CDP 9222），由服务端 `/api/boss/launch` 自动启动。launcher.ps1 只负责起服务、触发 launch、打开控制台。
 
 ## 数据位置
 
@@ -45,7 +48,7 @@ npm install
 npx tsx server.mjs
 ```
 
-访问 `http://127.0.0.1:3456`。
+访问 `http://127.0.0.1:3456`。浏览器由服务端自动启动（`/api/boss/launch`），无需手动开 Edge。
 
 Git 操作：
 
@@ -87,6 +90,12 @@ git push origin HEAD:autonomous-job-agent
 - BOSS 页面结构或风控变化时，优先看 `portable/data/watchdog.log` 和控制台日志。
 - 不提交 `.env`、`node_modules/`、`portable/`、`dist/`、`.edge-profile/`、临时脚本。
 - 不要提交本机绝对路径、用户名、盘符 ACL 或本机专属配置。
+
+## 已修复（2026-08-11）
+
+- 浏览器链路统一为 Edge/Chrome（CDP 9222）：`routes.mjs` 的 `ensureEdgeLaunched` 改名为 `ensureBrowserLaunched` 并真正启动浏览器；`browserManager` 新增 `ensureEdge()`；`entry.cjs` 的 `launchEdge()` 改为真 Edge 启动（原为 Firefox）；`launcher.ps1` 瘦身为只起服务+触发 launch。
+- 控制台未连接时状态提示显示 `lastError`，连接失败原因人话化。
+- PowerShell 脚本统一 UTF-8 BOM + CRLF（Windows PowerShell 5.1 解析中文必需）。
 
 ## 下次接手建议
 

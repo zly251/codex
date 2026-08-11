@@ -393,6 +393,7 @@ a:focus-visible {
   font-size: 13px;
   font-weight: 650;
   white-space: nowrap;
+  cursor: pointer;
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
 }
 
@@ -1353,6 +1354,18 @@ input[type="checkbox"] {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.resume-file:hover {
+  border-color: rgba(79, 139, 255, 0.45);
+  background: rgba(255, 255, 255, 0.045);
+}
+
+.resume-file.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(79, 139, 255, 0.24);
 }
 
 .resume-file-main {
@@ -1370,6 +1383,31 @@ input[type="checkbox"] {
 .resume-file-main span {
   color: var(--subtle);
   font-size: 11px;
+}
+
+.resume-file-tag {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.resume-file-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.upload-result {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .task-grid {
@@ -1523,6 +1561,223 @@ input[type="checkbox"] {
   color: var(--accent);
 }
 
+.chat-status-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  gap: 20px;
+}
+
+.chat-status-main {
+  min-width: 0;
+}
+
+.chat-status-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.chat-status-line strong {
+  color: var(--text);
+}
+
+.chat-status-extra {
+  color: var(--subtle);
+}
+
+.chat-status-main h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.chat-status-main p {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.chat-status-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+
+.chat-status-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: center;
+  gap: 10px;
+}
+
+.chat-status-summary > div {
+  min-width: 0;
+  padding: 4px 0;
+}
+
+.chat-status-summary span {
+  display: block;
+  color: var(--subtle);
+  font-size: 11px;
+}
+
+.chat-status-summary strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.chat-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+  align-items: stretch;
+}
+
+.chat-action-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.012));
+}
+
+.chat-action-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-action-icon {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: rgba(79, 139, 255, 0.12);
+  color: var(--accent);
+}
+
+.chat-action-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.chat-action-copy {
+  min-width: 0;
+}
+
+.chat-action-copy h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.chat-action-copy p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.chat-action-card .btn {
+  width: 100%;
+  white-space: normal;
+}
+
+.chat-utility-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.chat-settings {
+  margin-top: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.chat-settings summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  list-style: none;
+}
+
+.chat-settings summary::-webkit-details-marker {
+  display: none;
+}
+
+.chat-settings summary svg {
+  width: 15px;
+  height: 15px;
+  color: var(--muted);
+  transition: transform 0.15s ease;
+}
+
+.chat-settings[open] summary svg {
+  transform: rotate(90deg);
+}
+
+.chat-settings-body {
+  padding: 0 16px 16px;
+}
+
+.chat-result {
+  min-height: 78px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #08090c;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.chat-result.running {
+  border-color: rgba(56, 189, 248, 0.35);
+  color: var(--info);
+}
+
+.chat-result.success {
+  border-color: rgba(34, 197, 94, 0.35);
+  color: var(--success);
+}
+
+.chat-result.error {
+  border-color: rgba(239, 68, 68, 0.35);
+  color: var(--danger);
+}
+
 @media (max-width: 1180px) {
   .metric-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1532,7 +1787,9 @@ input[type="checkbox"] {
   .split-grid,
   .jobs-layout,
   .resume-layout,
-  .task-grid {
+  .task-grid,
+  .chat-status-card,
+  .chat-action-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1635,6 +1892,14 @@ input[type="checkbox"] {
     display: none;
   }
 
+  .chat-status-actions .btn {
+    flex: 1 1 160px;
+  }
+
+  .chat-status-summary {
+    grid-template-columns: 1fr;
+  }
+
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1699,6 +1964,7 @@ input[type="checkbox"] {
     <div>
       <div class="section-label">工作台</div>
       <nav class="nav" aria-label="主导航">
+        <button class="nav-item" data-tab="chat" type="button">AI 沟通</button>
         <button class="nav-item" data-tab="dashboard" type="button">Agent 状态</button>
         <button class="nav-item" data-tab="jobs" type="button">岗位推荐</button>
         <button class="nav-item" data-tab="pipeline" type="button">投递 Pipeline</button>
@@ -1717,7 +1983,7 @@ input[type="checkbox"] {
   <main class="main">
     <header class="topbar">
       <div class="topbar-title">
-        <div class="page-title" id="page-title">Agent 状态</div>
+        <div class="page-title" id="page-title">AI 沟通</div>
         <div class="topbar-sub" id="topbar-sub">AI 求职 Agent</div>
       </div>
       <div class="topbar-actions">
@@ -1726,7 +1992,8 @@ input[type="checkbox"] {
       </div>
     </header>
     <div class="content">
-      <div id="tab-dashboard" class="tab active"></div>
+      <div id="tab-chat" class="tab active"></div>
+      <div id="tab-dashboard" class="tab"></div>
       <div id="tab-jobs" class="tab"></div>
       <div id="tab-pipeline" class="tab"></div>
       <div id="tab-resume" class="tab"></div>
@@ -1747,6 +2014,7 @@ var _statusBusy = false;
 var _pipelineLoaded = false;
 
 var TAB_LABELS = {
+  chat: "AI 沟通",
   dashboard: "Agent 状态",
   jobs: "岗位推荐",
   pipeline: "投递 Pipeline",
@@ -1838,7 +2106,8 @@ document.querySelectorAll(".nav-item").forEach(function(el) {
 });
 
 function loadTab(name) {
-  if (name === "dashboard") loadDashboard();
+  if (name === "chat") loadChat();
+  else if (name === "dashboard") loadDashboard();
   else if (name === "jobs") loadJobs();
   else if (name === "pipeline") loadPipeline();
   else if (name === "resume") loadResume();
@@ -1855,7 +2124,10 @@ function ringHtml(pct) {
 }
 
 function statusTone(bs) {
-  if (!bs.browserConnected) return { dot: "", label: "未连接", title: "浏览器未连接" };
+  if (!bs.browserConnected) {
+    var why = bs.lastError ? "：" + bs.lastError : "";
+    return { dot: "", label: "未连接", title: "浏览器未连接" + why };
+  }
   if (bs.running) return { dot: "busy", label: "运行中", title: "自动化任务运行中" };
   return { dot: "online", label: "已连接", title: "Agent 已就绪" };
 }
@@ -1958,7 +2230,9 @@ function currentApplyOptions(extra) {
     delayMin: num("delay-min", 8),
     delayMax: num("delay-max", 25),
     greeting: (el("greeting") || {}).value || (profile && profile.greeting) || "",
-    skipApplied: !el("skip-applied") || document.getElementById("skip-applied").checked
+    skipApplied: !el("skip-applied") || document.getElementById("skip-applied").checked,
+    sendResume: !el("send-resume") || document.getElementById("send-resume").checked,
+    sendResumeScreenshot: !el("send-resume") || document.getElementById("send-resume").checked
   };
   return Object.assign(o, extra || {});
 }
@@ -2264,7 +2538,7 @@ async function loadResume() {
 
   var fileHtml = '<div class="upload-list">';
   (files.resumes || []).forEach(function(f) {
-    fileHtml += '<div class="resume-file"><div class="resume-file-main"><strong>' + escapeHtml(f.name || "-") + '</strong><span>' + escapeHtml((f.createdAt || "").slice(0, 10)) + '</span></div><button class="icon-btn" type="button" title="删除" onclick="deleteResume(' + f.id + ')">' + icon("trash") + '</button></div>';
+    fileHtml += '<div class="resume-file' + (f.isDefault ? " active" : "") + '" role="button" tabindex="0" onclick="selectResume(' + f.id + ')"><div class="resume-file-main"><strong>' + escapeHtml(f.name || "-") + '</strong><span>' + escapeHtml((f.createdAt || "").slice(0, 10)) + " · " + escapeHtml((f.fileType || "file").toUpperCase()) + '</span></div><div class="resume-file-actions">' + (f.isDefault ? '<span class="resume-file-tag">当前</span>' : '<button class="btn btn-sm" type="button" onclick="event.stopPropagation();selectResume(' + f.id + ')">使用</button>') + '<button class="icon-btn" type="button" title="删除" onclick="event.stopPropagation();deleteResume(' + f.id + ')">' + icon("trash") + '</button></div></div>';
   });
   fileHtml += '</div>';
 
@@ -2284,6 +2558,7 @@ async function loadResume() {
     '<div class="field"><label for="re-ethnicity">民族</label><input id="re-ethnicity" value="' + escAttr(r.ethnicity || "") + '"></div>' +
     '<div class="field"><label for="re-education">学历</label><select id="re-education">' + eduOptions + '</select></div>' +
     '<div class="field"><label for="re-experience">经验年限</label><input id="re-experience" value="' + escAttr(r.experience || "") + '" placeholder="3年"></div>' +
+    '<div class="field"><label for="re-salary">期望月薪</label><input id="re-salary" value="' + escAttr(r.expectedSalary || "") + '" placeholder="例如 12K 或 12000，作为聊薪资底线"></div>' +
     '</div>' +
     '<div class="form-grid" style="margin-top:12px">' +
     '<div class="field span-3"><label for="re-photo">证件照</label>' +
@@ -2296,7 +2571,7 @@ async function loadResume() {
     '<div class="form-grid" style="margin-top:12px">' +
     '<div class="field span-3"><label for="re-summary">个人优势</label><textarea id="re-summary" rows="3">' + escapeHtml(r.summary || "") + '</textarea></div>' +
     '<div class="field span-3"><label for="re-skills">技能（逗号分隔）</label><textarea id="re-skills" rows="3">' + escapeHtml(r.skills || "") + '</textarea></div>' +
-    '<div class="field span-3"><label for="re-greeting">打招呼语</label><textarea id="re-greeting" rows="2">' + escapeHtml(r.greeting || "您好，我对该职位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
+    '<div class="field span-3"><label for="re-greeting">打招呼语</label><textarea id="re-greeting" rows="2">' + escapeHtml(r.greeting || "您好，我是{name}，有{skills}相关经验，对贵司的{job}岗位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
     '</div></section>' +
 
     '<section class="panel resume-section"><div class="panel-head"><div><h3 class="panel-title">工作经历</h3><p class="panel-desc">按时间倒序填写</p></div><button class="btn btn-sm" type="button" onclick="addEditorRow(\'work\')">' + icon("plus") + '添加</button></div><div id="re-work"></div></section>' +
@@ -2314,8 +2589,10 @@ async function loadResume() {
 
     '<section class="panel resume-section">' +
     '<div class="panel-head"><div><h3 class="panel-title">简历文件</h3><p class="panel-desc">上传 PDF/Word/图片，自动识别技能</p></div></div>' +
-    '<input type="file" id="resume-file" accept=".pdf,.doc,.docx,.png,.jpg" onchange="uploadResume()">' +
+    '<label class="btn btn-primary" for="resume-file">' + icon("file") + '上传简历</label>' +
+    '<input type="file" id="resume-file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onchange="uploadResume()" style="display:none">' +
     '<div class="upload-hint" style="margin-top:8px;color:var(--subtle);font-size:12px">识别出的技能会加入本地档案。</div>' +
+    '<div id="upload-result" class="upload-result"></div>' +
     '<div style="margin-top:12px">' + fileHtml + '</div>' +
     '</section>' +
     '</div></div>';
@@ -2362,6 +2639,7 @@ async function saveResumeEditorData() {
   data.ethnicity = document.getElementById("re-ethnicity").value;
   data.education = document.getElementById("re-education").value;
   data.experience = document.getElementById("re-experience").value;
+  data.expectedSalary = document.getElementById("re-salary").value;
   data.summary = document.getElementById("re-summary").value;
   data.skills = document.getElementById("re-skills").value;
   data.greeting = document.getElementById("re-greeting").value;
@@ -2406,29 +2684,338 @@ async function exportResume(format) {
 async function uploadResume() {
   var file = document.getElementById("resume-file").files[0];
   if (!file) return;
+  window._uploadResult = { status: "running", message: "正在识别 " + file.name + " ..." };
+  renderUploadResult();
   log("上传简历: " + file.name);
   var reader = new FileReader();
   reader.onload = async function() {
     var base64 = reader.result.split(",")[1];
     try {
-      var r = await api("/api/resumes/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileData: base64 }) });
+      var r = await api("/api/resumes/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileData: base64, isDefault: true }) });
       if (r.ok) {
-        log("上传成功, 识别技能: " + (r.skills || []).join(","));
-        loadResume();
+        var skills = (r.skills || []).join(",");
+        var lines = ["识别完成: " + String(r.resume?.fileType || "").toUpperCase() + " 文件"];
+        if (skills) lines.push("识别技能: " + skills);
+        if (r.parsed?.targetRole) lines.push("目标岗位: " + r.parsed.targetRole);
+        if (r.parsed?.phone) lines.push("手机: " + r.parsed.phone);
+        if (r.parsed?.email) lines.push("邮箱: " + r.parsed.email);
+        if (r.textPreview) lines.push("文本预览: " + r.textPreview.slice(0, 300));
+        if (r.recognitionWarning) lines.push("提示: " + r.recognitionWarning);
+        window._uploadResult = { status: "success", message: lines.join("\n") };
+        log("上传成功, 识别技能: " + skills);
+        await loadResume();
+        renderUploadResult();
       } else {
+        window._uploadResult = { status: "error", message: "上传失败: " + (r.error || "") };
+        renderUploadResult();
         log("上传失败: " + (r.error || ""));
       }
     } catch (e) {
+      window._uploadResult = { status: "error", message: "上传错误: " + e.message };
+      renderUploadResult();
       log("上传错误: " + e.message);
     }
   };
   reader.readAsDataURL(file);
 }
 
+function renderUploadResult() {
+  var el = document.getElementById("upload-result");
+  if (!el) return;
+  var data = window._uploadResult || null;
+  if (!data) {
+    el.innerHTML = "";
+    return;
+  }
+  var color = data.status === "error" ? "#f87171" : data.status === "running" ? "#fbbf24" : "var(--muted)";
+  el.style.color = color;
+  el.textContent = data.message || "";
+}
+
+async function selectResume(id) {
+  var r = await api("/api/resumes/" + id + "/default", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (r.ok) {
+    window._uploadResult = { status: "success", message: "已选择简历：" + (r.resume?.name || "#" + id) };
+    log("已选择简历: " + (r.resume?.name || "#" + id));
+    await loadResume();
+    renderUploadResult();
+    return true;
+  }
+  window._uploadResult = { status: "error", message: "选择失败: " + (r.error || "") };
+  renderUploadResult();
+  return false;
+}
+
 async function deleteResume(id) {
   await fetch("/api/resumes/" + id, { method: "DELETE" });
   log("已删除简历 #" + id);
-  loadResume();
+  var files = await api("/api/resumes").catch(function() { return { resumes: [] }; });
+  var remaining = files.resumes || [];
+  if (remaining.length && !remaining.some(function(f) { return f.isDefault; })) {
+    await selectResume(remaining[0].id);
+  } else {
+    await loadResume();
+  }
+}
+
+// ─── AI 沟通 ───
+async function loadChat() {
+  var el = document.getElementById("tab-chat");
+  if (!el) return;
+  var bs = await api("/api/boss/status").catch(function() { return {}; });
+  bossConnected = bs.browserConnected || false;
+  var dotCls = bossConnected ? (bs.running ? "busy" : "online") : "";
+  var statusText = bossConnected ? (bs.running ? "浏览器已连接 · 任务运行中" : "浏览器已连接") : "浏览器未连接";
+  var lastSearch = bs.lastSearch
+    ? "上次搜索: " + escapeHtml((bs.lastSearch.keyword || "") + " · " + (bs.lastSearch.count || 0) + " 个")
+    : "尚未搜索";
+  var defaultCity = (profile && profile.city) || "台州";
+  var defaultKeywords = String((profile && profile.skills) || "C++,Qt,Python,嵌入式");
+  var defaultGreeting = (profile && profile.greeting) || "您好，我是{name}，有{skills}相关经验，对贵司的{job}岗位很感兴趣，方便沟通一下吗？";
+  var resumeFiles = await api("/api/resumes").catch(function() { return { resumes: [] }; });
+  var resumeRows = (resumeFiles.resumes || []).map(function(f) {
+    return '<div class="resume-file' + (f.isDefault ? " active" : "") + '" role="button" tabindex="0" onclick="selectChatResume(' + f.id + ')">' +
+      '<div class="resume-file-main"><strong>' + escapeHtml(f.name || "-") + '</strong><span>' + escapeHtml((f.createdAt || "").slice(0, 10)) + " · " + escapeHtml((f.fileType || "file").toUpperCase()) + '</span></div>' +
+      '<div class="resume-file-actions">' + (f.isDefault ? '<span class="resume-file-tag">当前</span>' : '<button class="btn btn-sm" type="button" onclick="event.stopPropagation();selectChatResume(' + f.id + ')">使用</button>') +
+      '<button class="icon-btn" type="button" title="删除" onclick="event.stopPropagation();deleteChatResume(' + f.id + ')">' + icon("trash") + '</button></div></div>';
+  }).join("");
+  var currentResume = (resumeFiles.resumes || []).find(function(f) { return f.isDefault; }) || (resumeFiles.resumes || [])[0] || null;
+
+  el.innerHTML =
+    '<section class="panel chat-status-card">' +
+    '<div class="chat-status-main">' +
+    '<div class="chat-status-line"><span id="chat-status-dot" class="status-dot ' + dotCls + '"></span><strong id="chat-status-text">' + statusText + '</strong><span id="chat-status-extra" class="chat-status-extra">' + lastSearch + '</span></div>' +
+    '<h2>AI 沟通中心</h2>' +
+    '<p>连接 BOSS 后，在这里一键打招呼、发送简历截图、扫描未读会话并自动回复。</p>' +
+    '<div class="chat-status-actions">' +
+    '<button class="btn btn-primary" type="button" onclick="bossConnect()">' + icon("zap") + '连接 Edge</button>' +
+    '<button class="btn" type="button" onclick="refreshStatus()">' + icon("refresh") + '刷新状态</button>' +
+    '<button class="btn btn-danger" type="button" onclick="chatStopAll()">' + icon("stop") + '停止当前任务</button>' +
+    '</div></div>' +
+    '<div class="chat-status-summary">' +
+    '<div><span>会话监控</span><strong id="chat-monitor-state">' + (bs.chatActive ? "运行中" : "未启动") + '</strong></div>' +
+    '<div><span>当前任务</span><strong id="chat-running-state">' + (bs.running ? "运行中" : "空闲") + '</strong></div>' +
+    '<div><span>已打招呼</span><strong>' + (bs.appliedCount || 0) + ' 次</strong></div>' +
+    '</div></section>' +
+
+    '<section class="panel chat-resume-panel">' +
+    '<div class="panel-head"><div><h3 class="panel-title">历史简历</h3><p class="panel-desc">选择已识别简历，或直接上传 PDF/Word/图片。</p></div></div>' +
+    '<input id="chat-resume-id" type="hidden" value="' + (currentResume ? currentResume.id : "") + '">' +
+    '<div class="upload-list">' + (resumeRows || '<div class="empty-state"><div class="empty-icon">' + icon("file") + '</div><strong>还没有简历文件</strong><span>先上传 PDF/Word/图片，识别后会自动成为当前简历。</span></div>') + '</div>' +
+    '<div class="form-actions" style="margin-top:12px;flex-wrap:wrap">' +
+    '<label class="btn btn-primary" for="chat-resume-file">' + icon("file") + '上传简历</label>' +
+    '<input type="file" id="chat-resume-file" accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp" onchange="chatUploadResume()" style="display:none">' +
+    '<span id="chat-resume-status" class="result-line" aria-live="polite">当前：' + escapeHtml(currentResume ? (currentResume.name || "#" + currentResume.id) + " · " + (currentResume.fileType || "file").toUpperCase() : "无") + '</span>' +
+    '</div></section>' +
+
+    '<div class="chat-action-grid">' +
+    '<section class="chat-action-card">' +
+    '<div class="chat-action-head"><span class="chat-action-icon">' + icon("send") + '</span><div class="chat-action-copy"><h3>一键打招呼</h3><p>默认打 5 份招呼，不发送简历。</p></div></div>' +
+    '<button class="btn btn-primary" type="button" onclick="chatGreeting()">' + icon("send") + '一键打招呼</button>' +
+    '</section>' +
+    '<section class="chat-action-card">' +
+    '<div class="chat-action-head"><span class="chat-action-icon">' + icon("file") + '</span><div class="chat-action-copy"><h3>一键发送简历</h3><p>给当前 BOSS 会话发送简历截图。</p></div></div>' +
+    '<button class="btn btn-primary" type="button" onclick="chatSendResume()">' + icon("file") + '一键发送简历</button>' +
+    '</section>' +
+    '<section class="chat-action-card">' +
+    '<div class="chat-action-head"><span class="chat-action-icon">' + icon("activity") + '</span><div class="chat-action-copy"><h3>一键回复未回复</h3><p>单轮扫描未读会话并自动回复。</p></div></div>' +
+    '<button class="btn btn-primary" type="button" onclick="chatReplyUnread()">' + icon("activity") + '一键回复未回复</button>' +
+    '</section>' +
+    '</div>' +
+
+    '<div class="chat-utility-row">' +
+    '<button class="btn btn-success" type="button" onclick="chatSyncFeedback()">' + icon("refresh") + '同步反馈</button>' +
+    '<span class="result-line">将 BOSS 会话状态同步到投递 Pipeline</span>' +
+    '</div>' +
+
+    '<details class="chat-settings">' +
+    '<summary>' + icon("chevron") + '沟通设置</summary>' +
+    '<div class="chat-settings-body"><div class="form-grid">' +
+    '<div class="field"><label for="chat-limit">打招呼数量</label><input id="chat-limit" type="number" value="5" min="1" max="50"></div>' +
+    '<div class="field"><label for="chat-city">城市</label><input id="chat-city" value="' + escAttr(defaultCity) + '"></div>' +
+    '<div class="field"><label for="chat-keywords">关键词</label><input id="chat-keywords" value="' + escAttr(defaultKeywords) + '"></div>' +
+    '<div class="field span-3"><label for="chat-greeting">打招呼语</label><textarea id="chat-greeting" rows="2">' + escapeHtml(defaultGreeting) + '</textarea></div>' +
+    '<div class="field span-3"><label class="check-line"><input id="chat-send-resume-after-reply" type="checkbox" checked> 回复后自动发送简历截图</label></div>' +
+    '</div></div></details>' +
+
+    '<div id="chat-result" class="chat-result">就绪，等待操作。</div>';
+}
+
+function chatUpdateResult(msg, tone) {
+  var el = document.getElementById("chat-result");
+  if (!el) return;
+  el.className = "chat-result" + (tone ? " " + tone : "");
+  el.innerHTML = msg;
+}
+
+async function chatSetResumeDefault(id) {
+  var r = await api("/api/resumes/" + id + "/default", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  return r.ok ? r.resume : null;
+}
+
+async function selectChatResume(id) {
+  var r = await chatSetResumeDefault(id);
+  if (r) {
+    log("已选择简历: " + (r.name || "#" + id));
+    await loadChat();
+  } else {
+    var status = document.getElementById("chat-resume-status");
+    if (status) status.textContent = "选择失败";
+  }
+}
+
+async function deleteChatResume(id) {
+  await fetch("/api/resumes/" + id, { method: "DELETE" });
+  var files = await api("/api/resumes").catch(function() { return { resumes: [] }; });
+  var remaining = files.resumes || [];
+  if (remaining.length && !remaining.some(function(f) { return f.isDefault; })) {
+    await chatSetResumeDefault(remaining[0].id);
+  }
+  log("已删除简历 #" + id);
+  await loadChat();
+}
+
+async function chatUploadResume() {
+  var file = document.getElementById("chat-resume-file")?.files[0];
+  if (!file) return;
+  var status = document.getElementById("chat-resume-status");
+  if (status) status.textContent = "正在识别 " + file.name + " ...";
+  log("上传简历: " + file.name);
+  var reader = new FileReader();
+  reader.onload = async function() {
+    try {
+      var r = await api("/api/resumes/upload", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileName: file.name, fileData: reader.result.split(",")[1], isDefault: true }) });
+      if (r.ok) {
+        var skills = (r.skills || []).join(",");
+        log("上传成功, 识别技能: " + skills);
+        chatUpdateResult("简历已识别并设为当前：<b>" + escapeHtml(r.resume?.name || file.name) + "</b> · 技能 <b>" + escapeHtml(skills || "暂无") + "</b>", "success");
+        await loadChat();
+      } else {
+        if (status) status.textContent = "上传失败: " + (r.error || "");
+        log("上传失败: " + (r.error || ""));
+      }
+    } catch (e) {
+      if (status) status.textContent = "上传错误: " + e.message;
+      log("上传错误: " + e.message);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+async function chatEnsureConnected() {
+  await pollStatusOnce();
+  if (bossConnected) return true;
+  chatUpdateResult("浏览器未连接，正在连接 Edge...", "running");
+  await bossConnect();
+  return bossConnected;
+}
+
+async function chatGreeting() {
+  if (!await chatEnsureConnected()) {
+    chatUpdateResult("连接失败，请先手动连接 Edge。", "error");
+    return;
+  }
+  var limit = Math.max(1, Math.min(50, parseInt((document.getElementById("chat-limit") || {}).value) || 5));
+  var city = (document.getElementById("chat-city") || {}).value.trim();
+  var keywords = (document.getElementById("chat-keywords") || {}).value.trim();
+  var greeting = (document.getElementById("chat-greeting") || {}).value.trim();
+  chatUpdateResult("正在一键打招呼...", "running");
+  log("一键打招呼: " + (city || "全部") + " " + (keywords || "全部") + " 最多 " + limit + " 份");
+  try {
+    var r = await api("/api/boss/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: limit, city: city, keywords: keywords, minMatch: 0, greeting: greeting, skipApplied: true, sendResume: false, sendResumeScreenshot: false }) });
+    if (r.ok) {
+      chatUpdateResult("一键打招呼完成：成功 <b>" + Number(r.applied || 0) + "</b> · 失败 <b>" + Number(r.failed || 0) + "</b> · 跳过 <b>" + Number(r.skippedApplied || 0) + "</b> · 共 <b>" + Number(r.total || 0) + "</b>", "success");
+      log("一键打招呼完成: 成功 " + (r.applied || 0) + " 失败 " + (r.failed || 0) + " 跳过 " + (r.skippedApplied || 0) + " 共 " + (r.total || 0));
+    } else {
+      chatUpdateResult("一键打招呼失败：" + escapeHtml(r.error || ""), "error");
+      log("一键打招呼失败: " + (r.error || ""));
+    }
+  } catch (e) {
+    chatUpdateResult("一键打招呼错误：" + escapeHtml(e.message), "error");
+    log("一键打招呼错误: " + e.message);
+  }
+}
+
+async function chatSendResume() {
+  if (!await chatEnsureConnected()) {
+    chatUpdateResult("连接失败，请先手动连接 Edge。", "error");
+    return;
+  }
+  var resumeId = (document.getElementById("chat-resume-id") || {}).value;
+  chatUpdateResult("正在向当前会话发送简历截图...", "running");
+  log("一键发送简历截图");
+  try {
+    var r = await api("/api/boss/chat/send-resume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: {}, resumeId: resumeId ? Number(resumeId) : undefined, sendResumeScreenshot: true }) });
+    if (r.ok) {
+      chatUpdateResult("简历截图已发送到当前 BOSS 会话。", "success");
+      log("简历截图发送成功");
+    } else {
+      chatUpdateResult("发送简历截图失败：" + escapeHtml(r.error || r.reason || ""), "error");
+      log("简历截图发送失败: " + (r.error || r.reason || "fail"));
+    }
+  } catch (e) {
+    chatUpdateResult("发送简历截图错误：" + escapeHtml(e.message), "error");
+    log("简历截图发送错误: " + e.message);
+  }
+}
+
+async function chatReplyUnread() {
+  if (!await chatEnsureConnected()) {
+    chatUpdateResult("连接失败，请先手动连接 Edge。", "error");
+    return;
+  }
+  var resumeId = (document.getElementById("chat-resume-id") || {}).value;
+  var sendResume = !document.getElementById("chat-send-resume-after-reply") || document.getElementById("chat-send-resume-after-reply").checked;
+  chatUpdateResult("正在扫描未读会话并自动回复...", "running");
+  log("一键回复未回复: " + (sendResume ? "回复后发送简历截图" : "不发送简历截图"));
+  try {
+    var r = await api("/api/boss/chat/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ once: true, interval: 30000, autoReply: true, resumeId: resumeId ? Number(resumeId) : undefined, sendResume: sendResume, sendResumeScreenshot: sendResume }) });
+    if (r.ok) {
+      chatUpdateResult("未读会话处理完成：扫描 <b>" + Number(r.scanned || 0) + "</b> · 自动回复 <b>" + Number(r.replied || 0) + "</b> · 手动 <b>" + Number(r.manual || 0) + "</b> · 发送简历 <b>" + Number(r.resumeSent || 0) + "</b>", "success");
+      log("一键回复未回复完成: 扫描 " + (r.scanned || 0) + " 回复 " + (r.replied || 0) + " 手动 " + (r.manual || 0) + " 简历 " + (r.resumeSent || 0));
+      if (_pipelineLoaded) loadPipeline();
+    } else {
+      chatUpdateResult("一键回复未回复失败：" + escapeHtml(r.error || ""), "error");
+      log("一键回复未回复失败: " + (r.error || ""));
+    }
+  } catch (e) {
+    chatUpdateResult("一键回复未回复错误：" + escapeHtml(e.message), "error");
+    log("一键回复未回复错误: " + e.message);
+  }
+}
+
+async function chatStopAll() {
+  chatUpdateResult("正在停止当前任务...", "running");
+  log("发送停止指令");
+  try {
+    await fetch("/api/boss/chat/stop");
+  } catch (e) {}
+  try {
+    await fetch("/api/boss/stop", { method: "POST" });
+  } catch (e) {}
+  applyRunning = false;
+  await pollStatusOnce();
+  chatUpdateResult("已停止聊天监控和当前自动化任务。", "success");
+}
+
+async function chatSyncFeedback() {
+  chatUpdateResult("正在同步反馈...", "running");
+  log("开始同步 BOSS 反馈...");
+  try {
+    var r = await api("/api/boss/sync-feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    if (r.ok) {
+      chatUpdateResult("反馈同步完成：更新 <b>" + Number(r.updatedCount || 0) + "</b> 条 · 扫描 <b>" + Number(r.scanned || 0) + "</b> 个会话", "success");
+      log("反馈同步完成: 更新 " + (r.updatedCount || 0) + " / 扫描 " + (r.scanned || 0));
+      if (_pipelineLoaded) loadPipeline();
+      loadDashboard();
+    } else {
+      chatUpdateResult("反馈同步失败：" + escapeHtml(r.error || ""), "error");
+      log("反馈同步失败: " + (r.error || ""));
+    }
+  } catch (e) {
+    chatUpdateResult("反馈同步错误：" + escapeHtml(e.message), "error");
+    log("反馈同步错误: " + e.message);
+  }
 }
 
 // ─── 任务监控 ───
@@ -2496,17 +3083,27 @@ async function loadTasks() {
     '<div class="field"><label for="delay-min">随机延迟（秒）</label><div class="range-pair"><input id="delay-min" type="number" value="8" min="1" max="120"><span>~</span><input id="delay-max" type="number" value="25" min="1" max="300"></div></div>' +
     '</div>' +
     '<label class="check-line"><input id="skip-applied" type="checkbox" checked> 跳过已投递职位</label>' +
-    '<div class="field" style="margin-top:12px"><label for="greeting">打招呼语</label><textarea id="greeting" rows="2">' + escapeHtml((profile && profile.greeting) || "您好，我对该职位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
+    '<label class="check-line"><input id="send-resume" type="checkbox" checked> 打招呼后发送简历截图</label>' +
+    '<div class="field" style="margin-top:12px"><label for="greeting">打招呼语</label><textarea id="greeting" rows="2">' + escapeHtml((profile && profile.greeting) || "您好，我是{name}，有{skills}相关经验，对贵司的{job}岗位很感兴趣，方便沟通一下吗？") + '</textarea></div>' +
     '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossApply()">' + icon("play") + '开始投递</button><button class="btn btn-danger" type="button" onclick="stopApply()">' + icon("stop") + '停止</button><span id="ar" class="result-line" aria-live="polite"></span></div></section>';
 
   h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">聊天与反馈</h3><p class="panel-desc">扫描会话并同步投递状态</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="interval">轮询间隔（秒）</label><input id="interval" type="number" value="30"></div>' +
     '</div>' +
+    '<label class="check-line"><input id="auto-reply" type="checkbox" checked> 自动回复未读新消息</label>' +
+    '<label class="check-line"><input id="chat-send-resume" type="checkbox" checked> HR 回复后自动发送简历截图</label>' +
+    '<div class="form-grid" style="margin-top:12px">' +
+    '<div class="field"><label for="manual-hr">HR/公司</label><input id="manual-hr" placeholder="会话名称"></div>' +
+    '<div class="field span-3"><label for="manual-reply">回复内容</label><textarea id="manual-reply" rows="2"></textarea></div>' +
+    '</div>' +
     '<div class="form-actions">' +
     '<button class="btn btn-primary" type="button" onclick="bossChatStart()">' + icon("play") + '开始监控</button>' +
     '<button class="btn" type="button" onclick="bossChatStop()">' + icon("stop") + '停止监控</button>' +
     '<button class="btn btn-success" type="button" onclick="bossSyncFeedback()">' + icon("refresh") + '同步反馈</button>' +
+    '<button class="btn" type="button" onclick="sendManualReply()">' + icon("send") + '发送回复</button>' +
+    '<button id="manual-send-resume-btn" class="btn" type="button" onclick="sendManualResume()">' + icon("file") + '发送简历截图</button>' +
+    '<span id="mr" class="result-line" aria-live="polite"></span>' +
     '<span id="cr" class="result-line" aria-live="polite"></span>' +
     '</div></section>';
 
@@ -2520,7 +3117,7 @@ async function refreshStatus() {
 }
 
 async function bossConnect() {
-  log("启动/连接 Edge...");
+  log("启动/连接浏览器...");
   try {
     var r = await api("/api/boss/launch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ host: "127.0.0.1", port: 9222 }) });
     if (r.ok) {
@@ -2597,13 +3194,15 @@ async function bossApply() {
 
 async function bossChatStart() {
   var intv = (parseInt(document.getElementById("interval").value) || 30) * 1000;
+  var autoReply = !document.getElementById("auto-reply") || document.getElementById("auto-reply").checked;
+  var sendResume = !document.getElementById("chat-send-resume") || document.getElementById("chat-send-resume").checked;
   var btn = document.getElementById("chat-btn");
   btn.disabled = true;
   btn.textContent = "启动中...";
   var el = document.getElementById("cr");
   el.textContent = "启动中...";
   try {
-    var r = await api("/api/boss/chat/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval: intv }) });
+    var r = await api("/api/boss/chat/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval: intv, autoReply: autoReply, sendResume: sendResume, sendResumeScreenshot: sendResume }) });
     if (r.ok) {
       el.innerHTML = "监控已启动";
       btn.textContent = "监控中";
@@ -2628,6 +3227,59 @@ async function bossChatStop() {
     document.getElementById("chat-btn").textContent = "开始";
     log("聊天监控已停止");
   } catch (e) {}
+}
+
+async function sendManualReply() {
+  var hrName = document.getElementById("manual-hr").value.trim();
+  var text = document.getElementById("manual-reply").value.trim();
+  var el = document.getElementById("mr");
+  if (!text) {
+    if (el) el.textContent = "回复内容为空";
+    return;
+  }
+  if (el) el.textContent = "发送中...";
+  log("手动回复 " + (hrName || "当前会话") + ": " + text.slice(0, 20));
+  try {
+    var r = await api("/api/boss/chat/reply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hrName: hrName, text: text }) });
+    if (el) el.textContent = r.ok ? (r.reason === "sent" ? "已发送" : "已提交，未确认") : "失败: " + (r.error || r.reason || "");
+    log("手动回复结果: " + (r.ok ? (r.reason || "ok") : (r.error || r.reason || "fail")));
+    if (r.ok && (!document.getElementById("chat-send-resume") || document.getElementById("chat-send-resume").checked)) {
+      await sendManualResume();
+    }
+  } catch (e) {
+    if (el) el.textContent = "发送失败: " + e.message;
+    log("手动回复错误: " + e.message);
+  }
+}
+
+async function sendManualResume() {
+  var hrName = document.getElementById("manual-hr").value.trim();
+  var el = document.getElementById("mr");
+  var btn = document.getElementById("manual-send-resume-btn");
+  if (el) el.textContent = "发送简历截图中...";
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "发送简历截图中...";
+  }
+  log("手动发送简历截图: " + (hrName || "当前会话"));
+  try {
+    var chat = hrName ? { name: hrName } : {};
+    var r = await api("/api/boss/chat/send-resume", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ chat: chat, sendResumeScreenshot: true }) });
+    if (el) {
+      el.textContent = r.ok
+        ? "简历截图已发送"
+        : (r.reason === "resume_unavailable" ? "发送不可用: " + (r.reason || "") : "发送简历截图失败: " + (r.error || r.reason || "fail"));
+    }
+    log("手动发送简历截图结果: " + (r.ok ? (r.reason || "ok") : (r.error || r.reason || "fail")));
+  } catch (e) {
+    if (el) el.textContent = "发送简历截图错误: " + e.message;
+    log("手动发送简历截图错误: " + e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = icon("file") + "发送简历截图";
+    }
+  }
 }
 
 async function bossSyncFeedback() {
@@ -2660,6 +3312,15 @@ async function pollStatusOnce() {
     var bs = await api("/api/boss/status").catch(function() { return {}; });
     bossConnected = bs.browserConnected || false;
     setSidebarStatus(bossConnected);
+
+    var chatDot = document.getElementById("chat-status-dot");
+    if (chatDot) chatDot.className = "status-dot" + (bossConnected ? (bs.running ? " busy" : " online") : "");
+    var chatText = document.getElementById("chat-status-text");
+    if (chatText) chatText.textContent = bossConnected ? (bs.running ? "浏览器已连接 · 任务运行中" : "浏览器已连接") : "浏览器未连接";
+    var chatMonitor = document.getElementById("chat-monitor-state");
+    if (chatMonitor) chatMonitor.textContent = bs.chatActive ? "运行中" : "未启动";
+    var chatRunning = document.getElementById("chat-running-state");
+    if (chatRunning) chatRunning.textContent = bs.running ? "运行中" : "空闲";
 
     var gs = document.getElementById("global-status");
     if (gs) {
@@ -2713,10 +3374,10 @@ function startPolling() {
     var p = await api("/api/profile");
     if (p && p.name) profile = p;
   } catch (e) {}
-  var initialTab = "dashboard";
+  var initialTab = "chat";
   try {
     var saved = localStorage.getItem("job-agent-tab");
-    if (saved && TAB_LABELS[saved]) initialTab = saved;
+    if (saved === "chat") initialTab = saved;
   } catch (e) {}
   await refreshStatus();
   switchTab(initialTab);

@@ -120,7 +120,7 @@ const findEdgePath = findBrowserPath;
 function killProfileProcesses(profileDir) {
   try {
     if (PLATFORM === 'win32') {
-      const ps = "Get-CimInstance Win32_Process -Filter \"Name='msedge.exe' OR Name='chrome.exe' OR Name='chromium.exe'\" | Where-Object { $_.CommandLine -like '*" + profileDir.replace(/'/g, "''") + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
+      const ps = "Get-CimInstance Win32_Process -Filter \"Name='firefox.exe' OR Name='msedge.exe' OR Name='chrome.exe' OR Name='chromium.exe'\" | Where-Object { $_.CommandLine -like '*" + profileDir.replace(/'/g, "''") + "*' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }";
       execFileSync('powershell.exe', ['-NoProfile', '-Command', ps], { stdio: 'ignore', timeout: 8000, windowsHide: true });
     } else {
       execFileSync('pkill', ['-f', '--', '--user-data-dir=' + profileDir], { stdio: 'ignore', timeout: 8000 });
@@ -184,34 +184,139 @@ function appendWatchdogLog(msg) {
   } catch (e) {}
 }
 
-async function launchEdge() {
+function getTrayScriptPath(ROOT) {
+  const roots = [
+    ROOT,
+    process.env.JOB_AGENT_DATA_DIR,
+    process.env.JOB_AGENT_ROOT,
+    path.resolve(__dirname, '..'),
+  ].filter(Boolean);
+  for (const root of roots) {
+    try {
+      const trayScript = path.join(root, 'scripts', 'tray_agent.ps1');
+      if (fs.existsSync(trayScript)) return trayScript;
+    } catch (e) {}
+  }
+  return null;
+}
+
+function getWindowsPowerShellPath() {
+  if (PLATFORM !== 'win32') return null;
+  const systemRoot = process.env.SystemRoot || process.env.WINDIR || 'C:\\Windows';
+  const candidates = [
+    path.join(systemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+    'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate)) return candidate;
+    } catch (e) {}
+  }
+  return 'powershell.exe';
+}
+
+function isSeaRuntime() {
+  try {
+    return !!require('node:sea').isSea();
+  } catch (e) {
+    return false;
+  }
+}
+
+function ensureTray(ROOT) {
+  if (PLATFORM !== 'win32') return;
+  const trayScript = getTrayScriptPath(ROOT);
+  if (!trayScript) {
+    appendWatchdogLog('tray script not found, skip tray agent');
+    return;
+  }
+  appendWatchdogLog('tray script resolved: ' + trayScript);
+  const powershellExe = getWindowsPowerShellPath();
+  appendWatchdogLog('tray powershell exe: ' + powershellExe);
+  appendWatchdogLog('tray starting via Start-Process');
+  const psQuote = function (value) {
+    return "'" + String(value).replace(/'/g, "''") + "'";
+  };
+  const startCommand = 'Start-Process -FilePath ' + psQuote(powershellExe) +
+    ' -ArgumentList ' + psQuote('-NoProfile') + ',' + psQuote('-ExecutionPolicy') + ',' +
+    psQuote('Bypass') + ',' + psQuote('-STA') + ',' + psQuote('-WindowStyle') + ',' +
+    psQuote('Hidden') + ',' + psQuote('-File') + ',' + psQuote(trayScript) +
+    ' -WindowStyle Hidden';
+  try {
+    const dataRoot = ROOT || process.env.JOB_AGENT_DATA_DIR || process.env.JOB_AGENT_ROOT;
+    const previousEnv = {};
+    const envVars = {
+      JOB_AGENT_PORT: String(PORT),
+    };
+    if (dataRoot) envVars.JOB_AGENT_DATA_DIR = dataRoot;
+    if (isSeaRuntime()) envVars.JOB_AGENT_EXE = process.execPath;
+    for (const name of Object.keys(envVars)) {
+      previousEnv[name] = process.env[name];
+      process.env[name] = envVars[name];
+    }
+    try {
+      execFileSync(powershellExe, ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-Command', startCommand], {
+        stdio: 'ignore',
+        windowsHide: true,
+        timeout: 15000,
+      });
+      appendWatchdogLog('tray Start-Process launched');
+    } finally {
+      for (const name of Object.keys(envVars)) {
+        if (previousEnv[name] === undefined) {
+          delete process.env[name];
+        } else {
+          process.env[name] = previousEnv[name];
+        }
+      }
+    }
+  } catch (e) {
+    appendWatchdogLog('tray agent start failed: ' + (e && e.message));
+  }
+}
+
+async function launchBrowser() {
   if (edgeLock) return false;
   edgeLock = true;
-  const exe = findBrowserPath();
   try {
-    if (!exe) return false;
+    const exe = findBrowserPath();
+    if (!exe) {
+      appendWatchdogLog('browser exe not found');
+      return false;
+    }
+    const dataRoot = process.env.JOB_AGENT_DATA_DIR || process.env.JOB_AGENT_ROOT || process.cwd();
+    const base = path.join(dataRoot, '..');
+    if (!process.env.JOB_AGENT_PROFILE_DIR) process.env.JOB_AGENT_PROFILE_DIR = path.join(base, '.edge-profile');
+    if (!process.env.JOB_AGENT_FALLBACK_PROFILE_DIR) process.env.JOB_AGENT_FALLBACK_PROFILE_DIR = path.join(base, '.edge-profile-2');
     const profiles = [
       process.env.JOB_AGENT_PROFILE_DIR,
       process.env.JOB_AGENT_FALLBACK_PROFILE_DIR,
-    ].filter(function (dir) {
-      return dir && hasCookies(dir);
-    });
-    if (profiles.length === 0 && process.env.JOB_AGENT_PROFILE_DIR) profiles.push(process.env.JOB_AGENT_PROFILE_DIR);
+    ];
     for (const dir of profiles) {
-      killProfileProcesses(dir);
-      fs.mkdirSync(dir, { recursive: true });
-      const args = [
-        '--remote-debugging-port=' + CDP_PORT,
-        '--remote-allow-origins=*',
-        '--user-data-dir=' + dir,
-        '--start-maximized',
-        '--no-first-run',
-        '--disable-notifications',
-        process.env.JOB_AGENT_START_URL || 'https://www.zhipin.com',
-      ];
-      const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: PLATFORM === 'win32' });
-      child.unref();
-      if (await waitFor('http://127.0.0.1:' + CDP_PORT + '/json/version', 20000)) return true;
+      try {
+        killProfileProcesses(dir);
+        fs.mkdirSync(dir, { recursive: true });
+        const args = [
+          '--remote-debugging-port=' + CDP_PORT,
+          '--remote-allow-origins=*',
+          '--user-data-dir=' + dir,
+          '--start-maximized',
+          '--no-first-run',
+          '--disable-notifications',
+          '--disable-features=CalculateNativeWinOcclusion',
+          '--disable-backgrounding-occluded-windows',
+          process.env.JOB_AGENT_START_URL || 'https://www.zhipin.com',
+        ];
+        const child = spawn(exe, args, { detached: true, stdio: 'ignore', windowsHide: PLATFORM === 'win32' });
+        child.unref();
+        const ok = await waitFor('http://127.0.0.1:' + CDP_PORT + '/json/version', 30000);
+        if (ok) {
+          appendWatchdogLog('browser launched with profile ' + dir);
+          return true;
+        }
+      } catch (e) {
+        appendWatchdogLog('browser launch failed: ' + (e && e.message));
+      }
     }
     return false;
   } finally {
@@ -264,6 +369,21 @@ async function activateTarget(id) {
 
 async function openAppPage() {
   try {
+    const browser = globalThis.__JOB_AGENT_BROWSER__;
+    if (browser?.connected) {
+      const pages = await browser.pages();
+      let appPage = pages.find(function (p) {
+        try {
+          return p.url().startsWith(SERVER_URL);
+        } catch (e) {
+          return false;
+        }
+      });
+      if (!appPage) appPage = await browser.newPage();
+      await appPage.goto(SERVER_URL, { waitUntil: 'domcontentloaded', timeout: 15000 }).catch(function () {});
+      await appPage.bringToFront().catch(function () {});
+      return;
+    }
     const res = await fetch("http://127.0.0.1:" + CDP_PORT + "/json/list", {
       signal: AbortSignal.timeout(5000),
     });
@@ -290,20 +410,8 @@ async function openAppPage() {
 
 async function ensureEdgeConnected() {
   if (process.env.JOB_AGENT_NO_EDGE === "1") return;
-  let cdpOpen = await waitFor("http://127.0.0.1:" + CDP_PORT + "/json/version", 1500);
-  if (cdpOpen && process.env.JOB_AGENT_PROFILE_DIR) {
-    const running = getRunningProfile();
-    const matchesPreferred = running &&
-      normalizeProfile(running) === normalizeProfile(process.env.JOB_AGENT_PROFILE_DIR) &&
-      hasCookies(running);
-    if (!matchesPreferred) {
-      if (running) killProfileProcesses(running);
-      await new Promise(function (r) { setTimeout(r, 800); });
-      cdpOpen = false;
-    }
-  }
-  if (!cdpOpen) {
-    await launchEdge();
+  if (!globalThis.__JOB_AGENT_BROWSER__?.connected) {
+    await launchBrowser();
   }
   try {
     await fetch(SERVER_URL + "/api/boss/connect", {
@@ -319,32 +427,37 @@ function startEdgeWatchdog() {
   let failures = 0;
   setInterval(async function () {
     if (process.env.JOB_AGENT_NO_EDGE === '1') return;
-    const portOk = await cdpPortOpen();
-    if (portOk) {
+    if (!(await isOurServer())) {
+      appendWatchdogLog('server unavailable, watchdog paused');
+      failures = 0;
+      return;
+    }
+    let connected = false;
+    try {
+      const res = await fetch(SERVER_URL + '/api/boss/status', { signal: AbortSignal.timeout(3000) });
+      const data = await res.json();
+      connected = !!data.browserConnected;
+    } catch (e) {}
+    if (connected) {
       failures = 0;
       return;
     }
     failures++;
-    appendWatchdogLog('cdp port down, failure ' + failures);
+    appendWatchdogLog('browser disconnected, failure ' + failures);
     if (failures < 3) return;
     failures = 0;
-    appendWatchdogLog('relaunching edge');
-    console.error('[watchdog] Edge CDP lost for 3 checks, relaunching...');
+    appendWatchdogLog('relaunching browser');
+    console.error('[watchdog] browser disconnected for 3 checks, relaunching...');
     try {
-      const running = getRunningProfile();
-      if (running) killProfileProcesses(running);
-      await new Promise(function (r) { setTimeout(r, 1500); });
-      const launched = await launchEdge();
-      if (launched) {
-        await fetch(SERVER_URL + '/api/boss/connect', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ host: '127.0.0.1', port: CDP_PORT }),
-          signal: AbortSignal.timeout(10000),
-        }).catch(function () {});
-      }
+      if (!globalThis.__JOB_AGENT_BROWSER__?.connected) await launchBrowser();
+      await fetch(SERVER_URL + '/api/boss/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: '127.0.0.1', port: CDP_PORT }),
+        signal: AbortSignal.timeout(10000),
+      }).catch(function () {});
     } catch (e) {
-      console.error('[watchdog] relaunch error: ' + (e && e.message));
+      console.error('[watchdog] browser relaunch error: ' + (e && e.message));
     }
   }, 20000);
 }
@@ -356,6 +469,7 @@ async function main() {
   if (serverRunning && !replaced) {
     await ensureEdgeConnected();
     startEdgeWatchdog();
+    ensureTray(ROOT);
     if (process.env.JOB_AGENT_NO_OPEN !== '1') {
       await openAppPage();
     }
@@ -369,11 +483,18 @@ async function main() {
       console.error('[launcher] server failed: ' + (e && e.stack || e));
     }
     await waitFor(SERVER_URL + '/api/stats', 20000);
+
+    if (!(await isOurServer())) {
+      appendWatchdogLog('server failed to start, exit without launching edge');
+      process.exit(1);
+    }
   }
 
   await ensureEdgeConnected();
 
   startEdgeWatchdog();
+
+  ensureTray(ROOT);
 
   if (process.env.JOB_AGENT_NO_OPEN !== '1') {
     await openAppPage();
