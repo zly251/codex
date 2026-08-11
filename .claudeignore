@@ -1,0 +1,38 @@
+# 依赖与构建产物（不进上下文）
+node_modules/
+dist/
+sea-prep.blob
+*.blob
+
+# 运行数据（含登录态与用户数据）
+portable/
+.edge-profile/
+.edge-profile-2/
+.firefox-profile/
+.firefox-profile-2/
+data/
+temp/
+tmp/
+
+# 日志
+*.log
+
+# OCR 模型与大文件
+*.traineddata
+*.traineddata.gz
+*.wasm
+tessdata/
+
+# 安装包与压缩包
+*.exe
+*.msi
+*.zip
+
+# 图片（需要看界面时再手动指定）
+*.png
+*.jpg
+*.jpeg
+
+# 历史遗留目录
+ApplyPilot*
+get_jobs*
