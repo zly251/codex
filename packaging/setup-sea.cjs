@@ -42,7 +42,6 @@ function hasCookies(dir) {
 
 function pickPrimaryProfile() {
   const portableProfile = path.join(ROOT, '.edge-profile');
-  if (hasCookies(portableProfile)) return portableProfile;
   return portableProfile;
 }
 
