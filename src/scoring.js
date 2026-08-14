@@ -1,3 +1,5 @@
+import { salaryRankForJob } from "./salary.js";
+
 const EDU_RANK = { "博士": 5, "硕士": 4, "本科": 3, "大专": 2, "高中": 1, "中专": 1 };
 
 function parseYears(str) {
@@ -63,11 +65,14 @@ export function scoreJob(job, profile) {
   }
 
   const score = Math.round((skillScore * 0.6 + experienceScore * 0.2 + educationScore * 0.2) * 100);
+  const salaryRank = salaryRankForJob(job, profile.expectedSalary);
   return {
     score: Math.max(0, Math.min(100, score)),
     skillScore: Math.round(skillScore * 100),
     experienceScore: Math.round(experienceScore * 100),
     educationScore: Math.round(educationScore * 100),
+    salaryRank,
+    salaryStatus: salaryRank === 0 ? "above" : salaryRank === 2 ? "below" : "compatible",
     matchedSkills: profileSkills.filter(function (s) { return combined.includes(s); }),
     missingSkills: profileSkills.filter(function (s) { return !combined.includes(s); }),
   };

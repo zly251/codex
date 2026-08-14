@@ -44,9 +44,7 @@ async function saveCookies(manager, root) {
   if (!page) return { saved: false, reason: "no_page" };
   const loggedIn = await isLoggedIn(page);
   if (!loggedIn) return { saved: false, reason: "not_logged_in" };
-  const client = await page.createCDPSession();
-  const data = await client.send("Network.getAllCookies");
-  const cookies = (data.cookies || []).filter(function (c) {
+  const cookies = (await page.browser().cookies()).filter(function (c) {
     return isJobDomain(c.domain);
   });
   if (cookies.length === 0) return { saved: false, reason: "empty" };
@@ -67,21 +65,21 @@ async function restoreCookies(manager, root) {
   const page = await findJobPage(manager);
   if (!page) return { restored: false, reason: "no_page", count: 0 };
   if (await isLoggedIn(page)) return { restored: false, reason: "already_logged_in", count: 0 };
-  const client = await page.createCDPSession();
   const payload = cookies.map(function (c) {
+    const sameSite = String(c.sameSite || "Lax");
+    const expires = typeof c.expires === "number" && c.expires > 0 ? Math.floor(c.expires) : undefined;
     return {
       name: c.name,
       value: c.value,
       domain: c.domain,
       path: c.path || "/",
-      expires: typeof c.expires === "number" ? c.expires : -1,
+      ...(expires ? { expires } : {}),
       httpOnly: !!c.httpOnly,
       secure: !!c.secure,
-      sameSite: c.sameSite || "Lax",
-      priority: c.priority || "Medium",
+      sameSite: sameSite.charAt(0).toUpperCase() + sameSite.slice(1).toLowerCase(),
     };
   });
-  await client.send("Network.setCookies", { cookies: payload });
+  await page.browser().setCookie(...payload);
   try {
     await page.reload({ waitUntil: "domcontentloaded", timeout: 15000 });
   } catch (e) {}

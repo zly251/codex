@@ -130,6 +130,8 @@ export async function launchEdge({ profileDir, url = "https://www.zhipin.com", h
     "--start-maximized",
     "--no-first-run",
     "--disable-notifications",
+    "--disable-features=CalculateNativeWinOcclusion",
+    "--disable-backgrounding-occluded-windows",
     url,
   ];
   const child = spawn(exe, args, { detached: true, stdio: "ignore", windowsHide: PLATFORM === "win32" });

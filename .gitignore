@@ -85,3 +85,7 @@ src/scrapers/*_orig_check.*
 /chat_server.cjs
 /gh_response.txt
 /zhipin_debug.png
+
+# Tool/agent working dirs (2026-08-14)
+.reasonix/
+.git.broken*/

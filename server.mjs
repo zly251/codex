@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleFeedbackSync, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -25,7 +25,12 @@ import * as application from "./src/db/application.js";
 import { extractSkills } from "./src/utils/skills.js";
 import { scoreJob } from "./src/scoring.js";
 import { buildStrategy } from "./src/strategy.js";
-import { ocrImage } from "./src/utils/ocr.js";
+import {
+  extractResumeText,
+  mergeResumeFromUpload,
+  parseResumeText,
+  resumeFileType,
+} from "./src/utils/resumeParser.js";
 import { PROFILE_PATH, RESUME_DIR, ensureDataDirs } from "./src/paths.js";
 import { loadResumeEditor, saveResumeEditor, generateDocxBuffer, generatePdfBuffer, resumeToText } from "./src/resumeExport.js";
 
@@ -38,11 +43,27 @@ initDb();
 ensureDataDirs();
 console.log("[server] DB ready, port " + PORT);
 
-function autoCreateResumeFromProfile() {
+async function ensureResumeFile(resumeRow) {
+  if (resumeRow?.filePath && fs.existsSync(resumeRow.filePath)) return resumeRow;
+  try {
+    const saved = loadResumeEditor(getProfile() || {});
+    const buf = await generatePdfBuffer(saved);
+    const file = path.join(RESUME_DIR, "resume-" + Date.now() + ".pdf");
+    fs.writeFileSync(file, buf);
+    console.log("[server] generated default resume: " + file);
+    return resumeRow ? resume.update(resumeRow.id, { filePath: file, fileType: "pdf" }) : null;
+  } catch (e) {
+    console.error("[server] default resume generate failed: " + (e && e.message));
+    return resumeRow;
+  }
+}
+
+async function autoCreateResumeFromProfile() {
   try {
     const existing = resume.findDefault() || resume.findAll()[0];
     if (existing) {
-      application.attachDefaultResume(existing.id);
+      const updated = await ensureResumeFile(existing);
+      application.attachDefaultResume((updated || existing).id);
       return;
     }
     const p = getProfile();
@@ -57,6 +78,8 @@ function autoCreateResumeFromProfile() {
       skills: p.skills,
     });
     if (created) application.attachDefaultResume(created.id);
+    const updated = await ensureResumeFile(created);
+    if (updated) application.attachDefaultResume(updated.id);
     console.log("[server] auto resume created from profile");
   } catch (e) {
     console.error("[server] auto resume failed: " + (e && e.message));
@@ -77,7 +100,9 @@ function refreshJobScores() {
   }
 }
 
-autoCreateResumeFromProfile();
+autoCreateResumeFromProfile().catch(function (e) {
+  console.error("[server] auto resume init failed: " + (e && e.message));
+});
 refreshJobScores();
 
 function isImage(p) { var e = path.extname(p).toLowerCase(); return IMG_EXTS.indexOf(e) !== -1; }
@@ -156,12 +181,23 @@ function apiJobs(req, res) {
   results = results.map(function(j) {
     var cn = ''; if (j.companyId) { var c = company.findById(j.companyId); if (c) cn = c.name; }
     var s = scoreJob(j, profile);
-    return { id: j.id, title: j.title, companyName: cn, salaryRaw: j.salaryRaw, city: j.city, status: j.status, score: j.score, technologies: j.technologies, url: j.url, matchPct: s.score, matchedSkills: s.matchedSkills, missingSkills: s.missingSkills };
+    return { id: j.id, title: j.title, companyName: cn, salaryMin: j.salaryMin, salaryMax: j.salaryMax, salaryRaw: j.salaryRaw, city: j.city, status: j.status, score: j.score, technologies: j.technologies, description: j.description, requirements: j.requirements, url: j.url, matchPct: s.score, matchedSkills: s.matchedSkills, missingSkills: s.missingSkills };
   });
   json(res, { jobs: results, total: total });
 }
 
 function apiResumes(req, res) { json(res, { resumes: resume.findAll() }); }
+
+function apiSetDefaultResume(req, res) {
+  var id = parseInt(req.url.split('/').filter(Boolean).slice(-2)[0], 10);
+  var existing = resume.findById(id);
+  if (!existing) {
+    json(res, { ok: false, error: "Resume not found" }, 404);
+    return;
+  }
+  resume.update(id, { isDefault: true });
+  json(res, { ok: true, resume: resume.findById(id) });
+}
 
 function apiGetResumeEditor(req, res) {
   json(res, { ok: true, resume: loadResumeEditor(getProfile() || {}) });
@@ -233,22 +269,36 @@ function apiUploadResume(req, res) {
       var savePath = path.join(RESUME_DIR, saveName);
       fs.writeFileSync(savePath, buf);
       var text = '';
-      if (isImage(savePath)) {
-        var ocrResult = await ocrImage(savePath);
-        text = ocrResult || '';
+      var recognitionWarning = '';
+      try {
+        text = await extractResumeText(savePath);
+      } catch (e) {
+        recognitionWarning = String(e?.message || e || 'resume_parse_failed').slice(0, 200);
       }
-      var skills = extractSkills(text).filter(function(s, i, a) { return a.indexOf(s) === i; });
+      text = String(text || '').trim();
+      var parsed = parseResumeText(text);
+      var existingEditor = loadResumeEditor(getProfile() || {});
+      var mergedEditor = mergeResumeFromUpload(existingEditor, parsed);
+      saveResumeEditor(mergedEditor, PROFILE_PATH);
+      var skills = (parsed.skills || extractSkills(text).join(',')).split(',').filter(function(s, i, a) { return s && a.indexOf(s) === i; });
       var r = resume.create({
-        name: data.name || saveName,
-        targetRole: data.targetRole || '',
-        tags: data.tags || '',
-        isDefault: !!data.isDefault,
+        name: data.name || parsed.name || saveName,
+        targetRole: parsed.targetRole || data.targetRole || '',
+        tags: skills.join(',') || data.tags || '',
+        isDefault: true,
         rawText: text.slice(0, 10000),
         filePath: savePath,
-        fileType: isImage(savePath) ? 'ocr' : 'txt',
+        fileType: resumeFileType(savePath),
         skills: skills.join(','),
       });
-      json(res, { ok: true, resume: r, skills: skills });
+      json(res, {
+        ok: true,
+        resume: r,
+        skills: skills,
+        parsed: parsed,
+        textPreview: text.slice(0, 800),
+        recognitionWarning: recognitionWarning || null,
+      });
     } catch (e) {
       console.error("[upload] " + e.message);
       json(res, { error: e.message }, 400);
@@ -310,6 +360,10 @@ var httpServer = http.createServer(function(req, res) {
   var p = url.pathname;
   if (p === "/api/profile" && req.method === "POST") { apiSaveProfile(req, res); return; }
   if (p === "/api/resumes/upload" && req.method === "POST") { apiUploadResume(req, res); return; }
+  if (req.method === "POST" && /^\/api\/resumes\/\d+\/default$/.test(p)) {
+    apiSetDefaultResume(req, res);
+    return;
+  }
   if (p === "/api/resume/editor" && req.method === "GET") { apiGetResumeEditor(req, res); return; }
   if (p === "/api/resume/editor" && req.method === "POST") { apiSaveResumeEditor(req, res); return; }
   if (p === "/api/resume/export" && req.method === "GET") { apiExportResume(req, res); return; }
@@ -341,6 +395,39 @@ var httpServer = http.createServer(function(req, res) {
   var handler = routes[p];
   if (handler) { handler(req, res); return; }
 
+  if (p === "/api/chat/messages" && req.method === "GET") {
+    handleGetMessages(req, res);
+    return;
+  }
+
+  if (p === "/api/chat/send" && req.method === "POST") {
+    var chatBody = "";
+    req.on("data", function(c) { chatBody += c; });
+    req.on("end", async function() {
+      try {
+        var chatData = chatBody ? JSON.parse(chatBody) : {};
+        await handleChatReply(req, res, chatData);
+      } catch (e) {
+        json(res, { ok: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
+  if (p === "/api/boss/chat/reply" && req.method === "POST") {
+    var replyBody = "";
+    req.on("data", function(c) { replyBody += c; });
+    req.on("end", async function() {
+      try {
+        var replyData = replyBody ? JSON.parse(replyBody) : {};
+        await handleChatReply(req, res, replyData);
+      } catch (e) {
+        json(res, { ok: false, error: e.message }, 500);
+      }
+    });
+    return;
+  }
+
   if (p.startsWith("/api/boss")) {
     if (req.method === "GET") {
       if (p === "/api/boss/status") { json(res, getBossStatus()); return; }
@@ -359,6 +446,7 @@ var httpServer = http.createServer(function(req, res) {
           else if (p === "/api/boss/apply") { await handleApply(req, res, data); }
           else if (p === "/api/boss/stop") { handleChatStop(req, res); }
           else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }
+          else if (p === "/api/boss/chat/send-resume") { await handleChatSendResume(req, res, data); }
           else if (p === "/api/boss/sync-feedback") { await handleFeedbackSync(req, res, data); }
           else if (p === '/api/chat/send') { await handleSendMessage(req, res, data); }
           else { json(res, { error: "not found" }, 404); }

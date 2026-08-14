@@ -1,5 +1,6 @@
 ﻿const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const randSleep = (baseMs, jitterMs) => sleep(baseMs + Math.random() * jitterMs);
+import { parseMonthlySalaryK } from "../salary.js";
 const API_URLS = ["/search/joblist.json", "/job/detail.json"];
 const CITY_CODES = {"北京":"101010100","上海":"101020100","广州":"101280100","深圳":"101280600","杭州":"101210100","成都":"101270100","台州":"101210600","宁波":"101210400","温州":"101210700"};
 
@@ -107,9 +108,16 @@ export class BossApiScraper {
         const url = "https://www.zhipin.com/job_detail/" + id + ".html";
         const skillList = item.skills || item.technologyList || [];
 
+        const salaryRaw = item.salaryDesc || item.salary || "";
+        const parsedSalary = parseMonthlySalaryK(salaryRaw);
+        const salaryMin = parsedSalary && typeof parsedSalary === "object" ? parsedSalary.min : (typeof parsedSalary === "number" ? parsedSalary : null);
+        const salaryMax = parsedSalary && typeof parsedSalary === "object" ? parsedSalary.max : (typeof parsedSalary === "number" ? parsedSalary : null);
+
         out.push({
           title: title,
-          salaryRaw: item.salaryDesc || item.salary || "",
+          salaryMin,
+          salaryMax,
+          salaryRaw,
           city: item.cityName || "",
           district: item.areaDistrict || item.brandDistrict || "",
           experience: item.jobExperience || "",
@@ -117,6 +125,7 @@ export class BossApiScraper {
           technologies: (Array.isArray(skillList) ? skillList : []).join(","),
           url: url,
           description: item.jobDetail || "",
+          requirements: item.requirements || item.jobRequirements || "",
           companyName: (item.brandName || "").replace(/<[^>]*>/g,"").trim(),
           companyId: String(item.encryptBrandId || item.brandId || ""),
           source: "zhipin",

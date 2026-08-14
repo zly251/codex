@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import puppeteer from "puppeteer-core";
 import {
   Document,
@@ -15,7 +16,7 @@ import {
   VerticalAlign,
   WidthType,
 } from "docx";
-import { RESUME_EDITOR_PATH } from "./paths.js";
+import { RESUME_DIR, RESUME_EDITOR_PATH } from "./paths.js";
 import { findEdgePath } from "./edgeLauncher.js";
 
 const MAX_TEXT = 4000;
@@ -103,6 +104,7 @@ function normalizeResume(data) {
     status: cleanText(d.status),
     education: cleanText(d.education),
     experience: cleanText(d.experience),
+    expectedSalary: cleanText(d.expectedSalary),
     summary: cleanText(d.summary),
     skills: cleanText(d.skills),
     greeting: cleanText(d.greeting),
@@ -132,6 +134,7 @@ export function loadResumeEditor(profile) {
     status: cleanText(saved?.status ?? p.status),
     education: cleanText(saved?.education ?? p.education),
     experience: cleanText(saved?.experience ?? p.experience),
+    expectedSalary: cleanText(saved?.expectedSalary ?? p.expectedSalary),
     summary: cleanText(saved?.summary),
     skills: cleanText(saved?.skills ?? p.skills),
     greeting: cleanText(saved?.greeting ?? p.greeting),
@@ -163,6 +166,7 @@ export function saveResumeEditor(data, profilePath) {
       "status",
       "education",
       "experience",
+      "expectedSalary",
       "summary",
       "skills",
       "greeting",
@@ -170,6 +174,7 @@ export function saveResumeEditor(data, profilePath) {
     for (const key of fields) {
       if (resume[key]) profile[key] = resume[key];
     }
+    profile.expectedSalary = resume.expectedSalary;
     fs.mkdirSync(path.dirname(profilePath), { recursive: true });
     fs.writeFileSync(profilePath, JSON.stringify(profile, null, 2), "utf8");
   }
@@ -188,6 +193,7 @@ export function resumeToText(resume) {
     `求职状态: ${r.status || ""}`,
     `学历: ${r.education || ""}`,
     `经验: ${r.experience || ""}`,
+    `期望薪资: ${r.expectedSalary || ""}`,
     `个人优势: ${r.summary || ""}`,
     `技能: ${r.skills || ""}`,
   ];
@@ -400,6 +406,67 @@ export async function generateDocxBuffer(resume) {
     sections: [{ properties: {}, children: buildDocxChildren(resume) }],
   });
   return await Packer.toBuffer(doc);
+}
+
+function resumeScreenshotFingerprint(resume) {
+  const merged = { ...(resume || {}), ...loadResumeEditor(resume) };
+  const payload = {
+    name: cleanText(merged.name),
+    targetRole: cleanText(merged.targetRole),
+    phone: cleanText(merged.phone),
+    email: cleanText(merged.email),
+    city: cleanText(merged.city),
+    birthDate: cleanText(merged.birthDate),
+    ethnicity: cleanText(merged.ethnicity),
+    status: cleanText(merged.status),
+    education: cleanText(merged.education),
+    experience: cleanText(merged.experience),
+    summary: cleanText(merged.summary),
+    skills: cleanText(merged.skills),
+    photo: cleanPhoto(merged.photo),
+    work: cleanItems(merged.work, ["company", "title", "period", "content"]),
+    projects: cleanItems(merged.projects, ["name", "role", "period", "content"]),
+    educationList: cleanItems(merged.educationList, ["school", "degree", "period", "content"]),
+  };
+  return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
+}
+
+export async function generateResumeScreenshot(resume, outputPath) {
+  const merged = { ...(resume || {}), ...loadResumeEditor(resume) };
+  const executablePath = findEdgePath();
+  if (!executablePath) throw new Error("未找到 Edge/Chrome，无法生成简历截图");
+  const browser = await puppeteer.launch({
+    executablePath,
+    headless: true,
+    args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+  });
+  try {
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1100, height: 1400, deviceScaleFactor: 2 });
+    await page.setContent(renderResumeHtml(merged), { waitUntil: "networkidle0" });
+    await page.screenshot({ path: outputPath, fullPage: true, type: "png" });
+    return outputPath;
+  } finally {
+    await browser.close();
+  }
+}
+
+export async function ensureResumeScreenshot(resume) {
+  const outputPath = path.join(RESUME_DIR, "resume-screenshot.png");
+  const metaPath = path.join(RESUME_DIR, "resume-screenshot-meta.json");
+  const hash = resumeScreenshotFingerprint(resume);
+  if (fs.existsSync(outputPath)) {
+    try {
+      const meta = JSON.parse(fs.readFileSync(metaPath, "utf8"));
+      if (meta?.hash === hash) return outputPath;
+    } catch (e) {}
+  }
+  fs.mkdirSync(RESUME_DIR, { recursive: true });
+  await generateResumeScreenshot(resume, outputPath);
+  try {
+    fs.writeFileSync(metaPath, JSON.stringify({ hash }, null, 2), "utf8");
+  } catch (e) {}
+  return outputPath;
 }
 
 export async function generatePdfBuffer(resume) {

@@ -5,16 +5,24 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "import:resume": "npx tsx scripts/import-resume.ts"
+    "import:resume": "npx tsx scripts/import-resume.ts",
+    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs",
+    "build:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/generate-app-icon.ps1",
+    "build:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-exe.ps1"
   },
   "dependencies": {
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "iconv-lite": "^0.7.2",
+    "mammoth": "^1.9.1",
+    "pdf-parse": "^1.1.1",
     "puppeteer-core": "^24.0.0",
     "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
+    "esbuild": "^0.28.0",
+    "postject": "^1.0.0-alpha.6",
+    "rcedit": "^4.0.1",
     "tsx": "^4.0.0",
     "typescript": "^5.0.0"
   }
