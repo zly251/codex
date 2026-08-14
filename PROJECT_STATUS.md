@@ -6,12 +6,9 @@
 
 ## 当前状态
 
-- 求职助手：可运行
-- 抖音桌面 Agent：MVP
-- Manju：半成品
+- 求职助手：可运行（核心项目）
 - Manga Editor：子模块
 - AI Agent Skills：学习记录
-- DeepSeek Monitor：待补源码
 
 ## 已完成
 
@@ -19,9 +16,9 @@
 - 根级工程文件补齐
 - uv、Ruff、pre-commit、GitHub Actions CI 接入
 - .devcontainer 开发环境
+- 2026-08-14：移除 desktop-agent、manju-system（不再维护）
 
 ## 下一步
 
 - 各项目补齐测试
 - 求职助手服务绑定 localhost
-- 补充 DeepSeek Monitor 和 ComfyUI 工作流

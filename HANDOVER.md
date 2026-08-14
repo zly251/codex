@@ -11,8 +11,6 @@
 | 项目 | 本地来源 |
 | --- | --- |
 | autonomous-job-agent | E:\autonomous-job-agent（运行目录） |
-| desktop-agent | D:\desktop-agent |
-| manju-system | E:\AIProjects\manju-system |
 | manga-editor-desu | git 子模块：https://github.com/new-sankaku/manga-editor-desu.git |
 | ai-agent-skills | E:\ai-agent\skills |
 
@@ -42,5 +40,4 @@ git push
 
 ## 待整理
 
-- DeepSeek Monitor Windows：目录骨架已建，源码待补
-- ComfyUI：位于 E:\Comfy-Desktop，工作流待整理后纳入
+（无。desktop-agent、manju-system 已于 2026-08-14 移除；DeepSeek Monitor 为他人项目、ComfyUI 已放弃，不再纳入。）

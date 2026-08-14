@@ -23,8 +23,6 @@ override-dependencies = ["Pillow>=12.2,<13.0"]
 [tool.uv.workspace]
 members = [
     "apps/autonomous-job-agent",
-    "apps/desktop-agent",
-    "apps/manju-system",
     "packages/codex-core",
 ]
 
@@ -47,8 +45,6 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 testpaths = [
-    "apps/desktop-agent/tests",
-    "apps/manju-system/tests",
     "packages/codex-core/tests",
 ]
 addopts = "--cov=apps --cov-report=term --cov-fail-under=50"

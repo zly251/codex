@@ -1,7 +1,0 @@
-manju_shared:
-    checkpoints: E:\Comfy-Desktop\ComfyUI-Shared\models\checkpoints
-    loras: E:\Comfy-Desktop\ComfyUI-Shared\models\loras
-    vae: E:\Comfy-Desktop\ComfyUI-Shared\models\vae
-    unet: E:\Comfy-Desktop\ComfyUI-Shared\models\unet
-    upscale_models: E:\Comfy-Desktop\ComfyUI-Shared\models\upscale_models
-    controlnet: E:\Comfy-Desktop\ComfyUI-Shared\models\controlnet

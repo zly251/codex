@@ -3,7 +3,7 @@
 ![CI](https://github.com/zly251/codex/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/github/license/zly251/codex)
 
-基于 uv 的 Python Mono-Repo Workspace，用于管理 Codex、DeepSeek、Agent、ComfyUI 等 AI 自动化项目。
+基于 uv 的 Python Mono-Repo Workspace，用于管理 Codex、DeepSeek、Agent 等 AI 自动化项目。
 
 ## 快速开始
 
@@ -23,18 +23,6 @@ uv sync --all-packages
 ```
 
 也可以使用 `make install` 作为替代方案。
-
-3. 启动抖音桌面 Agent：
-
-```bash
-uv run --project apps/desktop-agent python main.py
-```
-
-4. 启动 Manju 内容生产系统：
-
-```bash
-uv run --project apps/manju-system python run_final.py
-```
 
 ## Node/TypeScript 项目
 
@@ -63,31 +51,20 @@ Manga Editor 是第三方 git 子模块，运行方式和依赖请以其子模�
 docker compose up -d
 ```
 
-服务端口：`desktop-agent` 5050，`autonomous-job-agent` 3456，`manju-system` 5001。
+服务端口：`autonomous-job-agent` 3456。
 请先在根目录复制 `.env.example` 为 `.env` 并填写 `DEEPSEEK_API_KEY`，Docker Compose 会自动读取。
 
 如果 Docker 无法启动，仍可本地运行：
 
 ```bash
-uv sync --all-packages
-uv run --project apps/desktop-agent python webui.py
 cd apps/autonomous-job-agent && npm install && npm run dev
 ```
-
-## API 文档
-
-- desktop-agent（Flask Web/API）：本地 `http://127.0.0.1:5050`，接口说明见 [apps/desktop-agent/README.md](apps/desktop-agent/README.md)
-- manju-system（Flask Review API）：本地 `http://127.0.0.1:5001`，接口说明见 [apps/manju-system/README.md](apps/manju-system/README.md)
-
-这两个项目当前使用 Flask，没有 FastAPI 自动 `/docs` 路由。
 
 ## 项目列表
 
 | 项目 | 路径 | 技术栈 | 状态 | 说明 |
 | --- | --- | --- | --- | --- |
 | 求职助手 | apps/autonomous-job-agent | Node/TypeScript + Python helper | 可运行 | BOSS直聘搜索、筛选、投递自动化 |
-| 抖音桌面 Agent | apps/desktop-agent | Python | MVP | DeepSeek + TTS + 视频生成 + Douyin |
-| Manju 内容生产系统 | apps/manju-system | Python | 半成品 | 内容生产、视觉质检、视频生成 |
 | Manga Editor | apps/manga-editor-desu | Node/TypeScript | 子模块 | new-sankaku/manga-editor-desu |
 | AI Agent Skills | docs/skills/ai-agent-skills | Markdown | 学习记录 | 项目经验与技能笔记 |
 
@@ -99,8 +76,6 @@ codex/
 ├── .github/workflows/ci.yml
 ├── apps/
 │   ├── autonomous-job-agent/   # Node/TypeScript + Python helper
-│   ├── desktop-agent/          # Python
-│   ├── manju-system/           # Python
 │   └── manga-editor-desu/      # Node/TypeScript (submodule)
 ├── packages/
 ├── docs/
