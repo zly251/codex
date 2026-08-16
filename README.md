@@ -78,6 +78,12 @@ npm install
 npm start
 ```
 
+运行测试：
+
+```bash
+npm test
+```
+
 浏览器打开 http://localhost:3456
 
 Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打开的页面扫码登录，Cookie 会自动备份。
@@ -209,6 +215,14 @@ packaging/         SEA 打包与启动器
 - `POST /api/resume/editor`：保存结构化简历编辑内容
 - `GET /api/resume/export?format=pdf|docx`：导出 PDF 或 Word
 - `POST /api/boss/sync-feedback`：扫描 BOSS 聊天会话，按 HR 最后消息更新投递状态。
+- `POST /api/boss/launch`：自动启动并连接浏览器。
+- `POST /api/boss/search`：搜索并抓取职位。
+- `POST /api/boss/apply`：批量自动投递。
+- `POST /api/boss/chat/start`：启动聊天监控/自动回复。
+- `POST /api/boss/chat/reply`：手动回复 HR。
+- `POST /api/boss/chat/send-resume`：给当前会话发送简历。
+- `POST /api/resumes/upload`：上传并解析简历。
+- `POST /api/resumes/:id/default`：设置默认简历。
 
 ## Git
 

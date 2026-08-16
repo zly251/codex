@@ -5,6 +5,9 @@ data/
 get_jobs/
 .edge-profile/
 .edge-profile-2/
+.edge-profile-fresh/
+.firefox-profile/
+.firefox-profile-2/
 *.log
 .env
 .git/

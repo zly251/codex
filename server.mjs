@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleSendMessage } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages } from "./src/routes.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -37,7 +37,6 @@ import { loadResumeEditor, saveResumeEditor, generateDocxBuffer, generatePdfBuff
 var __dirname = (function(){ try { return path.dirname(fileURLToPath(import.meta.url)); } catch (e) { return process.cwd(); } })();
 var WEB_DIR = process.env.JOB_AGENT_WEB_DIR || path.join(__dirname, "web");
 var PORT = Number(process.env.PORT) || 3456;
-var IMG_EXTS = [".png", ".jpg", ".jpeg", ".bmp", ".webp"];
 
 initDb();
 ensureDataDirs();
@@ -105,7 +104,6 @@ autoCreateResumeFromProfile().catch(function (e) {
 });
 refreshJobScores();
 
-function isImage(p) { var e = path.extname(p).toLowerCase(); return IMG_EXTS.indexOf(e) !== -1; }
 
 function serveFile(res, filePath) {
   var mimes = { '.html':'text/html;charset=utf-8', '.css':'text/css;charset=utf-8', '.js':'application/javascript;charset=utf-8', '.png':'image/png', '.jpg':'image/jpeg' };
@@ -448,7 +446,6 @@ var httpServer = http.createServer(function(req, res) {
           else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }
           else if (p === "/api/boss/chat/send-resume") { await handleChatSendResume(req, res, data); }
           else if (p === "/api/boss/sync-feedback") { await handleFeedbackSync(req, res, data); }
-          else if (p === '/api/chat/send') { await handleSendMessage(req, res, data); }
           else { json(res, { error: "not found" }, 404); }
         } catch (e) {
           json(res, { error: e.message }, 500);

@@ -665,11 +665,3 @@ export function handleGetMessages(req, res) {
   var newMsgs = messages.filter(function (m) { return m.id > idx; });
   json(res, { messages: newMsgs, lastId: messages.length ? messages[messages.length - 1].id : 0 });
 }
-
-export async function handleSendMessage(req, res, body) {
-  var text = (body && body.text || "").trim();
-  if (!text) { json(res, { error: "消息为空" }, 400); return; }
-  var msg = { id: messages.length + 1, text: text, from: "user", time: new Date().toISOString() };
-  messages.push(msg);
-  json(res, { ok: true, id: msg.id });
-}

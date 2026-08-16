@@ -33,7 +33,18 @@ export function update(id, data) {
     d.prepare("UPDATE Resume SET " + sets.join(", ") + " WHERE id = ?").run(...vals);
     return findById(id);
 }
-export function remove(id) { return getDb().prepare("DELETE FROM Resume WHERE id = ?").run(id).changes > 0; }
+export function remove(id) {
+    var d = getDb();
+    var target = findById(id);
+    var ok = d.prepare("DELETE FROM Resume WHERE id = ?").run(id).changes > 0;
+    if (ok && target?.isDefault) {
+        var next = d.prepare("SELECT * FROM Resume ORDER BY updatedAt DESC LIMIT 1").get();
+        if (next) {
+            d.prepare("UPDATE Resume SET isDefault = 1, updatedAt = datetime('now') WHERE id = ?").run(next.id);
+        }
+    }
+    return ok;
+}
 export function findBestMatch(technologies) {
     var all = findAll();
     if (all.length === 0)
