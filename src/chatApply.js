@@ -2471,23 +2471,27 @@ export class AutoApplyBot {
     const beforeCount = await this._countOwnImageMessages(page);
     log(`[resume-screenshot] 开始上传简历截图: ${fileName}，发送前图片消息数=${beforeCount}`);
     const uploadResult = await page.evaluate(async ({ base64, fileName }) => {
-      const imageBtnEl = document.querySelector('[aria-label="发送图片"]');
+      const imageBtnEl = document.querySelector('[aria-label="发送图片"], [aria-label="图片"], [class*="icon-image"], [class*="image-btn"], [class*="img-btn"], button[title*="图片"], [class*="toolbar"] [class*="image"], [class*="chat"] [class*="image"]');
       if (!imageBtnEl) return { reason: "no_image_input" };
 
       let component = null;
+      let sendMethod = null;
+      const methodNames = ["sendImageMsg", "sendImage", "sendPicture", "sendImg", "uploadImage"];
       for (let node = imageBtnEl; node && node !== document.documentElement; node = node.parentElement) {
         let vm = node.__vue__ || node.__vueParentComponent;
         while (vm) {
           const target = vm.proxy || vm;
-          if (typeof target.sendImageMsg === "function") {
+          const found = methodNames.find((name) => typeof target[name] === "function");
+          if (found) {
             component = target;
+            sendMethod = found;
             break;
           }
           vm = vm.$parent || vm.parent || null;
         }
         if (component) break;
       }
-      if (!component) return { reason: "image_send_method_missing" };
+      if (!component || !sendMethod) return { reason: "image_send_method_missing" };
 
       const conversation = component.conversation$ ||
         component.$data?.conversation$ ||
@@ -2525,7 +2529,7 @@ export class AutoApplyBot {
           return { reason: "upload_failed" };
         }
         try {
-          const sent = component.sendImageMsg({ url: json.zpData.url, tinyUrl: json.zpData.tinyUrl });
+          const sent = component[sendMethod]({ url: json.zpData.url, tinyUrl: json.zpData.tinyUrl });
           if (sent && typeof sent.catch === "function") await sent;
         } catch (e) {
           return { reason: "upload_failed" };
