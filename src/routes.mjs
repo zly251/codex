@@ -299,7 +299,7 @@ export async function handleApply(req, res, body) {
     const searchLiveJobs = async function () {
       const s = getScraper();
       const kw = filterKeywords.split(/[,\u3001\/]/).map(function (x) { return x.trim(); }).filter(function (x) { return x; })[0] || "C++";
-      const liveJobs = await s.searchJobs({ keyword: kw, pages: 3 });
+      const liveJobs = await s.searchJobs({ keyword: kw, city: filterCity, pages: 3 });
       const liveJobsFiltered = liveJobs.filter(function (j) { return !isBlockedCompany(j); });
       if (liveJobsFiltered.length === 0) return [];
       await s.saveJobs(liveJobsFiltered, jobDb, companyDb);
@@ -331,9 +331,7 @@ export async function handleApply(req, res, body) {
     }
 
     if (allJobs.length === 0 && filterCity && !jobId) {
-      liveLog.add("当前城市无职位，回退到全部城市");
-      allJobs = jobDb.search({ limit: 200 }).filter(function (j) { return !j.status || j.status === "active"; });
-      allJobs = allJobs.filter(function (j) { return !isBlockedCompany(j); });
+      liveLog.add("当前城市无职位，不跨城市投递");
     }
 
     let skippedApplied = 0;
