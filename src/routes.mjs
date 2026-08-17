@@ -667,7 +667,7 @@ export async function handleFeedbackSync(req, res) {
 }
 
 function json(res, data, status) {
-  res.writeHead(status || 200, { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" });
+  res.writeHead(status || 200, { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" });
   res.end(JSON.stringify(data));
 }
 
