@@ -1031,31 +1031,61 @@ export class AutoApplyBot {
   // 返回："skip" = 已沟通过跳过；true = 已进入聊天页；
   // CHAT_NOT_READY = 无法安全进入聊天页，调用方应失败跳过，不回退职位页人工点击。
   async _startChatWithJob(page) {
-    const info = await page.evaluate((sels) => {
+    const SKIP_TEXTS = ["继续沟通", "查看聊天", "已沟通"];
+    let info = await page.evaluate((sels) => {
       const seen = new Set();
+      const candidates = [];
+      const asideSel = "[class*='recommend'], [class*='sider'], [class*='aside'], [class*='relation'], [class*='job-card'], [class*='job-item'], [class*='hot'], [class*='similar']";
       for (const s of sels) {
         for (const el of document.querySelectorAll(s)) {
           if (seen.has(el)) continue;
           seen.add(el);
           if (!el.offsetParent || el.getClientRects().length === 0) continue;
-          return {
-            txt: (el.textContent || "").trim(),
-            dataUrl: el.getAttribute("data-url") || "",
-            redirectUrl: el.getAttribute("redirect-url") || "",
-            href: el.getAttribute("href") || "",
-          };
+          const txt = (el.textContent || "").trim();
+          const dataUrl = el.getAttribute("data-url") || "";
+          const redirectUrl = el.getAttribute("redirect-url") || "";
+          const href = el.getAttribute("href") || "";
+          const inAside = !!(el.closest && el.closest(asideSel));
+          const isMain = !!dataUrl || !!redirectUrl || el.matches("a[ka='job-startchat']") || el.classList.contains("btn-startchat");
+          // 推荐/侧边栏里的按钮如果没有 data-url/redirect-url，不作为主按钮。
+          if (inAside && !dataUrl && !redirectUrl) continue;
+          candidates.push({ txt, dataUrl, redirectUrl, href, isMain });
         }
       }
-      return null;
+      // 优先返回带 data-url/redirect-url 的主沟通按钮；没有再回退第一个可见候选。
+      return candidates.find((c) => c.isMain) || candidates[0] || null;
     }, START_CHAT_DATA_SELECTORS).catch(() => null);
+
+    // 选择器没命中时，按文字再找一次“立即沟通/继续沟通”类按钮。
+    if (!info) {
+      info = await page.evaluate((startTexts, skipTexts) => {
+        const asideSel = "[class*='recommend'], [class*='sider'], [class*='aside'], [class*='relation'], [class*='job-card'], [class*='job-item'], [class*='hot'], [class*='similar']";
+        for (const el of document.querySelectorAll("a, button, [role=button], [class*='btn']")) {
+          if (!el.offsetParent || el.getClientRects().length === 0) continue;
+          const txt = (el.textContent || "").trim();
+          const isStart = startTexts.some((t) => txt.includes(t));
+          const isSkip = skipTexts.some((t) => txt.includes(t));
+          if (!isStart && !isSkip) continue;
+          const dataUrl = el.getAttribute("data-url") || "";
+          const redirectUrl = el.getAttribute("redirect-url") || "";
+          const href = el.getAttribute("href") || "";
+          const inAside = !!(el.closest && el.closest(asideSel));
+          if (inAside && !dataUrl && !redirectUrl) continue;
+          return { txt, dataUrl, redirectUrl, href, isMain: !!dataUrl || !!redirectUrl };
+        }
+        return null;
+      }, START_TEXTS, SKIP_TEXTS).catch(() => null);
+    }
 
     if (!info) {
       log("[chat] 未找到立即沟通/startchat 入口，跳过职位页人工点击");
       return CHAT_NOT_READY;
     }
 
-    // 已沟通过的职位按钮为“继续沟通/查看聊天/已沟通”，直接跳过，不重复沟通
-    if (["继续沟通", "查看聊天", "已沟通"].some((t) => info.txt.includes(t))) {
+    // 已沟通过的职位按钮为“继续沟通/查看聊天/已沟通”，直接跳过，不重复沟通。
+    // 只有确认是主按钮（带 data-url/redirect-url 或明确 startchat 类）才跳过，
+    // 避免被推荐职位里的“继续沟通”按钮误伤。
+    if (SKIP_TEXTS.some((t) => info.txt.includes(t)) && (info.isMain || info.dataUrl || info.redirectUrl)) {
       log("[chat] 该职位已沟通过（按钮: " + info.txt + "），跳过");
       return "skip";
     }
