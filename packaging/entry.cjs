@@ -279,6 +279,11 @@ async function launchBrowser() {
   if (edgeLock) return false;
   edgeLock = true;
   try {
+    // 已存在 CDP 实例时直接复用，绝不 kill 掉正在登录/使用的浏览器。
+    if (await cdpPortOpen()) {
+      appendWatchdogLog('CDP already open, reuse existing browser');
+      return true;
+    }
     const exe = findBrowserPath();
     if (!exe) {
       appendWatchdogLog('browser exe not found');

@@ -443,11 +443,20 @@ export class AutoApplyBot {
     }
 
     let chosen = zhipinPages[0];
+    let hasLoginPage = false;
     for (const p of zhipinPages) {
       try {
         const t = await p.evaluate(function () { return document.body ? document.body.innerText : ""; });
+        if (t.indexOf("登录/注册") >= 0) hasLoginPage = true;
         if (t.indexOf("登录/注册") < 0) { chosen = p; break; }
       } catch (e) {}
+    }
+
+    // 有页面正在登录时不要关闭任何 BOSS 标签页，避免把登录页杀掉。
+    if (hasLoginPage) {
+      this.page = chosen;
+      log("[page] 检测到登录页，保留所有 BOSS 标签页，避免中断登录");
+      return this.page;
     }
 
     while (zhipinPages.length > 1) {

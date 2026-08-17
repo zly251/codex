@@ -128,12 +128,23 @@ async function closeExtraJobPages() {
     return;
   }
   const jobPages = [];
+  let hasLoginPage = false;
   for (const p of pages) {
     try {
       if (p.isClosed()) continue;
       const u = p.url();
-      if (u.includes("zhipin.com") && !u.includes("about:")) jobPages.push(p);
+      if (!u.includes("zhipin.com") || u.includes("about:")) continue;
+      jobPages.push(p);
+      const text = await p.evaluate(function () {
+        return document.body ? document.body.innerText : "";
+      }).catch(function () { return ""; });
+      if (String(text || "").indexOf("登录/注册") >= 0) hasLoginPage = true;
     } catch (e) {}
+  }
+  // 有页面正在登录时不要关闭任何 BOSS 标签页，避免把登录页杀掉。
+  if (hasLoginPage) {
+    liveLog.add("检测到 BOSS 登录页，暂不关闭多余标签页");
+    return;
   }
   while (jobPages.length > 1) {
     const extra = jobPages.pop();
