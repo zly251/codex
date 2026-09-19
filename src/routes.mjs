@@ -94,6 +94,129 @@ async function afterBrowserConnect() {
   } catch (e) {}
 }
 
+// 给自动巡航（autopilot）用的登录态检查：浏览器没连/没页面/未登录都算 false。
+export async function checkLoggedIn() {
+  try {
+    const mgr = getManager();
+    if (!mgr.browser?.connected) return false;
+    const page = await platform.findJobPage(mgr);
+    if (!page) return false;
+    return !!(await platform.isLoggedIn(page));
+  } catch (e) {
+    return false;
+  }
+}
+
+// 仅供自动巡航/状态面板：当前有多少会话被标记为"需要人工"（Offer/合同/外包类）
+export function manualPendingCount() {
+  try {
+    return chatState.listManualPending ? chatState.listManualPending().length : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+// —— 自动巡航（autopilot）用的三个取数口 ——
+export function isBrowserConnected() {
+  try {
+    return !!getManager().browser?.connected;
+  } catch (e) {
+    return false;
+  }
+}
+
+export async function ensureBrowserConnected() {
+  const mgr = getManager();
+  if (!mgr.browser?.connected) await ensureBrowserLaunched();
+  await afterBrowserConnect();
+}
+
+// 已放行但还没投出去的岗位数（autopilot 用它判断队列是否排空）
+export function approvedPendingCount() {
+  try {
+    reviewQueue.ensureTable();
+    return reviewQueue.findApproved().length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+// 最近的页面日志消息（摘要模块用来还原会话上下文）
+export function recentMessages(limit = 300) {
+  const n = Math.max(1, Math.min(Number(limit) || 300, 2000));
+  return messages.slice(-n);
+}
+
+// 会话消息按"会话名"分组，喂给 chatSummary.buildSummaries
+export function groupMessagesByChat(list) {
+  const map = new Map();
+  for (const m of list || []) {
+    const key = String(m?.chat || m?.name || m?.company || "").trim();
+    if (!key) continue;
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push({
+      role: m?.role === "me" ? "me" : "hr",
+      text: String(m?.text || m?.msg || ""),
+      time: String(m?.time || m?.t || ""),
+    });
+  }
+  return Array.from(map.entries()).map(function (e) {
+    return { chatName: e[0], messages: e[1] };
+  });
+}
+
+// —— 会话原话留档（给"面试要点摘要"用）——
+// 为什么单独存：页面扫到的会话正文（chat.text）原本只活在内存里，回完就没了；
+// 摘要需要它才能抽出"面试时间/地点/薪资/要准备什么"。
+const CHAT_TRANSCRIPT_PATH =
+  process.env.JOB_AGENT_CHAT_TRANSCRIPT_PATH ||
+  path.join(DATA_ROOT, "data", "chat-transcripts.json");
+const TRANSCRIPT_MAX = 200;
+
+export function recordChatTranscript(chat) {
+  try {
+    const key = String(chat?.name || chat?.company || "").trim();
+    const text = String(chat?.text || chat?.msg || "").trim();
+    if (!key || !text) return { saved: false, reason: "empty" };
+    let store = { updatedAt: "", items: [] };
+    try { store = JSON.parse(fs.readFileSync(CHAT_TRANSCRIPT_PATH, "utf8")) || store; } catch (e) {}
+    const items = Array.isArray(store.items) ? store.items : [];
+    const last = items[items.length - 1];
+    if (last && last.chatName === key && last.text === text) return { saved: false, reason: "unchanged" };
+    items.push({ chatName: key, company: String(chat?.company || ""), text: text.slice(0, 6000), lastHrMsg: String(chat?.msg || "").slice(0, 500), at: new Date().toISOString() });
+    store.items = items.slice(-TRANSCRIPT_MAX);
+    store.updatedAt = new Date().toISOString();
+    fs.mkdirSync(path.dirname(CHAT_TRANSCRIPT_PATH), { recursive: true });
+    fs.writeFileSync(CHAT_TRANSCRIPT_PATH, JSON.stringify(store, null, 2), "utf8");
+    return { saved: true };
+  } catch (e) {
+    return { saved: false, reason: e.message };
+  }
+}
+
+// 每个会话取最后一次留档的原话，转成摘要模块要的 {chatName, messages} 形状
+export function recentChatTranscripts(limit = 30) {
+  try {
+    const store = JSON.parse(fs.readFileSync(CHAT_TRANSCRIPT_PATH, "utf8"));
+    const items = Array.isArray(store.items) ? store.items : [];
+    const latest = new Map();
+    for (const it of items) latest.set(it.chatName, it);
+    return Array.from(latest.values())
+      .slice(-Math.max(1, Math.min(Number(limit) || 30, 200)))
+      .map(function (it) {
+        return {
+          chatName: it.chatName,
+          messages: [
+            { role: "hr", text: String(it.text || ""), time: String(it.at || "") },
+            ...(it.lastHrMsg ? [{ role: "hr", text: String(it.lastHrMsg), time: String(it.at || "") }] : []),
+          ],
+        };
+      });
+  } catch (e) {
+    return [];
+  }
+}
+
 function getJobCompanyName(j) {
   if (j.companyId) {
     try {
@@ -866,6 +989,7 @@ export async function handleChatStart(req, res, body) {
       state.status = "idle";
     };
     const startMonitor = () => b.monitorChat(async (chat, ctx) => {
+      recordChatTranscript(chat); // 留档原话，供"面试要点摘要"抽取时间/地点/薪资
       const profile = getProfile() || {};
       const skills = profile?.skills || "";
       const name = profile?.name || "用户";

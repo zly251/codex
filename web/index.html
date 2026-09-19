@@ -1964,11 +1964,13 @@ input[type="checkbox"] {
     <div>
       <div class="section-label">工作台</div>
       <nav class="nav" aria-label="主导航">
+        <button class="nav-item" data-tab="autopilot" type="button">自动巡航</button>
         <button class="nav-item" data-tab="chat" type="button">AI 沟通</button>
         <button class="nav-item" data-tab="dashboard" type="button">Agent 状态</button>
         <button class="nav-item" data-tab="jobs" type="button">岗位推荐</button>
         <button class="nav-item" data-tab="pipeline" type="button">投递 Pipeline</button>
         <button class="nav-item" data-tab="review" type="button">待确认岗位</button>
+        <button class="nav-item" data-tab="summaries" type="button">面试要点</button>
         <button class="nav-item" data-tab="resume" type="button">简历 AI</button>
         <button class="nav-item" data-tab="tasks" type="button">任务监控</button>
       </nav>
@@ -1993,11 +1995,13 @@ input[type="checkbox"] {
       </div>
     </header>
     <div class="content">
-      <div id="tab-chat" class="tab active"></div>
+      <div id="tab-autopilot" class="tab active"></div>
+      <div id="tab-chat" class="tab"></div>
       <div id="tab-dashboard" class="tab"></div>
       <div id="tab-jobs" class="tab"></div>
       <div id="tab-pipeline" class="tab"></div>
       <div id="tab-review" class="tab"></div>
+      <div id="tab-summaries" class="tab"></div>
       <div id="tab-resume" class="tab"></div>
       <div id="tab-tasks" class="tab"></div>
     </div>
@@ -2016,11 +2020,13 @@ var _statusBusy = false;
 var _pipelineLoaded = false;
 
 var TAB_LABELS = {
+  autopilot: "自动巡航",
   chat: "AI 沟通",
   dashboard: "Agent 状态",
   jobs: "岗位推荐",
   pipeline: "投递 Pipeline",
   review: "待确认岗位",
+  summaries: "面试要点",
   resume: "简历 AI",
   tasks: "任务监控"
 };
@@ -2109,11 +2115,13 @@ document.querySelectorAll(".nav-item").forEach(function(el) {
 });
 
 function loadTab(name) {
-  if (name === "chat") loadChat();
+  if (name === "autopilot") loadAutopilot();
+  else if (name === "chat") loadChat();
   else if (name === "dashboard") loadDashboard();
   else if (name === "jobs") loadJobs();
   else if (name === "pipeline") loadPipeline();
   else if (name === "review") loadReview();
+  else if (name === "summaries") loadSummaries();
   else if (name === "resume") loadResume();
   else if (name === "tasks") loadTasks();
 }
@@ -2410,7 +2418,113 @@ async function deleteApp(id) {
   }
 }
 
-// ─── 待确认岗位（M2 决策 REVIEW 队列）───
+// ─── 自动巡航（一键启动，一直跑到没活干）───
+var _autopilotTimer = null;
+
+async function loadAutopilot() {
+  var el = document.getElementById("tab-autopilot");
+  var d = await api("/api/autopilot/status");
+  var ap = (d && d.autopilot) || {};
+  var phase = ap.phase || "idle";
+  var phaseText = { working: "正在跑", idle: "待命中（低频巡检）", need_login: "需要你扫码登录", browser_error: "浏览器连不上", error: "出错了" }[phase] || phase;
+  var s = ap.stats || {};
+  var h = '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">自动巡航</h3>' +
+    '<p class="panel-desc">点一次「开始自动跑」，它自己循环：连接浏览器（自动恢复登录）→ 同步聊天 → 回复 HR → 按节奏发打招呼 → 写面试要点。没活干时转低频巡检，不会退出。</p></div>' +
+    '<button class="btn btn-sm" type="button" onclick="loadAutopilot()">' + icon("refresh") + '刷新</button></div>' +
+    '<div class="job-meta" style="gap:16px;flex-wrap:wrap">' +
+    '<span>状态：<strong>' + escapeHtml(phaseText) + '</strong></span>' +
+    '<span>已跑轮次：<strong>' + (ap.round || 0) + '</strong></span>' +
+    '<span>回复：<strong>' + (s.replied || 0) + '</strong></span>' +
+    '<span>已打招呼：<strong>' + (s.sent || 0) + '</strong></span>' +
+    '<span>摘要：<strong>' + (s.summaries || 0) + '</strong></span>' +
+    '<span>待发岗位：<strong>' + (d.approved || 0) + '</strong></span>' +
+    '<span>需你拍板：<strong>' + (d.manualPending || 0) + '</strong></span>' +
+    '<span>真发开关：<strong>' + (d.applyDryRun ? "关闭（只演练不发送）" : "开启（会真的发出去）") + '</strong></span>' +
+    '</div>' +
+    '<div class="form-actions" style="margin-top:12px">' +
+    (ap.running
+      ? '<button class="btn btn-sm" type="button" onclick="stopAutopilot()">停止自动跑</button>'
+      : '<button class="btn btn-primary" type="button" onclick="startAutopilot()">开始自动跑（一键）</button>') +
+    '<button class="btn btn-sm" type="button" onclick="refreshSummaries()">立即生成面试要点</button>' +
+    '</div>';
+  if (ap.lastError) h += '<p class="panel-desc" style="margin-top:10px;color:#f87171">最近一次错误：' + escapeHtml(ap.lastError) + '</p>';
+  if (ap.needLogin) h += '<p class="panel-desc" style="margin-top:10px;color:#fbbf24">登录态已失效：请在打开的 Edge 里扫码登录 BOSS，登录成功后会自动继续（Cookie 备份能免去重启后重登，但约 3~7 天要扫一次码）。</p>';
+  h += '</section>';
+  if ((ap.logs || []).length) {
+    h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">巡航日志</h3></div></div><div class="feed">';
+    ap.logs.slice(-15).reverse().forEach(function (l) {
+      h += '<div class="log-line">' + escapeHtml(l.msg) + '</div>';
+    });
+    h += '</div></section>';
+  }
+  el.innerHTML = h;
+  // 巡航页每 10 秒自刷新，用户不用手动点（只有停在这一页时才轮询）
+  if (_autopilotTimer) { clearTimeout(_autopilotTimer); _autopilotTimer = null; }
+  _autopilotTimer = setTimeout(function () {
+    var tab = document.getElementById("tab-autopilot");
+    if (tab && tab.classList.contains("active")) loadAutopilot();
+  }, 10000);
+}
+
+async function startAutopilot() {
+  try {
+    var r = await api("/api/autopilot/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    log(r && r.ok ? "自动巡航已启动" : ("启动失败: " + ((r && r.result && r.result.reason) || (r && r.error) || "")));
+  } catch (e) { log("启动失败: " + e.message); }
+  loadAutopilot();
+}
+
+async function stopAutopilot() {
+  try {
+    await api("/api/autopilot/stop", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    log("自动巡航已停止");
+  } catch (e) { log("停止失败: " + e.message); }
+  loadAutopilot();
+}
+
+// ─── 面试要点（自动把和 HR 的对话提炼成"你去面试前要看的几行"）───
+async function loadSummaries() {
+  var el = document.getElementById("tab-summaries");
+  var d = await api("/api/chat/summaries");
+  var rows = (d && d.summaries) || [];
+  var h = '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">面试要点</h3>' +
+    '<p class="panel-desc">程序把和 HR 的对话自动提炼成要点：面试时间/地点/联系人、谈到的薪资、下一步、你要准备什么。共 ' + rows.length + ' 个会话' + (d.updatedAt ? '，更新于 ' + escapeHtml(String(d.updatedAt).slice(0, 19)) : '') + '。</p></div>' +
+    '<button class="btn btn-sm" type="button" onclick="refreshSummaries()">' + icon("refresh") + '重新生成</button></div>';
+  if (!rows.length) {
+    h += '<div class="empty-state"><div class="empty-icon">' + icon("file") + '</div><strong>还没有要点</strong><span>自动巡航跑到"有 HR 回复"之后，这里会出现每个会话的面试要点。</span></div>';
+  } else {
+    h += '<div class="feed">';
+    rows.forEach(function (r) {
+      var iv = r.interview || null;
+      h += '<article class="job-card"><div class="job-main" style="grid-column:1/-1">' +
+        '<div class="job-title-row"><h3 class="job-title">' + escapeHtml(r.chatName || "(未知会话)") + '</h3></div>';
+      if (iv && (iv.time || iv.place || iv.contact)) {
+        h += '<div class="job-meta"><span><strong>面试</strong> 时间：' + escapeHtml(iv.time || "待定") + '｜地点：' + escapeHtml(iv.place || "待定") + '｜联系人：' + escapeHtml(iv.contact || "-") + '</span></div>';
+      }
+      if (r.salaryTalk) h += '<div class="job-meta"><span><strong>薪资</strong> ' + escapeHtml(r.salaryTalk) + '</span></div>';
+      if ((r.hrAsked || []).length) h += '<div class="job-meta"><span><strong>HR 最近问的</strong> ' + escapeHtml((r.hrAsked || []).join(" ／ ")) + '</span></div>';
+      if ((r.weAnswered || []).length) h += '<div class="job-meta"><span><strong>已答的</strong> ' + escapeHtml((r.weAnswered || []).join(" ／ ")) + '</span></div>';
+      if (r.nextStep) h += '<div class="job-meta"><span><strong>下一步</strong> ' + escapeHtml(r.nextStep) + '</span></div>';
+      if ((r.prepare || []).length) h += '<div class="job-meta"><span><strong>要准备</strong> ' + escapeHtml((r.prepare || []).join(" ／ ")) + '</span></div>';
+      h += '</div></article>';
+    });
+    h += '</div>';
+  }
+  h += '</section>';
+  el.innerHTML = h;
+}
+
+async function refreshSummaries() {
+  var btn = event && event.target;
+  if (btn) { btn.disabled = true; btn.textContent = "生成中…"; }
+  try {
+    var r = await api("/api/chat/summaries/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
+    log(r && r.ok ? ("已生成 " + (r.written || 0) + " 份面试要点（模型 " + (r.llmUsed || 0) + " 份 / 骨架兜底 " + (r.fallbackUsed || 0) + " 份）") : ("生成失败: " + ((r && r.error) || "")));
+  } catch (e) { log("生成失败: " + e.message); }
+  loadSummaries();
+}
+
+
 async function loadReview() {
   var d = await api("/api/review");
   var el = document.getElementById("tab-review");

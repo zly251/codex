@@ -7,6 +7,7 @@ import {
   DEFAULT_PROFILE,
   FALLBACK_PROFILE,
 } from "../edgeLauncher.js";
+import { withHumanRhythm } from "../humanRhythm.js";
 /**
  * 浏览器连接管理器
  *
@@ -115,6 +116,11 @@ export class BrowserManager {
     /**
      * 获取一个可用页面
      * 优先复用已有页面，否则创建新标签页
+     *
+     * 注意：返回值统一过一层"人味节奏"代理（src/humanRhythm.js）——
+     * 这里是全项目取 page 的唯一出口，投递/聊天/搜索/详情增补都从这里拿页面，
+     * 在这一层加间隔才能覆盖所有交互点（含页面内的 el.click()）。
+     * 关掉：.env JOB_AGENT_HUMAN_RHYTHM=0
      */
     async getPage() {
         let b = this.browser;
@@ -126,11 +132,11 @@ export class BrowserManager {
     for (const p of pages) {
       const url = p.url();
       if (url.includes("zhipin.com") && !url.includes("/user/")) {
-        return p;
+        return withHumanRhythm(p, this.humanRhythmOptions || {});
       }
     }
     // 没有可用页面时创建新标签页
-    return await b.newPage();
+    return withHumanRhythm(await b.newPage(), this.humanRhythmOptions || {});
     }
     /**
      * 断开连接（不关闭浏览器）

@@ -577,27 +577,33 @@ const guardReply = await generateReply("你会C++吗？", "张三", "C++", {
 assert(guardReply?.ok === false && guardReply?.reason === "capability_guard", "capability guard failure returns stable reason");
 assert(typeof guardReply?.reply === "string" && guardReply.reply.length > 0, "capability guard failure returns fixed fallback text");
 
-console.log("[reply] manual intent");
+// 2026-09-19 用户授权「和 HR 聊到谈薪面试这一环节」：面试邀约/时间/地点/谈薪 由「转人工」改为
+// 「可按卡内口径代答」；承诺与签字类（offer/录用/入职/合同/试用期/社保/外包驻场）仍然转人工。
+console.log("[reply] manual intent（2026-09-19 政策变更后）");
 const interviewIntent = classifyIntent("明天下午方便面试吗？地点在哪里？");
-assert(interviewIntent.needManual === true, "interview time/place -> manual");
-assert(interviewIntent.reason === "面试/Offer需人工确认", "manual reason is stable");
+assert(interviewIntent.needManual === false && interviewIntent.kind === "interview", "interview time/place -> 可代答（应下并问清时间地点）");
+assert(typeof interviewIntent.reason === "string" && interviewIntent.reason.includes("面试邀约"), "面试类 reason 说明是授权代答");
 assert(classifyIntent("请问薪资范围大概多少").needManual === false, "salary question is allowed");
-assert(classifyIntent("offer已经发了吗").needManual === true, "offer question -> manual");
+assert(classifyIntent("offer已经发了吗").needManual === true, "offer question -> manual（承诺类不代答）");
 assert(classifyIntent("什么时间方便沟通").needManual === false, "normal timing question not manual");
 assert(classifyIntent("您几点方便").needManual === false, "normal convenient time question not manual");
 assert(classifyIntent("什么时候方便聊").needManual === false, "normal chat timing question not manual");
-assert(classifyIntent("面试时间定在明天几点").needManual === true, "interview time -> manual");
-assert(classifyIntent("面试地点在哪里").needManual === true, "interview location -> manual");
-assert(classifyIntent("安排面试吧").needManual === true, "schedule interview -> manual");
-assert(classifyIntent("约个面试").needManual === true, "make interview appointment -> manual");
+assert(classifyIntent("面试时间定在明天几点").needManual === false, "interview time -> 可代答");
+assert(classifyIntent("面试地点在哪里").needManual === false, "interview location -> 可代答");
+assert(classifyIntent("安排面试吧").needManual === false, "schedule interview -> 可代答");
+assert(classifyIntent("约个面试").needManual === false, "make interview appointment -> 可代答");
 assert(classifyIntent("offer确认").needManual === true, "offer confirmation -> manual");
-assert(classifyIntent("入职时间是什么时候").needManual === true, "onboarding time -> manual");
-assert(classifyIntent("到岗时间方便吗").needManual === true, "start time -> manual");
-const manualResult = await generateReply("明天下午方便面试吗？", "张三", "C++", {
-  profile: { skills: "C++" },
-  fetchImpl: async () => ({ ok: true, json: async () => ({ choices: [] }) }),
-});
-assert(manualResult?.ok === false && manualResult?.needManual === true, "generateReply returns manual object without LLM call");
+assert(classifyIntent("入职时间是什么时候").needManual === true, "onboarding time -> manual（入职确认属承诺类）");
+assert(classifyIntent("到岗时间方便吗").needManual === false, "问到岗时间 -> 可代答（卡内已签字：随时可到岗）");
+assert(classifyIntent("试用期多久，社保怎么交").needManual === true, "试用期/社保 -> manual");
+assert(classifyIntent("这是外包驻场岗位吗").needManual === true, "外包驻场 -> manual（卡内红线）");
+{
+  const manualResult = await generateReply("offer已经发了吗", "张三", "C++", {
+    profile: { skills: "C++" },
+    fetchImpl: async () => ({ ok: true, json: async () => ({ choices: [] }) }),
+  });
+  assert(manualResult?.ok === false && manualResult?.needManual === true, "generateReply 对承诺类返回 manual 对象、不调 LLM");
+}
 
 restoreEnv();
 

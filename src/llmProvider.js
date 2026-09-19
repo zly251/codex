@@ -11,7 +11,12 @@ const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
 // 控长度全部靠提示词硬约束（见 GATEWAY_SYSTEM_PROMPT）。
 const DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:3010/v1";
 const DEFAULT_GATEWAY_MODEL = "qwen3.8-flash";
-const DEFAULT_CHAT_TIMEOUT_MS = 30000;
+// 单次 LLM 请求超时。可用 .env LLM_TIMEOUT_MS 覆盖：无人值守时最怕"首选通道挂死"——
+// 实测 3010 免费网关挂死时，30s×3 家会把一条 80 字回复拖到 90s+，整轮巡航跟着卡住。
+// 调小它能让失效通道快速让位给后面能用的通道。
+const DEFAULT_CHAT_TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) > 0
+  ? Number(process.env.LLM_TIMEOUT_MS)
+  : 30000;
 const CARD_HEADING = "候选人底细:";
 const CARD_BEGIN = "[[CANDIDATE_CARD_BEGIN]]";
 const CARD_END = "[[CANDIDATE_CARD_END]]";
@@ -672,7 +677,8 @@ export function buildReplyPrompt({
     ...(cardPresent
       ? [
           "- 候选人底细卡是事实与口径的唯一来源：卡内没有的能力、经历、数字一律不认领。",
-          "- 底细卡里没有、又需要本人拍板的问题（薪资具体数字、面试邀约、Offer、条款确认），回答要保守，不承诺、不编造。",
+          "- 卡内「授权代答范围」（2026-09-19）里写明可以直接答的：面试邀约（应下并问清时间/地点/联系人）、面试时间协调（随时可到岗）、谈薪（期望不低于 4000）。",
+          "- 仍必须转人工的：Offer/录用/入职确认/签合同/试用期/社保/外包驻场，以及任何要用户本人点头或签字的事。",
         ]
       : []),
     "",
@@ -687,6 +693,11 @@ export function buildReplyPrompt({
     "联系方式规则：",
     "- 手机号、微信号、地址等联系方式已经包含在简历中。",
     "- 不要在聊天中重复写出手机号、微信号、地址等联系细节。",
+    "",
+    "面试邀约规则（2026-09-19 用户授权：聊到面试为止）：",
+    "- HR 约面试时：爽快应下（“方便的/可以的”），并主动问清**具体时间、地址、联系人**；本人口径是**随时可到岗**。",
+    "- 只确认“我会准时到/请把时间地点发我”，不要承诺岗位细节之外的任何条件。",
+    "- 若对方同时提到 Offer、入职日期、签合同、试用期、社保、外包驻场：只说“这块我和您电话里/面谈细聊”，**不替本人答应**。",
     "",
     "职位信息：",
     `职位：${jobTitle}`,
@@ -833,23 +844,27 @@ export function validateReplyForCapabilities(reply, whitelist) {
 
 export function classifyIntent(hrMsg) {
   const text = String(hrMsg || "").toLowerCase();
+  // 2026-09-19 用户授权：「就和 HR 聊到谈薪面试这一环节，之后我去面试」。
+  // 政策变化：面试邀约/时间地点/谈薪 由「一律转人工」改为「可按卡内口径代答」；
+  // 但凡是要"答应下来或签字"的事（offer/录用/入职确认/合同/试用期/社保/外包驻场）仍转人工。
+  // 底线不变：宁可过拦，不可漏放承诺类内容——所以 offer/合同那组词表要宁宽勿窄。
   const offer =
-    /\boffer\b|录用|入职时间|入职日期|到岗时间|到岗日期|offer确认|确认offer|offer已发|offer什么时候|offer多久/.test(text);
+    /\boffer\b|录用|入职确认|确认入职|入职日期|入职时间|签合同|签协议|劳动合同|试用期|转正|社保|公积金|五险一金|工资卡|背调|体检|押金|违约金|竞业/.test(text);
+  const outsourcing = /外包|驻场|派遣|中介|代招/.test(text);
   const interviewMention =
-    /面试|面谈|复试|初试|视频面试|线下面试|到面|hr面/.test(text);
+    /面试|面谈|复试|初试|视频面试|线下面试|到面|到店|hr面|试岗/.test(text);
   const interviewScheduling =
     /时间|地点|地址|日期|安排|约|预约|通知|确认|几点|什么时候|在哪|哪里|方便面试/.test(text);
   // 裸邀约兜底规则：真实 HR 常用"明天上午10点来面试吧"这类不带"时间/地点"字样的邀约。
-  // 宁可过拦（转人工无害），不可漏放（AI 代答面试邀约=红线事故）。
-  // 此规则不看 salary——面试邀约+薪资词混在一起时也必须转人工。
   const interviewInviteSignals =
     /(明天|后天|今天|本周|下周|周[一二三四五六日天]|\d+点|\d+号|上午|下午|来|到|参加|安排|约|定)/.test(
       text
     );
   const interviewInvite = interviewMention && interviewInviteSignals;
   const interviewPlaceTime = interviewMention && interviewScheduling;
+  const interview = interviewInvite || interviewPlaceTime;
   const salary =
-    /薪资|工资|待遇|薪酬|多少钱|期望薪/.test(text);
+    /薪资|工资|待遇|薪酬|多少钱|期望薪|底薪|提成/.test(text);
   const contact =
     /微信|wechat|手机号|手机号码|电话|联系方式|怎么联系|加个微信/.test(text);
 
@@ -857,21 +872,23 @@ export function classifyIntent(hrMsg) {
     return {
       needManual: true,
       kind: "offer",
-      reason: "面试/Offer需人工确认",
+      reason: "Offer/合同/试用期/社保类需人工确认（用户 2026-09-19 授权范围内不含这类承诺）",
     };
   }
-  if (interviewInvite) {
+  if (outsourcing) {
     return {
       needManual: true,
-      kind: "interview",
-      reason: "面试/Offer需人工确认",
+      kind: "outsourcing",
+      reason: "外包/驻场/派遣类需人工确认（卡内红线）",
     };
   }
-  if (interviewPlaceTime && !salary) {
+  if (interview) {
+    // 授权代答：应下邀约 + 问清时间地点联系人，并写入会话要点摘要（供用户去面）
     return {
-      needManual: true,
+      needManual: false,
       kind: "interview",
-      reason: "面试/Offer需人工确认",
+      interview: true,
+      reason: "面试邀约：可代答（应下 + 问清时间地点），要点转摘要",
     };
   }
   if (salary) {
@@ -885,8 +902,12 @@ export function classifyIntent(hrMsg) {
 
 export function templateReply(hrMsg, name, skills, options = {}) {
   const intent = classifyIntent(hrMsg);
+  // 面试类在授权范围内可直接答（2026-09-19）：应下邀约 + 问清时间地点联系人
+  if (intent.kind === "interview") {
+    return "方便的，麻烦您把面试的具体时间和地址发我，我按时到。";
+  }
   if (intent.kind === "salary") {
-    return "我的期望薪资在简历中有写明，具体范围可以进一步沟通。";
+    return "薪资可以聊，我期望不低于 4K，具体还是先看岗位内容再细谈。";
   }
   if (intent.kind === "contact") {
     return "联系方式我已经在简历里提供，方便的话可以查看简历进一步沟通。";
@@ -1039,6 +1060,43 @@ function emitWarning(options, message) {
       /* ignore */
     }
   }
+}
+
+/**
+ * 通用文本生成（2026-09-19 新增，给会话要点摘要用）：复用与回复相同的 provider 链，
+ * 但不做能力白名单校验（摘要是给用户自己看的内部产物，不是要发给 HR 的话）。
+ * 全部 provider 失败时抛错，调用方自行退回模板/骨架。
+ */
+export async function generateText(prompt, options = {}) {
+  const config = getProviderConfig(options.env || process.env);
+  const chain = (Array.isArray(config.chain) ? config.chain : []).filter((p) => p !== "template");
+  let lastError = null;
+  for (const providerName of chain) {
+    const providerConfig = config[providerName];
+    if (!providerConfig || !trimText(providerConfig.apiKey)) continue;
+    try {
+      const completion = await chatCompletion({
+        messages: [{ role: "user", content: String(prompt || "") }],
+        apiKey: providerConfig.apiKey,
+        baseUrl: providerConfig.baseUrl,
+        model: providerConfig.model,
+        provider: providerName,
+        fetchImpl: options.fetchImpl,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        timeoutMs: options.llmTimeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS,
+        omitMaxTokens: !!providerConfig.omitMaxTokens,
+        systemPrompt: providerConfig.systemPrompt,
+      });
+      const text = String(completion.text || "").trim();
+      if (text) return text;
+      lastError = new Error(`provider=${providerName} 返回空文本`);
+    } catch (e) {
+      lastError = e;
+      emitWarning(options, `[llm] 摘要用 ${providerName} 失败（${describeError(e).kind}），试下一个`);
+    }
+  }
+  throw lastError || new Error("没有可用的 LLM provider（generateText）");
 }
 
 export async function generateReply(hrMsg, name, skills, options = {}) {

@@ -65,7 +65,12 @@ export function shouldReply(chat) {
   const entry = state[key];
   if (!entry) return true;
   if (entry.manualPending) return false;
-  return !entry.replied;
+  if (!entry.replied) return true;
+  // 多轮对话（2026-09-19 用户要求"聊到谈薪面试"）：只回一条就永久沉默是不行的。
+  // 记下我们回的是哪条 HR 消息；HR 又发来新内容时允许再回一次。
+  // 注意：chat.msg 为空时保守返回 false，避免没有新消息时反复自说自话。
+  const current = String(chat?.msg || "").slice(0, 300);
+  return !!current && current !== String(entry.hrMsg || "");
 }
 
 export function markReplied(chat, reply, result) {
@@ -76,6 +81,7 @@ export function markReplied(chat, reply, result) {
     replied: true,
     repliedAt: new Date().toISOString(),
     reply: String(reply || "").slice(0, 300),
+    hrMsg: String(chat?.msg || "").slice(0, 300),
     ok: !!(result && result.ok !== false),
   };
   save();
@@ -94,6 +100,19 @@ export function markManualPending(chat, reason, result) {
     ok: false,
   };
   save();
+}
+
+// 列出所有"等你本人拍板"的会话（Offer/合同/外包类被拦下的那些）。
+// 自动巡航用它判断是否还有需要人工的事没处理：有就不算"任务完成"。
+export function listManualPending() {
+  const state = load();
+  const out = [];
+  for (const [key, entry] of Object.entries(state || {})) {
+    if (entry && entry.manualPending) {
+      out.push({ key, reason: entry.reason || "", markedAt: entry.markedAt || "" });
+    }
+  }
+  return out;
 }
 
 export function shouldTryResume(chat, nowMs = Date.now()) {

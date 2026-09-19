@@ -326,7 +326,7 @@ section("C. 跨提供方降级重试（generateReply）");
     fetchImpl: failing,
     onWarning: warn3.onWarning,
   });
-  ok(r3 === "我的期望薪资在简历中有写明，具体范围可以进一步沟通。", "全部提供方失败 → 薪资模板回复");
+  ok(r3 === "薪资可以聊，我期望不低于 4K，具体还是先看岗位内容再细谈。", "全部提供方失败 → 薪资模板回复（2026-09-19 起口径为「不低于 4K」）");
   ok(failing.calls.length === 3, "三个提供方都尝试过");
   ok(warn3.list.some((w) => w.includes("全部提供方失败") && w.includes("已落模板回复")), "链耗尽有明确 warning");
 
@@ -377,39 +377,45 @@ section("D. capability_guard：内容违规立即返回，不跨 provider 重试
   });
   ok(typeof r2 === "string", "白名单内回复直接放行");
 
-  // 人工意图：不花 LLM 调用
-  const manualFetch = recordingFetch("不该被调用");
+  // 2026-09-19 用户授权「聊到谈薪面试」：面试邀约改为可代答，但仍要花 LLM 调用（不再是 needManual 短路）
+  const interviewFetch = recordingFetch("方便的，麻烦您把面试的具体时间和地址发我，我按时到。");
   const r3 = await generateReply("明天下午方便面试吗？地点在哪里？", "张三", "Qt", {
     env: { QODER_GATEWAY_API_KEY: FK_GW },
-    fetchImpl: manualFetch,
+    fetchImpl: interviewFetch,
+    safeResumeText: "技能: 需求梳理,质量验收,数据分析",
   });
-  ok(r3.needManual === true && r3.ok === false, "面试+地点时间 → needManual 对象");
-  ok(manualFetch.calls.length === 0, "needManual 分支不发任何 LLM 请求");
+  ok(typeof r3 === "string", "面试邀约 → 走代答（返回回复文本，不再 needManual）");
+  ok(interviewFetch.calls.length === 1, "面试邀约也真的调用了一次 LLM（不再短路转人工）");
 }
 
 // ============================================================
-section("E. classifyIntent：裸面试邀约穿闸修复（真网关冒烟抓出的红线）");
+section("E. classifyIntent：面试/谈薪授权代答，承诺类仍转人工（2026-09-19 政策变更）");
 {
-  const leaks = ["明天上午10点来面试吧，方便吗", "来面试吧", "方便的话明天来公司面谈"];
-  for (const msg of leaks) {
+  // 授权范围内：面试邀约/时间地点/谈薪 → 可代答
+  const answerable = ["明天上午10点来面试吧，方便吗", "来面试吧", "方便的话明天来公司面谈", "安排面试吧", "约个面试", "面试时间定在明天几点"];
+  for (const msg of answerable) {
     const it = classifyIntent(msg);
-    ok(it.needManual === true, `裸邀约转人工: ${msg}`);
+    ok(it.needManual === false && it.kind === "interview" && it.interview === true, `面试邀约可代答（问清时间地点）: ${msg}`);
   }
   ok(classifyIntent("请问薪资范围大概多少").needManual === false, "薪资问题不被误拦（无面试词）");
   ok(classifyIntent("什么时间方便沟通").needManual === false, "普通约聊时间不误拦");
   ok(classifyIntent("您几点方便").needManual === false, "普通几点不误拦");
   ok(classifyIntent("什么时候方便聊").needManual === false, "普通什么时候不误拦");
-  ok(classifyIntent("安排面试吧").needManual === true, "存量：安排面试 → manual");
-  ok(classifyIntent("约个面试").needManual === true, "存量：约个面试 → manual");
-  ok(classifyIntent("面试时间定在明天几点").needManual === true, "存量：面试时间 → manual");
-  ok(classifyIntent("offer已经发了吗").needManual === true, "存量：offer → manual");
   ok(classifyIntent("方便留个微信吗").needManual === false, "要微信不转人工（contact）");
 
-  const manualR = await generateReply("明天上午10点来面试吧", "张三", "Qt", {
+  // 承诺/签字类：仍然一律转人工（这条底线不许松）
+  const stillManual = ["offer已经发了吗", "录用的话入职日期定哪天", "确认入职要签合同吗", "试用期多久，社保怎么交", "这是外包驻场岗位吗", "能接受派遣吗"];
+  for (const msg of stillManual) {
+    const it = classifyIntent(msg);
+    ok(it.needManual === true, `承诺/签字类仍转人工: ${msg}`);
+  }
+  ok(classifyIntent("确认入职时间").needManual === true, "存量：入职确认 → manual");
+
+  const manualR = await generateReply("offer已经发了吗，我什么时候入职", "张三", "Qt", {
     env: { QODER_GATEWAY_API_KEY: FK_GW },
     fetchImpl: recordingFetch("不该被调用"),
   });
-  ok(manualR && manualR.needManual === true && manualR.reply === "", "generateReply 对裸邀约直接转人工，不代答");
+  ok(manualR && manualR.needManual === true && manualR.reply === "", "generateReply 对 Offer/入职类直接转人工，不代答");
 }
 
 // ============================================================
@@ -562,7 +568,7 @@ section("H. 回归锚点（M3 不改变既有行为）");
     env: {},
     fetchImpl: failingFetch(),
   });
-  ok(salary === "我的期望薪资在简历中有写明，具体范围可以进一步沟通。", "无提供方时薪资模板兜底不变");
+  ok(salary === "薪资可以聊，我期望不低于 4K，具体还是先看岗位内容再细谈。", "无提供方时薪资模板兜底不变（新口径：不低于 4K）");
 
   const contact = await generateReply("方便加个微信吗", "张三", "Qt", {
     env: {},

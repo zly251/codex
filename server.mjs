@@ -17,7 +17,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject, checkLoggedIn, isBrowserConnected, ensureBrowserConnected, approvedPendingCount, manualPendingCount, recentChatTranscripts, isApplyDryRun } from "./src/routes.mjs";
+import { createAutopilot } from "./src/autopilot.js";
+import { buildSummaries, writeSummariesFile } from "./src/chatSummary.js";
+import { generateText, loadCandidateCardText } from "./src/llmProvider.js";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -41,6 +44,80 @@ var PORT = Number(process.env.PORT) || 3456;
 initDb();
 ensureDataDirs();
 console.log("[server] DB ready, port " + PORT);
+
+// ══════════════════════════════════════════════════════════════════
+// 自动巡航（autopilot）：用户点一次「开始自动跑」，之后自己循环到没活干。
+// 循环体：连浏览器(自动恢复 Cookie) → 同步聊天 → 回待回消息 → 按节奏发打招呼 → 写面试摘要。
+// 每个动作都通过本机 HTTP 调自己的接口 —— 这些动作在 routes.mjs 里是「req/res」形态，
+// 自调用比重构成纯函数改动面小得多，且同进程不会有死锁问题。
+// ══════════════════════════════════════════════════════════════════
+const SELF_BASE = "http://127.0.0.1:" + PORT;
+const SUMMARY_PATH =
+  process.env.JOB_AGENT_SUMMARY_PATH ||
+  path.join(process.env.JOB_AGENT_DATA_DIR || process.cwd(), "data", "chat-summaries.json");
+
+async function selfPost(pathname, body) {
+  const r = await fetch(SELF_BASE + pathname, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body || {}),
+  });
+  return r.json();
+}
+
+// 会话要点摘要：把留档的会话原话交给 LLM 提要点，失败自动退回骨架（绝不抛）
+async function runSummaries() {
+  const chats = recentChatTranscripts(30);
+  if (!chats.length) return { written: 0, reason: "no_chats" };
+  let profile = null;
+  try { profile = JSON.parse(fs.readFileSync(PROFILE_PATH, "utf8")); } catch (e) {}
+  const card = (() => { try { return loadCandidateCardText(); } catch (e) { return ""; } })();
+  const result = await buildSummaries({
+    chats,
+    callLLM: (prompt) => generateText(prompt, { maxTokens: 900 }),
+    profile,
+    card,
+    log: (m) => console.log("[summary] " + m),
+  });
+  await writeSummariesFile({ filePath: SUMMARY_PATH, summaries: result.summaries, existing: null });
+  return {
+    written: result.summaries.length,
+    llmUsed: result.llmUsed,
+    fallbackUsed: result.fallbackUsed,
+  };
+}
+
+const autopilot = createAutopilot({
+  isBrowserConnected: () => {
+    try { return isBrowserConnected(); } catch (e) { return false; }
+  },
+  connectBrowser: () => ensureBrowserConnected(),
+  checkLogin: () => checkLoggedIn(),
+  syncFeedback: async () => {
+    const j = await selfPost("/api/boss/sync-feedback");
+    // busy=已有任务在跑，属正常情况，不算失败
+    if (j && j.ok === false && !j.busy) throw new Error(j.error || "sync-feedback 失败");
+    return j || {};
+  },
+  replyDueChats: async () => {
+    // 用 once:true 做"扫一遍就返回"的串行处理，而不是常驻监控：
+    // apply/chat/scan 三者都驱动同一个页面，项目里是互斥的（busy 409）。
+    // 巡航每轮串行执行一遍，既拿到真实的"回了几条/还有几条要人管"，也不会互相抢页面。
+    const j = await selfPost("/api/boss/chat/start", { once: true, sendResume: true, sendResumeScreenshot: false });
+    if (j && j.ok === false && !j.needLogin && !j.busy) throw new Error(j.error || "chat once 扫描失败");
+    const manual = Number(j && j.manual) || 0;
+    return { replied: Number(j && j.replied) || 0, pending: manual || manualPendingCount() };
+  },
+  applyQueue: async () => {
+    const before = approvedPendingCount();
+    if (!before) return { sent: 0, remaining: 0 };
+    const j = await selfPost("/api/boss/apply", { limit: 150 });
+    if (j && j.ok === false && !j.needLogin) throw new Error(j.error || "apply 失败");
+    return { sent: Number(j && j.applied) || 0, remaining: approvedPendingCount() };
+  },
+  writeSummaries: () => runSummaries(),
+  log: (msg) => console.log("[autopilot] " + msg),
+});
 
 async function ensureResumeFile(resumeRow) {
   if (resumeRow?.filePath && fs.existsSync(resumeRow.filePath)) return resumeRow;
@@ -428,6 +505,37 @@ var httpServer = http.createServer(function(req, res) {
     return;
   }
 
+  if (p === "/api/autopilot/status" && req.method === "GET") {
+    json(res, { ok: true, autopilot: autopilot.status(), applyDryRun: isApplyDryRun(), approved: approvedPendingCount(), manualPending: manualPendingCount() });
+    return;
+  }
+  if (p === "/api/autopilot/start" && req.method === "POST") {
+    var apBody = "";
+    req.on("data", function(c) { apBody += c; });
+    req.on("end", function() {
+      var opts = {};
+      try { opts = apBody ? JSON.parse(apBody) : {}; } catch (e) {}
+      var r = autopilot.start(opts);
+      json(res, { ok: !!r.started, result: r, autopilot: autopilot.status() });
+    });
+    return;
+  }
+  if (p === "/api/autopilot/stop" && req.method === "POST") {
+    json(res, { ok: true, result: autopilot.stop(), autopilot: autopilot.status() });
+    return;
+  }
+  if (p === "/api/chat/summaries" && req.method === "GET") {
+    var summaryStore = { updatedAt: "", summaries: [] };
+    try { summaryStore = JSON.parse(fs.readFileSync(SUMMARY_PATH, "utf8")) || summaryStore; } catch (e) {}
+    json(res, { ok: true, updatedAt: summaryStore.updatedAt || "", summaries: summaryStore.summaries || [] });
+    return;
+  }
+  if (p === "/api/chat/summaries/refresh" && req.method === "POST") {
+    runSummaries()
+      .then(function (r) { json(res, { ok: true, ...r }); })
+      .catch(function (e) { json(res, { ok: false, error: e.message }, 500); });
+    return;
+  }
   if (p === "/api/review" && req.method === "GET") { handleReviewList(req, res); return; }
   if (p === "/api/review/approve" && req.method === "POST") {
     var rvBody = "";
@@ -497,4 +605,10 @@ httpServer.listen(PORT, function() {
   console.log("================================================");
   console.log("  Job Agent UI  -  http://localhost:" + PORT);
   console.log("================================================");
+  // 一键启动：.env 里 AUTOPILOT=1 时，服务一起来就自动开始巡航（真正的"入口一键启动"）。
+  // 默认不开，避免用户没准备好就被自动发出去。
+  if (/^(1|true|yes|on)$/i.test(String(process.env.AUTOPILOT || "").trim())) {
+    const r = autopilot.start();
+    console.log("[autopilot] 已按 .env AUTOPILOT=1 自动启动", JSON.stringify(r));
+  }
 });
