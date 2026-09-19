@@ -72,7 +72,10 @@ src/scrapers/*_orig_check.*
 /fix_*.py
 /refactor.mjs
 /selector_fix*.mjs
+# test-*.mjs are the unit-test suite: keep them tracked (exempt from the temp-script rule)
 /scripts/*.mjs
+!/scripts/test-*.mjs
+!/scripts/enrich-jobs.mjs
 /src/debug*.js
 /src/diagDetail.js
 /src/test*.js
@@ -92,3 +95,4 @@ src/scrapers/*_orig_check.*
 # Tool/agent working dirs (2026-08-14)
 .reasonix/
 .git.broken*/
+.git-stale-backup-*/

@@ -1,8 +1,65 @@
-﻿const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const randSleep = (baseMs, jitterMs) => sleep(baseMs + Math.random() * jitterMs);
 import { parseMonthlySalaryK } from "../salary.js";
 const API_URLS = ["/search/joblist.json", "/job/detail.json"];
 const CITY_CODES = {"北京":"101010100","上海":"101020100","广州":"101280100","深圳":"101280600","杭州":"101210100","成都":"101270100","台州":"101210600","宁波":"101210400","温州":"101210700"};
+const DORM_RE = /宿舍|住宿|包住|食宿|包吃住/;
+
+// 把 item 里可能是字符串 JSON 的字段安全转对象
+function _asObj(v) {
+  if (v && typeof v === "object") return v;
+  if (typeof v === "string" && v.length > 1 && (v[0] === "{" || v[0] === "[")) {
+    try { return JSON.parse(v); } catch { return null; }
+  }
+  return null;
+}
+
+// M1: 防御式坐标提取。先看 item 顶层字段名，再看嵌套对象（geo/location/position）。
+// 只接受能转成有限数字且量程合理的值（"28.6" 这类字符串坐标也收），否则返回 null。
+function _num(v, absMax) {
+  let n = null;
+  if (typeof v === "number") n = v;
+  else if (typeof v === "string" && v.trim() !== "") n = Number(v);
+  if (n == null || !Number.isFinite(n)) return null;
+  if (absMax != null && Math.abs(n) > absMax) return null;
+  return n;
+}
+
+function _pickCoord(item, topKeys, objKeys, innerKeys, absMax) {
+  for (const k of topKeys) {
+    const n = _num(item[k], absMax);
+    if (n != null) return n;
+  }
+  for (const ok of objKeys) {
+    const o = _asObj(item[ok]);
+    if (!o || typeof o !== "object") continue;
+    for (const ik of innerKeys) {
+      const n = _num(o[ik], absMax);
+      if (n != null) return n;
+    }
+  }
+  return null;
+}
+
+// M1: 卡片福利标签里的宿舍信号。扫描 tags/labels/arrayName/markLabels 等数组字段
+// 及字符串字段，命中 /宿舍|住宿|包住|食宿/ 即返回 true。
+function _detectDormitoryFromCard(item) {
+  const buckets = [];
+  for (const key of ["tags", "labels", "arrayName", "markLabels", "welfareList", "skills", "jobLabels"]) {
+    const v = _asObj(item[key]);
+    if (Array.isArray(v)) buckets.push(...v);
+    else if (typeof v === "string") buckets.push(v);
+  }
+  for (const b of buckets) {
+    const text = typeof b === "string" ? b : (b && (b.name || b.title || b.tagName) ? String(b.name || b.title || b.tagName) : "");
+    if (text && DORM_RE.test(text)) return true;
+  }
+  return false;
+}
+
+function _safeJson(v) {
+  try { return JSON.stringify(v); } catch { return null; }
+}
 
 export class BossApiScraper {
   constructor(bm) { this.manager = bm; this._page = null; this._busy = false; }
@@ -113,7 +170,14 @@ export class BossApiScraper {
         const salaryMin = parsedSalary && typeof parsedSalary === "object" ? parsedSalary.min : (typeof parsedSalary === "number" ? parsedSalary : null);
         const salaryMax = parsedSalary && typeof parsedSalary === "object" ? parsedSalary.max : (typeof parsedSalary === "number" ? parsedSalary : null);
 
-        out.push({
+        // M1: 防御式坐标 —— BOSS 列表卡是否带 lat/lng 无证据，取到才写，取不到留 null。
+        const lat = _pickCoord(item, ["lat", "latitude"], ["geo", "location", "position"], ["lat", "latitude"], 90);
+        const lng = _pickCoord(item, ["lng", "lon", "longitude"], ["geo", "location", "position"], ["lng", "lon", "longitude"], 180);
+
+        // M1: 卡内福利标签防御式扫描（tags/labels/arrayName 类数组字段），命中宿舍/住宿/包住/食宿 -> hasDormitory=1
+        const dormHit = _detectDormitoryFromCard(item);
+
+        const rec = {
           title: title,
           salaryMin,
           salaryMax,
@@ -130,7 +194,15 @@ export class BossApiScraper {
           companyId: String(item.encryptBrandId || item.brandId || ""),
           source: "zhipin",
           status: "active",
-        });
+          rawData: _safeJson(item),
+          lat,
+          lng,
+        };
+        if (dormHit) {
+          rec.hasDormitory = 1;
+          rec.dormitorySource = "card";
+        }
+        out.push(rec);
       } catch(e) {}
     }
     console.log("[bossApi] 解析:" + out.length + "/" + items.length);

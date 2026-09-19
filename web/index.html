@@ -1968,6 +1968,7 @@ input[type="checkbox"] {
         <button class="nav-item" data-tab="dashboard" type="button">Agent 状态</button>
         <button class="nav-item" data-tab="jobs" type="button">岗位推荐</button>
         <button class="nav-item" data-tab="pipeline" type="button">投递 Pipeline</button>
+        <button class="nav-item" data-tab="review" type="button">待确认岗位</button>
         <button class="nav-item" data-tab="resume" type="button">简历 AI</button>
         <button class="nav-item" data-tab="tasks" type="button">任务监控</button>
       </nav>
@@ -1996,6 +1997,7 @@ input[type="checkbox"] {
       <div id="tab-dashboard" class="tab"></div>
       <div id="tab-jobs" class="tab"></div>
       <div id="tab-pipeline" class="tab"></div>
+      <div id="tab-review" class="tab"></div>
       <div id="tab-resume" class="tab"></div>
       <div id="tab-tasks" class="tab"></div>
     </div>
@@ -2018,6 +2020,7 @@ var TAB_LABELS = {
   dashboard: "Agent 状态",
   jobs: "岗位推荐",
   pipeline: "投递 Pipeline",
+  review: "待确认岗位",
   resume: "简历 AI",
   tasks: "任务监控"
 };
@@ -2110,6 +2113,7 @@ function loadTab(name) {
   else if (name === "dashboard") loadDashboard();
   else if (name === "jobs") loadJobs();
   else if (name === "pipeline") loadPipeline();
+  else if (name === "review") loadReview();
   else if (name === "resume") loadResume();
   else if (name === "tasks") loadTasks();
 }
@@ -2404,6 +2408,55 @@ async function deleteApp(id) {
   } catch (e) {
     log("删除失败: " + e.message);
   }
+}
+
+// ─── 待确认岗位（M2 决策 REVIEW 队列）───
+async function loadReview() {
+  var d = await api("/api/review");
+  var el = document.getElementById("tab-review");
+  var rows = (d && d.review) || [];
+  var approved = (d && d.approved) || 0;
+  var h = '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">待确认岗位</h3>' +
+    '<p class="panel-desc">决策引擎判定 REVIEW 的岗位不会自动投递；放行后进入下次投递集合。当前待确认 ' + (d.pending || 0) + ' 个，已放行待投递 ' + approved + ' 个</p></div>' +
+    '<button class="btn btn-sm" type="button" onclick="loadReview()">' + icon("refresh") + '刷新</button></div>';
+  if (!rows.length) {
+    h += '<div class="empty-state"><div class="empty-icon">' + icon("clock") + '</div><strong>没有待确认岗位</strong><span>批量投递时，分数处于 REVIEW 区间的岗位会出现在这里。</span></div>';
+  } else {
+    h += '<div class="feed">';
+    rows.forEach(function(r) {
+      var j = r.job || {};
+      h += '<article class="job-card">' +
+        '<div class="match-box">' + ringHtml(r.liveScore != null ? r.liveScore : (r.score || 0)) + '<div class="match-label">得分</div></div>' +
+        '<div class="job-main">' +
+        '<div class="job-title-row"><h3 class="job-title">' + escapeHtml(j.title || ("岗位 #" + r.jobId)) + '</h3><span class="job-company">' + escapeHtml(j.companyName || "-") + '</span></div>' +
+        '<div class="job-meta"><strong>' + escapeHtml(j.salaryRaw || "薪资面议") + '</strong><span>' + escapeHtml((j.city || "-") + (j.district ? " · " + j.district : "")) + '</span><span>' + escapeHtml(j.status || "") + '</span></div>' +
+        '<div class="job-meta"><span>' + escapeHtml(r.reason || "") + '</span></div>' +
+        '</div>' +
+        '<div class="job-actions">' +
+        '<button class="btn btn-primary btn-sm" type="button" onclick="approveReview(' + r.id + ')">' + icon("check") + '放行</button>' +
+        '<button class="btn btn-sm" type="button" onclick="rejectReview(' + r.id + ')">拒绝</button>' +
+        '</div></article>';
+    });
+    h += '</div>';
+  }
+  h += '</section>';
+  el.innerHTML = h;
+}
+
+async function approveReview(id) {
+  try {
+    var r = await api("/api/review/approve", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id }) });
+    log(r.ok ? ("已放行待确认 #" + id + "，下次投递时自动带上") : ("放行失败: " + (r.error || "")));
+  } catch (e) { log("放行失败: " + e.message); }
+  loadReview();
+}
+
+async function rejectReview(id) {
+  try {
+    var r = await api("/api/review/reject", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: id }) });
+    log(r.ok ? ("已拒绝待确认 #" + id) : ("拒绝失败: " + (r.error || "")));
+  } catch (e) { log("拒绝失败: " + e.message); }
+  loadReview();
 }
 
 // ─── 简历 AI ───
@@ -3060,6 +3113,7 @@ async function loadTasks() {
     '<div class="panel-head"><div><h3 class="panel-title">快速控制</h3><p class="panel-desc">常用自动化入口</p></div></div>' +
     '<div class="task-list">' +
     '<div class="task-card"><div class="task-icon">' + icon("search") + '</div><div class="task-copy"><strong>搜索职位</strong><span>抓取当前城市和关键词下的岗位</span></div><button class="btn btn-sm" type="button" onclick="bossSearch()">执行</button></div>' +
+    '<div class="task-card"><div class="task-icon">' + icon("activity") + '</div><div class="task-copy"><strong>详情增补</strong><span>浏览缺JD岗位详情页，补宿舍/坐标（需已连接，只读不投递）</span></div><button class="btn btn-sm" type="button" id="enrich-btn" onclick="bossEnrich()">执行</button></div>' +
     '<div class="task-card"><div class="task-icon">' + icon("send") + '</div><div class="task-copy"><strong>自动打招呼</strong><span>按匹配度批量发起沟通</span></div><button class="btn btn-sm" type="button" onclick="bossApply()">执行</button></div>' +
     '<div class="task-card"><div class="task-icon">' + icon("activity") + '</div><div class="task-copy"><strong>聊天监控</strong><span>扫描会话并同步反馈</span></div><button class="btn btn-sm" type="button" id="chat-btn" onclick="bossChatStart()">开始</button></div>' +
     '</div></section>' +
@@ -3140,6 +3194,24 @@ async function bossConnect() {
   }
   setSidebarStatus(bossConnected);
   await pollStatusOnce();
+}
+
+async function bossEnrich() {
+  var btn = document.getElementById("enrich-btn");
+  if (btn && btn.disabled) return;
+  if (btn) { btn.disabled = true; btn.textContent = "增补中..."; }
+  log("详情增补: 开始（缺JD岗位，最多 20 条，只读浏览不投递）");
+  try {
+    var r = await api("/api/boss/enrich", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limit: 20 }) });
+    if (r.ok) {
+      log("详情增补完成: 成功 " + (r.enriched || 0) + " · 失败 " + (r.failed || 0) + " · 跳过 " + (r.skipped || 0));
+    } else {
+      log("详情增补失败: " + (r.error || "未知错误"));
+    }
+  } catch (e) {
+    log("详情增补错误: " + e.message);
+  }
+  if (btn) { btn.disabled = false; btn.textContent = "执行"; }
 }
 
 async function bossSearch() {

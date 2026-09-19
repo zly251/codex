@@ -1,4 +1,4 @@
-﻿// Autonomous Job Search Agent
+// Autonomous Job Search Agent
 // Job CRUD
 import { getDb } from "./index.js";
 export function search(params) {
@@ -42,7 +42,7 @@ export function findById(id) { return getDb().prepare("SELECT * FROM Job WHERE i
 export function findByUrl(url) { return getDb().prepare("SELECT * FROM Job WHERE url = ?").get(url); }
 export function create(data) {
     var d = getDb();
-    var info = d.prepare("INSERT INTO Job (title, salaryMin, salaryMax, salaryRaw, city, district, experience, education, description, requirements, technologies, url, source, rawData, postedAt, lastSeenAt, companyId, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?)").run(data.title, data.salaryMin || null, data.salaryMax || null, data.salaryRaw || null, data.city || null, data.district || null, data.experience || null, data.education || null, data.description || null, data.requirements || null, data.technologies || null, data.url, data.source || "zhipin", data.rawData || null, data.postedAt || null, data.companyId || null, data.status || "active");
+    var info = d.prepare("INSERT INTO Job (title, salaryMin, salaryMax, salaryRaw, city, district, experience, education, description, requirements, technologies, url, source, rawData, postedAt, lastSeenAt, companyId, status, lng, lat, distanceKm, distanceTier, hasDormitory, dormitorySource) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?)").run(data.title, data.salaryMin || null, data.salaryMax || null, data.salaryRaw || null, data.city || null, data.district || null, data.experience || null, data.education || null, data.description || null, data.requirements || null, data.technologies || null, data.url, data.source || "zhipin", data.rawData || null, data.postedAt || null, data.companyId || null, data.status || "active", data.lng ?? null, data.lat ?? null, data.distanceKm ?? null, data.distanceTier || null, data.hasDormitory ?? null, data.dormitorySource || null);
     return findById(info.lastInsertRowid);
 }
 export function upsert(data) {
@@ -66,10 +66,14 @@ export function markClosedBefore(dateStr) {
 }
 export function update(id, data) {
     var d = getDb();
+    // M1: 按真实列过滤。scraper 产出的对象带 companyName 等非 Job 列键，
+    // 不过滤会让整条 UPDATE 报 "no such column" 被上层 catch 吞掉，
+    // 导致 re-scrape 时新列（lat/lng/hasDormitory 等）永远写不进已存在记录。
+    var cols = new Set(d.prepare("PRAGMA table_info(Job)").all().map(function (r) { return r.name; }));
     var sets = [];
     var vals = [];
     for (var k in data) {
-        if (data[k] !== undefined) {
+        if (data[k] !== undefined && cols.has(k)) {
             sets.push(k + " = ?");
             vals.push(data[k]);
         }
@@ -83,6 +87,21 @@ export function update(id, data) {
     return findById(id);
 }
 export function remove(id) { return getDb().prepare("DELETE FROM Job WHERE id = ?").run(id).changes > 0; }
+// M1: 增补字段专用回写（距离/坐标/宿舍/JD 正文）。只写传入的字段，undefined 跳过。
+export function updateEnrichment(id, data) {
+    if (!data)
+        return findById(id);
+    var allowed = ["lng", "lat", "distanceKm", "distanceTier", "hasDormitory", "dormitorySource", "description", "requirements"];
+    var patch = {};
+    for (var i = 0; i < allowed.length; i++) {
+        var k = allowed[i];
+        if (data[k] !== undefined)
+            patch[k] = data[k];
+    }
+    if (Object.keys(patch).length === 0)
+        return findById(id);
+    return update(id, patch);
+}
 export function count(params) {
     if (!params)
         params = {};

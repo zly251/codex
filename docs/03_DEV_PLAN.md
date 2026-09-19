@@ -260,3 +260,24 @@ IGNORE
 7. 输出求职统计结果
 
 达到以上标准即视为V1完成。
+
+---
+
+# 13. Phase 实况对照表（2026-09-19 实测修订，DSH 架构师）
+
+> 依据：只读调研 + 代码核查实测（当时 `npm test` 基线 512 断言，本轮收尾 M1~M6 后已达 791），非回忆。
+
+| Phase | 计划 | 实况（2026-09-19） | 差距处置 |
+|---|---|---|---|
+| 1 数据层 | SQLite+Prisma | ✅ SQLite(`node:sqlite`)+手写迁移；Prisma 仅文档镜像未接运行时 | 不接 Prisma（手写迁移够用）；02_DATABASE.md 已标注 |
+| 2 Resume Center | 多版本+自动选 | ✅ 默认简历+tags+findBestMatch 自动选；version 无 UI | 够用，挂账 |
+| 3 Job Crawler | 抓取清洗去重 | ✅ API 拦截+DOM 兜底+url upsert；**原缺陷：白名单丢 rawData/JD 正文** | 本轮 M1 修（rawData 整包入库 + 详情增补 `src/enrich.js` + `POST /api/boss/enrich`） |
+| 4 Scoring | 技能/行业/薪资/距离/经验 | ⚠️ 原 skill0.6+exp0.2+edu0.2；薪资只做排序键；**距离完全缺失（用户最大痛点根因）**；行业缺失 | 本轮 M1 补距离/宿舍子分（五维权重参数化 skill.5/exp.15/edu.15/distance.15/dorm.05）；行业由 technologies 近似覆盖，不单列 |
+| 5 Decision | 自动分类区别处理 | ⚠️ decideJob 三分类存在但 routes **只计数不拦截**，IGNORE 照样被投 | 本轮 M2：真分桶拦截，REVIEW→待确认队列 API（人工放行才进投递集），IGNORE 剔除 |
+| 6 Apply | 真实投递闭环 | ✅ 2026-08 验收过（jobId=44 verified=true） | 本轮 M2 加 150/日配额 + 2~4h 随机摊开 + 22:00 截断 + `APPLY_DRY_RUN` 默认 true |
+| 7 Feedback | 六态漏斗 | ⚠️ 自动写仅 replied/interview/offer/rejected；viewed 无同步路径；withdrawn 死状态 | viewed 按 BOSS「送达/已读」特征待风控页面实测，本轮不强做；withdrawn 保留手动 PATCH |
+| 8 Strategy | 历史数据自动调权 | ⚠️ 仅 3 档启发式阈值+常量权重（无人回写）；自动调权无数据支撑 | 用户拍板降级为「统计面板+建议模式」：按距离档/关键词/宿舍分组出回复率，建议不自动改权重；权重口子已由 M1 参数化预留 |
+| - 自动沟通 | V1 不实现（已推翻） | ✅ LLM 回复+PII 脱敏+能力防编造+manualPending；2026-09-19 起主通道=本机 3010 qwen3.8-flash，跨级降级重试 zhipu→deepseek→template | 本轮 M3（含底细卡 `prompts/candidate-card.md` 事实唯一来源 + classifyIntent 面试/裸邀约转人工） |
+| - 多平台 | V1 不实现 | ❌ 仅 boss adapter；内核曾与 BOSS 缠绕在 chatApply.js(3260 行) | **明确延后**：本轮 M5 出蓝图 `docs/05_MODULARIZATION_PLAN.md` 并做内核通用化拆分（门面保留），第二平台 adapter 另立项 |
+
+**本轮未列即不做**：行业独立字段、viewed 自动写、微信推送（用户每日开机，控制台待办页顶替）、第二平台 adapter、自动调权。

@@ -1,7 +1,16 @@
 import * as jobDb from "./db/job.js";
+import { getDb } from "./db/index.js";
 import * as companyDb from "./db/company.js";
 import * as applicationDb from "./db/application.js";
 import * as resumeDb from "./db/resume.js";
+import * as reviewQueue from "./db/reviewQueue.js";
+import {
+  planSchedule,
+  dryRunReport,
+  throttleOptions,
+  schedulerConfig,
+  countAppliedToday,
+} from "./applyScheduler.js";
 import { BrowserManager } from "./browser/browserManager.js";
 import * as liveLog from "./log.js";
 import {
@@ -9,8 +18,9 @@ import {
   DEFAULT_PROFILE,
   FALLBACK_PROFILE,
 } from "./edgeLauncher.js";
-import { scoreJob, decideJob } from "./scoring.js";
-import { sortJobsForApply } from "./salary.js";
+import { scoreJob, decideJob, sortJobsForApplyWithDistance } from "./scoring.js";
+import { applyDistanceToJob } from "./distance.js";
+import { enrichJobFromDetail, enrichmentPatch } from "./enrich.js";
 import { getPlatform } from "./platforms/index.js";
 import { loadResumeEditor } from "./resumeExport.js";
 import {
@@ -254,6 +264,15 @@ export async function handleSearch(req, res, body) {
     const jobs = await s.searchJobs({ keyword, city, pages });
     if (jobs.length > 0) {
       await s.saveJobs(jobs, jobDb, companyDb);
+      // M1 接线：落库后立即按坐标/区县回填距离档（纯 DB 计算，不碰网络）
+      let distOk = 0;
+      for (const j of jobs) {
+        try {
+          const row = jobDb.findByUrl(j.url);
+          if (row) { applyDistanceToJob(row); distOk++; }
+        } catch (e) {}
+      }
+      if (distOk > 0) liveLog.add(`距离回填: ${distOk}/${jobs.length} 个职位已分档`);
     }
     state.lastSearch = { keyword, city, pages, count: jobs.length };
     state.status = jobs.length > 0 ? "found" : "empty";
@@ -267,6 +286,128 @@ export async function handleSearch(req, res, body) {
   }
 }
 
+// ── M1 接线：职位详情页增补（JD/福利标签/坐标 → 距离档） ──────────────
+// POST /api/boss/enrich  { jobId?, limit?, maxMs? }
+// 浏览器只读浏览详情页，不点击任何投递/打招呼控件；单条失败不中断整批。
+export async function handleEnrich(req, res, body) {
+  try {
+    const mgr = getManager();
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接，请先连接 Edge", needBrowser: true }, 400);
+      return;
+    }
+    const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    const pick = function (a, b) {
+      for (const s of [a, b]) {
+        const m = String(s || "").match(/[?&]jobId=([^&#]+)/i);
+        if (m) return m[1];
+      }
+      return "";
+    };
+    // 待增补：指定 jobId 优先；否则取"缺 JD 或缺宿舍来源"的活跃岗位
+    let targets = [];
+    if (body?.jobId) {
+      const one = jobDb.findById(Number(body.jobId));
+      if (!one) { json(res, { ok: false, error: "岗位不存在" }, 404); return; }
+      targets = [one];
+    } else {
+      targets = getDbEnrichCandidates();
+    }
+    const limit = Math.max(1, Math.min(Number(body?.limit) || 20, 100));
+    targets = targets.slice(0, limit);
+    const maxMs = Math.max(10000, Math.min(Number(body?.maxMs) || 120000, 600000));
+    const startedAt = Date.now();
+
+    let page = null;
+    try { page = await mgr.getPage(); } catch (e) {
+      json(res, { ok: false, error: "获取页面失败: " + (e.message || "").slice(0, 80) }, 500);
+      return;
+    }
+
+    let enriched = 0, failed = 0, skipped = 0;
+    const details = [];
+    for (const job of targets) {
+      if (Date.now() - startedAt > maxMs) { liveLog.add("增补达到时间预算，剩余岗位下次再跑"); break; }
+      if (!job.url || !/zhipin\.com/.test(job.url)) { skipped++; continue; }
+      try {
+        await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 });
+        await sleep(1500 + Math.random() * 1500);
+        const result = await enrichJobFromDetail(page);
+        const patch = enrichmentPatch(result);
+        const jobIdMatch = pick(job.url, job.rawData);
+        const cardText = jobIdMatch ? String(job.rawData || "") : "";
+        if (jobIdMatch && !cardText.includes('"encryptJobId":"' + jobIdMatch)) {
+          liveLog.add("增补坐标跳过: 页面 encryptJobId 与库记录不匹配，防串写: job " + job.id);
+        } else {
+          jobDb.updateEnrichment(job.id, patch);
+          applyDistanceToJob(jobDb.findById(job.id));
+          enriched++;
+          details.push({ id: job.id, hasDormitory: patch.hasDormitory || 0, descLen: (patch.description || "").length });
+        }
+      } catch (e) {
+        failed++;
+        liveLog.add("增补失败(job " + job.id + "): " + (e.message || "").slice(0, 100));
+      }
+      // 岗位间随机停顿，避免访问节奏过密
+      await sleep(2500 + Math.random() * 3500);
+    }
+    liveLog.add(`详情增补完成: 成功 ${enriched} / 失败 ${failed} / 跳过 ${skipped}（共处理 ${Math.min(targets.length, enriched + failed + skipped)}）`);
+    json(res, { ok: true, enriched, failed, skipped, details: details.slice(0, 50) });
+  } catch (e) {
+    liveLog.add("增补异常: " + (e.message || "").slice(0, 120));
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+function getDbEnrichCandidates() {
+  // 缺 JD 正文 或 从未有宿舍来源 的活跃岗位（enrich 跑过但没找到宿舍时 dormitorySource 为空串/null，
+  // 为避免反复重跑同批无果岗位，只挑 description 为空的作为主信号）
+  try {
+    return getDb().prepare(
+      "SELECT * FROM Job WHERE (description IS NULL OR description = '') AND (status IS NULL OR status = 'active') ORDER BY updatedAt DESC"
+    ).all();
+  } catch (e) {
+    return [];
+  }
+}
+
+// APPLY_DRY_RUN：默认 true（读不到 .env 配置时也按 true 处理）。
+// true 时投递入口只生成节奏计划并写日志，绝不执行真实打招呼。
+export function isApplyDryRun(env) {
+  const raw = (env || process.env).APPLY_DRY_RUN;
+  if (raw === undefined || raw === null || String(raw).trim() === "") return true;
+  return !/^(0|false|no|off)$/i.test(String(raw).trim());
+}
+
+// REVIEW 地板分：与 decideJob 的默认 reviewThreshold=30 保持一致（不修改 scoring.js）。
+const REVIEW_FLOOR = 30;
+
+/**
+ * M2-A 决策分桶（纯函数，可单测）。
+ * 对每个 {job, score} 调用 decideJob 分入 AUTO_APPLY / REVIEW / IGNORE。
+ * M1 接口（20:07 起）：decideJob(score, reviewThreshold, job) 返回对象
+ *   {decision, reason, tier, hasDormitory}；不传 job 则返回纯字符串（旧行为）。
+ * 这里必须整体传入 s.job：UNKNOWN 档位封顶 REVIEW、绝不 AUTO（防未 enrich 数据被自动投），
+ * 距离档位/宿舍由 decideJob 内部 effectiveTier/hasDormitory 读取，调用方不单独取 distanceTier。
+ * reason 直接用 M1 生成的人话理由（含原始判定+档位），不自行拼接。
+ */
+export function partitionByDecision(scored, reviewThreshold) {
+  const buckets = { auto: [], review: [], ignore: [] };
+  (scored || []).forEach(function (s) {
+    const d = decideJob(s.score, reviewThreshold, s.job);
+    const decision = typeof d === "string" ? d : d.decision;
+    const reason = typeof d === "string" ? "" : d.reason;
+    if (decision === "AUTO_APPLY") {
+      buckets.auto.push(Object.assign({}, s, { decision, reason }));
+    } else if (decision === "REVIEW") {
+      buckets.review.push(Object.assign({}, s, { decision, reason }));
+    } else {
+      buckets.ignore.push(Object.assign({}, s, { decision, reason }));
+    }
+  });
+  return buckets;
+}
+
 export async function handleApply(req, res, body) {
   try {
     const mgr = getManager();
@@ -275,16 +416,21 @@ export async function handleApply(req, res, body) {
       json(res, { ok: false, error: "已有投递任务运行中，请先停止", busy: true }, 409);
       return;
     }
-    if (!mgr.browser?.connected) {
-      json(res, { ok: false, error: "浏览器未连接，请先连接浏览器" }, 400);
-      return;
-    }
-    const loginPage = await platform.findJobPage(getManager());
-    if (!loginPage || !(await platform.isLoggedIn(loginPage))) {
-      liveLog.add(`${platform.name} 未登录，请先扫码登录后再投递`);
-      try { await loginPage?.bringToFront(); } catch (e) {}
-      json(res, { ok: false, error: `${platform.name} 未登录，请先扫码登录`, needLogin: true }, 400);
-      return;
+    // M2-B：APPLY_DRY_RUN（默认 true）时只生成计划+写日志，不触碰浏览器；
+    // 真实打招呼路径保持原有的连接+登录硬校验。
+    const dryRun = isApplyDryRun();
+    if (!dryRun) {
+      if (!mgr.browser?.connected) {
+        json(res, { ok: false, error: "浏览器未连接，请先连接浏览器" }, 400);
+        return;
+      }
+      const loginPage = await platform.findJobPage(getManager());
+      if (!loginPage || !(await platform.isLoggedIn(loginPage))) {
+        liveLog.add(`${platform.name} 未登录，请先扫码登录后再投递`);
+        try { await loginPage?.bringToFront(); } catch (e) {}
+        json(res, { ok: false, error: `${platform.name} 未登录，请先扫码登录`, needLogin: true }, 400);
+        return;
+      }
     }
     const jobId = body?.jobId ? Number(body.jobId) : null;
     const limit = body?.limit || 99;
@@ -318,7 +464,7 @@ export async function handleApply(req, res, body) {
       if (filterCity) allJobs = allJobs.filter(function (j) { return (j.city || "").includes(filterCity); });
     }
 
-    if (allJobs.length === 0 && !jobId) {
+    if (allJobs.length === 0 && !jobId && !isApplyDryRun()) {
       liveLog.add(`数据库为空，实时搜索 ${platform.name}...`);
       try {
         allJobs = await searchLiveJobs();
@@ -328,6 +474,9 @@ export async function handleApply(req, res, body) {
         liveSearchDone = true;
         liveLog.add("实时搜索失败: " + (e.message || "").slice(0, 80));
       }
+    } else if (allJobs.length === 0 && !jobId && isApplyDryRun()) {
+      liveLog.add("[dry-run] 数据库无职位，跳过实时搜索（不触碰浏览器）");
+      liveSearchDone = true;
     }
 
     if (allJobs.length === 0 && filterCity && !jobId) {
@@ -343,7 +492,7 @@ export async function handleApply(req, res, body) {
       if (skippedApplied > 0) liveLog.add(`跳过已投递职位: ${skippedApplied} 个`);
     }
 
-    if (skipApplied && !jobId && allJobs.length === 0 && !liveSearchDone) {
+    if (skipApplied && !jobId && allJobs.length === 0 && !liveSearchDone && !dryRun) {
       liveLog.add("当前可投递职位已投递完，实时搜索新职位...");
       try {
         allJobs = await searchLiveJobs();
@@ -379,35 +528,134 @@ export async function handleApply(req, res, body) {
     const scored = allJobs.map(function (j) {
       const s = scoreJob(j, profile);
       try { jobDb.update(j.id, { score: s.score }); } catch (e) {}
-      return { job: j, match: s.score / 100, score: s.score, salaryRank: s.salaryRank, salaryStatus: s.salaryStatus };
+      return { job: j, match: s.score / 100, score: s.score, salaryRank: s.salaryRank, salaryStatus: s.salaryStatus, matchedSkills: s.matchedSkills, missingSkills: s.missingSkills };
     });
 
-    const decisions = { AUTO_APPLY: 0, REVIEW: 0, IGNORE: 0 };
-    scored.forEach(function (s) {
-      decisions[decideJob(s.score, minMatch * 100)]++;
-    });
+    // ── M2-A 决策真拦截：按 decideJob 分桶，IGNORE 剔除、REVIEW 入待确认队列 ──
+    // 阈值：沿用 decideJob 自身的 REVIEW 地板 30（minMatch=0 时仍能产生 IGNORE），
+    // 用户显式抬高 minMatch 时以 minMatch 为准。
+    const reviewThreshold = Math.max(Math.round(minMatch * 100), REVIEW_FLOOR);
+    // 分桶统一走 partitionByDecision（内部以 3 参调用 decideJob，档位/宿舍由 M1 内部读取）。
+    const buckets = partitionByDecision(scored, reviewThreshold);
+    const decisions = { AUTO_APPLY: buckets.auto.length, REVIEW: buckets.review.length, IGNORE: buckets.ignore.length };
 
-    const jobs = sortJobsForApply(
-      scored.filter(function (s) { return s.match >= minMatch; })
-    )
-      .slice(0, limit)
-      .map(function (s) {
-        const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
-        const resume = resumeDb.findBestMatch(techs);
-        return Object.assign({}, s.job, {
-          companyName: getJobCompanyName(s.job),
-          resumeId: resume ? resume.id : null,
-        });
+    if (buckets.ignore.length > 0) {
+      liveLog.add(`决策剔除(IGNORE): ${buckets.ignore.length} 个岗位低于 ${reviewThreshold} 分，不进入投递集合`);
+      buckets.ignore.slice(0, 10).forEach(function (s) {
+        liveLog.add(`  IGNORE #${s.job.id} ${String(s.job.title || "").slice(0, 24)} -> ${s.reason}`);
       });
+      if (buckets.ignore.length > 10) liveLog.add(`  ... 其余 ${buckets.ignore.length - 10} 条 IGNORE 理由略`);
+    }
+    let reviewEnqueued = 0;
+    if (!jobId) {
+      buckets.review.forEach(function (s) {
+        try {
+          reviewQueue.enqueue({ jobId: s.job.id, score: s.score, decision: s.decision, reason: s.reason });
+          reviewEnqueued++;
+        } catch (e) {
+          liveLog.add("待确认队列写入失败(job " + s.job.id + "): " + (e.message || "").slice(0, 80));
+        }
+      });
+      if (reviewEnqueued > 0) liveLog.add(`决策转待确认(REVIEW): ${reviewEnqueued} 个岗位进入待确认队列，不自动投递`);
+    }
+
+    // 投递集合：批量流 = AUTO_APPLY 桶 + 待确认队列中人工已放行的岗位；
+    // 指定 jobId 属人工显式动作，直接投递（分桶仅记录，不拦截）。
+    // 放行岗位只"窥视"(findApproved)，真正进入本次执行集合后才 markConsumed，
+    // 防止 dry-run 或 limit/配额截断把放行记录吞掉。
+    let applyCandidates;
+    const candidateIds = new Set();
+    if (jobId) {
+      applyCandidates = scored.slice();
+      applyCandidates.forEach(function (s) { candidateIds.add(s.job.id); });
+    } else {
+      applyCandidates = buckets.auto.slice();
+      buckets.auto.forEach(function (s) { candidateIds.add(s.job.id); });
+      const approved = reviewQueue.findApproved();
+      let revived = 0;
+      approved.forEach(function (row) {
+        if (candidateIds.has(row.jobId)) return;
+        const j = jobDb.findById(row.jobId);
+        if (!j || (j.status && j.status !== "active") || isBlockedCompany(j)) return;
+        const s = scoreJob(j, profile);
+        applyCandidates.push({ job: j, match: s.score / 100, score: s.score, salaryRank: s.salaryRank, salaryStatus: s.salaryStatus, approvedFromQueue: true, __reviewId: row.id });
+        candidateIds.add(j.id);
+        revived++;
+      });
+      if (revived > 0) liveLog.add(`待确认已放行: ${revived} 个岗位转入本次投递集合`);
+    }
+
+    const sortedCandidates = sortJobsForApplyWithDistance(applyCandidates).slice(0, limit);
+    const jobs = sortedCandidates.map(function (s) {
+      const techs = (s.job.technologies || "").split(",").map(function (x) { return x.trim(); }).filter(Boolean);
+      const resume = resumeDb.findBestMatch(techs);
+      return Object.assign({}, s.job, {
+        companyName: getJobCompanyName(s.job),
+        resumeId: resume ? resume.id : null,
+        __decisionScore: s.score,
+        __reviewId: s.__reviewId || null,
+      });
+    });
+
+    // ── M2-B 节奏控制：当日剩余配额 + 随机时间轴计划（dryRun 已在入口判定）──
+    let plan = null;
+    let quotaInfo = null;
+    if (jobs.length > 0) {
+      let appliedToday = 0;
+      try { appliedToday = countAppliedToday(applicationDb.findAll()); } catch (e) {}
+      quotaInfo = schedulerConfig({ appliedToday });
+      plan = planSchedule(jobs, { now: new Date(), quota: quotaInfo.quota, appliedToday: appliedToday });
+    }
 
     if (jobs.length === 0) {
-      json(res, { ok: true, applied: 0, total: 0, skippedApplied: skippedApplied, message: "没有匹配的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）" });
+      json(res, { ok: true, applied: 0, total: 0, skippedApplied: skippedApplied, decisions: decisions, message: "没有可自动投递的职位（城市=" + filterCity + " 区域=" + filterDistrict + " 关键词=" + filterKeywords + "）；REVIEW 岗位已入待确认队列 " + reviewEnqueued + " 个" });
       return;
     }
 
     liveLog.add(`已排除黑名单公司: ${(platform.blockedCompanies || []).join(", ")}`);
-    liveLog.add(`筛选出 ${jobs.length} 个职位，随机延迟 ${delayMin}-${delayMax} 秒，开始投递`);
-    liveLog.add(`决策: 自动投递 ${decisions.AUTO_APPLY} / 待确认 ${decisions.REVIEW} / 忽略 ${decisions.IGNORE}`);
+    liveLog.add(`决策分桶: 自动投递 ${decisions.AUTO_APPLY} / 待确认 ${decisions.REVIEW} / 忽略 ${decisions.IGNORE}`);
+
+    if (dryRun) {
+      const report = plan ? dryRunReport(plan) : "无可投递岗位";
+      liveLog.add(`[dry-run] APPLY_DRY_RUN=true，仅生成节奏计划，不执行真实打招呼（候选 ${jobs.length} 单，计划 ${plan ? plan.planned : 0} 单）`);
+      report.split("\n").forEach(function (line) { liveLog.add("[dry-run] " + line); });
+      json(res, {
+        ok: true,
+        dryRun: true,
+        applied: 0,
+        planned: plan ? plan.planned : 0,
+        total: jobs.length,
+        skippedQuota: plan ? plan.skippedQuota : 0,
+        skippedApplied: skippedApplied,
+        decisions: decisions,
+        quota: quotaInfo ? { total: quotaInfo.quota, appliedToday: quotaInfo.appliedToday, remaining: Math.max(0, quotaInfo.quota - quotaInfo.appliedToday) } : null,
+        schedule: plan ? { startMs: plan.startMs, endMs: plan.endMs, items: plan.items.map(function (it) { return { jobId: it.job.id, title: it.job.title, at: it.atISO, gapMs: it.gapMs, longRestBefore: it.longRestBefore }; }) } : null,
+        report: report,
+      });
+      return;
+    }
+
+    // 真实投递：需要浏览器已连接（上方入口处已做过连接与登录校验，dry-run 不会走到这里）
+    if (!mgr.browser?.connected) {
+      json(res, { ok: false, error: "浏览器未连接，请先连接浏览器" }, 400);
+      return;
+    }
+
+    const throttle = throttleOptions(plan, { delayMin: delayMin, delayMax: delayMax });
+    // 真正开始投递：只对进入本次执行计划的放行记录标记 consumed；
+    // 被 limit/配额截断在计划之外的保持 approved，下次投递重试。
+    if (plan && plan.items && plan.items.length > 0) {
+      plan.items.forEach(function (it) {
+        const rid = it.job && it.job.__reviewId;
+        if (Number.isFinite(rid)) {
+          try { reviewQueue.markConsumed(rid); } catch (e) {}
+        }
+      });
+    }
+    liveLog.add(`筛选出 ${jobs.length} 个职位，节奏计划 ${plan ? plan.planned : 0} 单，随机延迟 ${throttle.delayMin}-${throttle.delayMax} 秒，开始投递`);
+    if (plan && plan.planned > 0) {
+      liveLog.add(`节奏: ${new Date(plan.startMs).toLocaleTimeString()} → ${new Date(plan.endMs).toLocaleTimeString()}，长休息 ${plan.items.filter(function (it) { return it.longRestBefore; }).length} 处`);
+    }
 
     b.running = true;
     state.running = true;
@@ -415,8 +663,8 @@ export async function handleApply(req, res, body) {
     try {
       const result = await b.autoApply(jobs, {
         minMatch: minMatch,
-        delayMin: delayMin,
-        delayMax: delayMax,
+        delayMin: throttle.delayMin,
+        delayMax: throttle.delayMax,
         greeting: greeting,
         profile: profile,
         sendResume: body?.sendResume !== false,
@@ -441,6 +689,97 @@ export async function handleApply(req, res, body) {
   } catch (e) {
     state.lastError = e.message;
     liveLog.add("投递异常: " + (e.message || "").slice(0, 120));
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+// ─── M2-A 待确认队列 API ───
+// GET /api/review：列出 pending（岗位摘要 + 决策理由）与已放行数量
+export function handleReviewList(req, res) {
+  try {
+    reviewQueue.ensureTable();
+    const rows = reviewQueue.findPending();
+    const profile = getProfile();
+    const items = rows.map(function (r) {
+      const j = jobDb.findById(r.jobId);
+      const s = j ? scoreJob(j, profile) : null;
+      return {
+        id: r.id,
+        jobId: r.jobId,
+        score: r.score,
+        decision: r.decision,
+        reason: r.reason || "",
+        status: r.status,
+        createdAt: r.createdAt,
+        job: j ? {
+          id: j.id,
+          title: j.title,
+          companyName: getJobCompanyName(j),
+          city: j.city || "",
+          district: j.district || "",
+          salaryRaw: j.salaryRaw || "",
+          technologies: j.technologies || "",
+          url: j.url || "",
+          status: j.status || "active",
+        } : null,
+        liveScore: s ? s.score : null,
+      };
+    });
+    const stats = reviewQueue.countByStatus();
+    json(res, { ok: true, review: items, pending: items.length, approved: stats.approved || 0, stats: stats });
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+// POST /api/review/approve  body {id}：批准后转入下次投递集合
+export function handleReviewApprove(req, res, body) {
+  try {
+    reviewQueue.ensureTable();
+    const id = Number(body?.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      json(res, { ok: false, error: "id 无效" }, 400);
+      return;
+    }
+    const row = reviewQueue.findById(id);
+    if (!row) {
+      json(res, { ok: false, error: "待确认记录不存在" }, 404);
+      return;
+    }
+    if (row.status !== "pending") {
+      json(res, { ok: false, error: "记录状态为 " + row.status + "，不能重复批准" }, 409);
+      return;
+    }
+    reviewQueue.approve(id);
+    liveLog.add(`待确认队列: 放行 #${id} (job ${row.jobId}, score ${row.score})，将进入下次投递`);
+    json(res, { ok: true, review: reviewQueue.findById(id) });
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+// POST /api/review/reject  body {id}
+export function handleReviewReject(req, res, body) {
+  try {
+    reviewQueue.ensureTable();
+    const id = Number(body?.id);
+    if (!Number.isFinite(id) || id <= 0) {
+      json(res, { ok: false, error: "id 无效" }, 400);
+      return;
+    }
+    const row = reviewQueue.findById(id);
+    if (!row) {
+      json(res, { ok: false, error: "待确认记录不存在" }, 404);
+      return;
+    }
+    if (row.status !== "pending") {
+      json(res, { ok: false, error: "记录状态为 " + row.status + "，不能重复处理" }, 409);
+      return;
+    }
+    reviewQueue.reject(id);
+    liveLog.add(`待确认队列: 拒绝 #${id} (job ${row.jobId})`);
+    json(res, { ok: true, review: reviewQueue.findById(id) });
+  } catch (e) {
     json(res, { ok: false, error: e.message }, 500);
   }
 }

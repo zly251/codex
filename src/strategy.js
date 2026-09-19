@@ -2,8 +2,7 @@
 // recommended minimum match threshold.
 import * as applicationDb from "./db/application.js";
 import * as jobDb from "./db/job.js";
-
-const BASE_WEIGHTS = { skill: 0.6, experience: 0.2, education: 0.2 };
+import { BASE_WEIGHTS } from "./scoring.js"; // M1: 权重单一来源（含 distance/dormitory）
 
 export function buildStrategy() {
   const apps = applicationDb.findAll();

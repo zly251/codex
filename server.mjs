@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewReject } from "./src/routes.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -426,6 +426,26 @@ var httpServer = http.createServer(function(req, res) {
     return;
   }
 
+  if (p === "/api/review" && req.method === "GET") { handleReviewList(req, res); return; }
+  if (p === "/api/review/approve" && req.method === "POST") {
+    var rvBody = "";
+    req.on("data", function(c) { rvBody += c; });
+    req.on("end", async function() {
+      try { await handleReviewApprove(req, res, rvBody ? JSON.parse(rvBody) : {}); }
+      catch (e) { json(res, { ok: false, error: e.message }, 500); }
+    });
+    return;
+  }
+  if (p === "/api/review/reject" && req.method === "POST") {
+    var rjBody = "";
+    req.on("data", function(c) { rjBody += c; });
+    req.on("end", async function() {
+      try { await handleReviewReject(req, res, rjBody ? JSON.parse(rjBody) : {}); }
+      catch (e) { json(res, { ok: false, error: e.message }, 500); }
+    });
+    return;
+  }
+
   if (p.startsWith("/api/boss")) {
     if (req.method === "GET") {
       if (p === "/api/boss/status") { json(res, getBossStatus()); return; }
@@ -441,6 +461,7 @@ var httpServer = http.createServer(function(req, res) {
           if (p === "/api/boss/connect") { await handleConnect(req, res, data); }
           else if (p === "/api/boss/launch") { await handleLaunch(req, res, data); }
           else if (p === "/api/boss/search") { await handleSearch(req, res, data); }
+          else if (p === "/api/boss/enrich") { await handleEnrich(req, res, data); }
           else if (p === "/api/boss/apply") { await handleApply(req, res, data); }
           else if (p === "/api/boss/stop") { handleChatStop(req, res); }
           else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }

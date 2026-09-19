@@ -1,9 +1,27 @@
+import fs from "node:fs";
+import path from "node:path";
 import { TECH_KEYWORDS } from "./utils/skills.js";
+import { PROJECT_ROOT } from "./paths.js";
 
 const DEFAULT_ZHIPU_BASE_URL = "https://open.bigmodel.cn/api/paas/v4";
 const DEFAULT_ZHIPU_MODEL = "glm-4.7-flash";
 const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_DEEPSEEK_MODEL = "deepseek-chat";
+// M3：本机 3010 OpenAI 兼容网关（qwen3.8-flash）。max_tokens 在该网关不生效，
+// 控长度全部靠提示词硬约束（见 GATEWAY_SYSTEM_PROMPT）。
+const DEFAULT_GATEWAY_BASE_URL = "http://127.0.0.1:3010/v1";
+const DEFAULT_GATEWAY_MODEL = "qwen3.8-flash";
+const DEFAULT_CHAT_TIMEOUT_MS = 30000;
+const CARD_HEADING = "候选人底细:";
+const CARD_BEGIN = "[[CANDIDATE_CARD_BEGIN]]";
+const CARD_END = "[[CANDIDATE_CARD_END]]";
+const CARD_WHITELIST_BEGIN = "<!-- WHITELIST-BEGIN -->";
+const CARD_WHITELIST_END = "<!-- WHITELIST-END -->";
+// 卡片中没有 WHITELIST 标记时，按这些层级标题取白名单词；命中排除标题的层级不取。
+const CARD_TIER_INCLUDE_RE = /(能独立干活|用过能讲清)/;
+const CARD_TIER_EXCLUDE_RE = /(仅了解|只是接触|只是接触过|缺口|红线|不能说|禁止)/;
+const GATEWAY_SYSTEM_PROMPT =
+  "你是求职者本人，正在招聘平台和 HR 聊天。回复不超过80字，口语化，模拟本人语气，不要用“作为AI”等身份表述；只使用候选人底细卡和简历里的事实，不会就说不会；直接输出要发送的回复内容，不要输出任何解释。";
 
 const COMMON_SKILL_TERMS = [
   ...TECH_KEYWORDS,
@@ -316,44 +334,190 @@ export function extractPositiveClaims(reply) {
 }
 
 export function getProviderConfig(env = process.env) {
+  const gatewayKey = trimText(env.QODER_GATEWAY_API_KEY);
   const zhipuKey = trimText(env.ZHIPU_API_KEY);
   const deepseekKey = trimText(env.DEEPSEEK_API_KEY);
   const override = String(env.LLM_PROVIDER || "").trim().toLowerCase();
 
-  let provider;
+  // 真实可用的 provider（有 key 才算可用）
+  const available = [];
+  if (gatewayKey) available.push("localgateway");
+  if (zhipuKey) available.push("zhipu");
+  if (deepseekKey) available.push("deepseek");
+
+  const DEFAULT_ORDER = ["localgateway", "zhipu", "deepseek"];
+  const warnings = [];
+
+  let order;
   if (override === "template") {
-    provider = "template";
-  } else if (override === "zhipu") {
-    provider = zhipuKey ? "zhipu" : deepseekKey ? "deepseek" : "template";
-  } else if (override === "deepseek") {
-    provider = deepseekKey ? "deepseek" : zhipuKey ? "zhipu" : "template";
-  } else if (zhipuKey) {
-    provider = "zhipu";
-  } else if (deepseekKey) {
-    provider = "deepseek";
+    order = [];
+  } else if (
+    override === "localgateway" ||
+    override === "zhipu" ||
+    override === "deepseek"
+  ) {
+    // 尊重显式指定：指定项排第一，其余按默认顺序补上，保留跨 provider 重试。
+    // 指定项没有 key 时给出 warning（沿用既有缺 key 的处理风格）。
+    if (override === "localgateway" && !gatewayKey) {
+      warnings.push(
+        "LLM_PROVIDER=localgateway 但未配置 QODER_GATEWAY_API_KEY，已回退到其他可用提供方或模板"
+      );
+    } else if (override === "zhipu" && !zhipuKey) {
+      warnings.push(
+        "LLM_PROVIDER=zhipu 但未配置 ZHIPU_API_KEY，已回退到其他可用提供方或模板"
+      );
+    } else if (override === "deepseek" && !deepseekKey) {
+      warnings.push(
+        "LLM_PROVIDER=deepseek 但未配置 DEEPSEEK_API_KEY，已回退到其他可用提供方或模板"
+      );
+    }
+    const rest = DEFAULT_ORDER.filter((name) => name !== override);
+    order = [override, ...rest].filter((name) => available.includes(name));
+  } else if (override) {
+    // 未知 override：无法点名具体提供方，按默认优先级链处理并记录 warning
+    warnings.push(
+      `LLM_PROVIDER=${override} 不是已注册的提供方，已按默认优先级链（localgateway→zhipu→deepseek→template）选择`
+    );
+    order = DEFAULT_ORDER.filter((name) => available.includes(name));
   } else {
-    provider = "template";
+    order = DEFAULT_ORDER.filter((name) => available.includes(name));
   }
 
+  if (gatewayKey && !trimText(env.QODER_GATEWAY_BASE_URL)) {
+    // 未显式配置 baseUrl 时静默使用本机默认端口，不视为错误
+  }
+
+  const provider = order[0] || "template";
   const warning =
     override === "zhipu" && !zhipuKey
-      ? "LLM_PROVIDER=zhipu 但未配置 ZHIPU_API_KEY，已回退到其他可用提供方或模板"
-      : null;
+      ? // 保持与 M3 之前完全一致的首要 warning 文案（既有测试断言该字段）
+        "LLM_PROVIDER=zhipu 但未配置 ZHIPU_API_KEY，已回退到其他可用提供方或模板"
+      : warnings[0] || null;
 
   return {
     provider,
     warning,
+    warnings,
+    // 降级链：按顺序尝试的真实 provider；template 作为链尾兜底
+    chain: [...order, "template"],
+    localgateway: {
+      apiKey: gatewayKey,
+      baseUrl:
+        trimText(env.QODER_GATEWAY_BASE_URL) || DEFAULT_GATEWAY_BASE_URL,
+      model: trimText(env.QODER_GATEWAY_MODEL) || DEFAULT_GATEWAY_MODEL,
+      // 网关实测 max_tokens 不生效，不发该参数，长度靠 system 提示硬约束
+      omitMaxTokens: true,
+      systemPrompt: GATEWAY_SYSTEM_PROMPT,
+    },
     zhipu: {
       apiKey: zhipuKey,
       baseUrl: trimText(env.ZHIPU_BASE_URL) || DEFAULT_ZHIPU_BASE_URL,
       model: trimText(env.ZHIPU_MODEL) || DEFAULT_ZHIPU_MODEL,
+      omitMaxTokens: false,
+      systemPrompt: "",
     },
     deepseek: {
       apiKey: deepseekKey,
       baseUrl: trimText(env.DEEPSEEK_BASE_URL) || DEFAULT_DEEPSEEK_BASE_URL,
       model: trimText(env.DEEPSEEK_MODEL) || DEFAULT_DEEPSEEK_MODEL,
+      omitMaxTokens: false,
+      systemPrompt: "",
     },
   };
+}
+
+const CANDIDATE_CARD_REL = path.join("prompts", "candidate-card.md");
+
+function candidateCardEnv(env) {
+  return env && typeof env === "object" ? env : process.env;
+}
+
+// 底细卡路径解析（沿用 paths.js 风格：显式 env 优先，其次数据目录/仓库根下 prompts/）。
+// 优先级：显式参数 > JOB_AGENT_CANDIDATE_CARD_PATH > <JOB_AGENT_DATA_DIR>/prompts/ > <repo>/prompts/
+export function resolveCandidateCardPath(env = process.env, explicitPath = "") {
+  const e = candidateCardEnv(env);
+  const explicit = trimText(explicitPath) || trimText(e.JOB_AGENT_CANDIDATE_CARD_PATH);
+  if (explicit) return explicit;
+  const candidates = [];
+  const dataDir = trimText(e.JOB_AGENT_DATA_DIR);
+  if (dataDir) candidates.push(path.join(dataDir, CANDIDATE_CARD_REL));
+  candidates.push(path.join(PROJECT_ROOT, CANDIDATE_CARD_REL));
+  for (const candidate of candidates) {
+    try {
+      if (fs.existsSync(candidate) && fs.statSync(candidate).isFile()) {
+        return candidate;
+      }
+    } catch (err) {
+      /* ignore */
+    }
+  }
+  return "";
+}
+
+// 读取并清洗底细卡；不存在/读取失败返回空串（维持现状，不影响原有行为）。
+export function loadCandidateCardText(env = process.env, explicitPath = "") {
+  const filePath = resolveCandidateCardPath(env, explicitPath);
+  if (!filePath) return "";
+  try {
+    const raw = fs.readFileSync(filePath, "utf8");
+    return sanitizePromptText(String(raw || "").trim());
+  } catch (err) {
+    return "";
+  }
+}
+
+// 从底细卡文本中提炼"可声明能力"词表。
+// 优先取显式标记区 <!-- WHITELIST-BEGIN/END -->；否则按层级标题（## / ###）判断：
+// 标题含"能独立干活"或"用过能讲清"的段落取词，含"仅了解/缺口/红线"的段落跳过。
+export function candidateCardWhitelistTerms(cardText) {
+  const text = String(cardText || "");
+  if (!text) return [];
+  let scope = text;
+  const b = text.indexOf(CARD_WHITELIST_BEGIN);
+  const e = text.indexOf(CARD_WHITELIST_END);
+  if (b !== -1 && e !== -1 && e > b) {
+    scope = text.slice(b + CARD_WHITELIST_BEGIN.length, e);
+    const terms = new Set();
+    // 显式标记区按顿号/逗号/分号/换行切条目（去掉括号注释），
+    // 中文短语整条直接进白名单；ASCII 词再走词典/分词兜底。
+    for (const rawEntry of scope.split(/[、，,;；\n]+/)) {
+      const entry = rawEntry
+        .replace(/（[^）]*）/g, "")
+        .replace(/\([^)]*\)/g, "")
+        .trim();
+      if (entry.length >= 2) terms.add(normalizeTerm(entry));
+    }
+    for (const term of skillTermsFromText(scope)) {
+      const t = normalizeTerm(term);
+      if (t) terms.add(t);
+    }
+    return Array.from(terms);
+  }
+  const kept = [];
+  let collecting = false;
+  for (const line of scope.split(/\r?\n/)) {
+    const heading = /^(?:#{1,6})\s+(.*)$/.exec(line.trim());
+    if (heading) {
+      const title = heading[1];
+      if (CARD_TIER_EXCLUDE_RE.test(title)) {
+        collecting = false;
+        continue;
+      }
+      collecting = CARD_TIER_INCLUDE_RE.test(title);
+      if (collecting) kept.push(title);
+      continue;
+    }
+    if (collecting) kept.push(line);
+  }
+  return Array.from(
+    new Set(skillTermsFromText(kept.join("\n")).map(normalizeTerm).filter(Boolean))
+  );
+}
+
+function formatCandidateCardBlock(cardText) {
+  const body = sanitizePromptText(trimText(cardText));
+  if (!body) return "";
+  return [CARD_HEADING, CARD_BEGIN, body, CARD_END].join("\n");
 }
 
 export function buildSafeResumeText({
@@ -361,6 +525,9 @@ export function buildSafeResumeText({
   resume,
   resumeEditor,
   expectedSalary,
+  candidateCard,
+  candidateCardPath,
+  env,
 } = {}) {
   const r = {};
   for (const source of [profile, resume, resumeEditor]) {
@@ -410,6 +577,15 @@ export function buildSafeResumeText({
     if (line) lines.push(`教育经历: ${line}`);
   }
 
+  // 底细卡注入：存在则作为"候选人底细"块放在最前，补充（不替换）简历拼装；
+  // 不存在则完全维持现状。卡片文本再过一遍 sanitizePromptText。
+  const cardText =
+    typeof candidateCard === "string"
+      ? candidateCard
+      : loadCandidateCardText(env, candidateCardPath);
+  const cardBlock = formatCandidateCardBlock(cardText);
+  if (cardBlock) lines.unshift(cardBlock);
+
   return lines.join("\n");
 }
 
@@ -424,6 +600,9 @@ export function buildReplyPrompt({
   safeResumeText,
   chatText,
   expectedSalary,
+  candidateCard,
+  candidateCardPath,
+  env,
 } = {}) {
   const p = profile || {};
   const j = job || {};
@@ -456,10 +635,32 @@ export function buildReplyPrompt({
   const safeResume = sanitizePromptText(
     trimText(
       safeResumeText ||
-        buildSafeResumeText({ profile, resume, resumeEditor, expectedSalary })
+        buildSafeResumeText({
+          profile,
+          resume,
+          resumeEditor,
+          expectedSalary,
+          candidateCard,
+          candidateCardPath,
+          env,
+        })
     )
   );
   const chatContext = trimText(sanitizePromptText(chatText || ""));
+
+  // 底细卡可能已随 safeResumeText 传入（调用方预拼），也可能需要这里自己加载。
+  // 已含卡片时不重复注入，但"唯一来源"规则行在两种情况下都要出现。
+  const cardText =
+    typeof candidateCard === "string"
+      ? candidateCard
+      : loadCandidateCardText(env, candidateCardPath);
+  const cardAlreadyInside =
+    safeResume.includes(CARD_HEADING) || safeResume.includes(CARD_BEGIN);
+  const cardPresent = cardAlreadyInside || !!trimText(cardText);
+  const cardBlock =
+    !cardAlreadyInside && trimText(cardText)
+      ? formatCandidateCardBlock(cardText)
+      : "";
 
   const lines = [
     "你是求职者本人，正在招聘平台和 HR 聊天。请用自然、口语化、不客套的中文回复，像真人求职者沟通，不要使用“作为AI”等身份表述。",
@@ -468,6 +669,14 @@ export function buildReplyPrompt({
     "- 只能使用下方简历/个人资料中已经出现的能力、技能、项目、经历和学历。",
     "- 严禁使用模型通用知识编造简历和个人资料中不存在的技能、项目、工作经历、学历或成果。",
     "- 如果 HR 的问题涉及没有写在简历/资料中的能力，用已有信息回应，不得虚构。",
+    ...(cardPresent
+      ? [
+          "- 候选人底细卡是事实与口径的唯一来源：卡内没有的能力、经历、数字一律不认领。",
+          "- 底细卡里没有、又需要本人拍板的问题（薪资具体数字、面试邀约、Offer、条款确认），回答要保守，不承诺、不编造。",
+        ]
+      : []),
+    "",
+    "长度与语气：回复不超过80字，口语化，模拟本人口径，短句为主，不客套堆话。",
     "",
     "薪资规则：",
     `- 期望薪资是谈判底线${salary ? `：${salary}` : "（以个人资料为准）"}。`,
@@ -496,6 +705,7 @@ export function buildReplyPrompt({
     `个人优势：${sanitizePromptText(trimText(p.summary || ""))}`,
     `期望薪资：${salary}`,
     "",
+    cardBlock,
     "完整简历：",
     safeResume || "（暂无完整简历文本）",
     "",
@@ -507,16 +717,29 @@ export function buildReplyPrompt({
     "请直接输出要发送给 HR 的回复内容，20-80字，不要输出前后说明。",
   ];
 
-  return lines.join("\n");
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n");
 }
 
 export function extractSkillWhitelist(profile, resumeText, resume = {}) {
   const p = profile || {};
   const r = resume || {};
+  const fullText = String(resumeText || "");
+  // 底细卡块单独处理：只有"能独立干活/用过能讲清"层（或显式 WHITELIST 标记区）
+  // 的词进白名单，"仅了解"层不进；卡片其余部分不参与白名单提取。
+  let cardExtraTerms = [];
+  let resumeTextWithoutCard = fullText;
+  const cb = fullText.indexOf(CARD_BEGIN);
+  const ce = fullText.indexOf(CARD_END);
+  if (cb !== -1 && ce !== -1 && ce > cb) {
+    const cardBody = fullText.slice(cb + CARD_BEGIN.length, ce);
+    resumeTextWithoutCard =
+      fullText.slice(0, cb) + fullText.slice(ce + CARD_END.length);
+    cardExtraTerms = candidateCardWhitelistTerms(cardBody);
+  }
   const safeResumeView = /(?:目标岗位|技能|经验|学历|期望薪资|个人优势|工作经历|项目经历|教育经历)\s*[:：]/.test(
-    String(resumeText || "")
+    resumeTextWithoutCard
   )
-    ? String(resumeText || "")
+    ? resumeTextWithoutCard
     : "";
   const structuredProfileKeys = [
     "skills",
@@ -569,6 +792,9 @@ export function extractSkillWhitelist(profile, resumeText, resume = {}) {
       terms.add(normalizeTerm(term));
     }
   }
+  for (const term of cardExtraTerms) {
+    if (term) terms.add(normalizeTerm(term));
+  }
   return Array.from(terms);
 }
 
@@ -613,6 +839,14 @@ export function classifyIntent(hrMsg) {
     /面试|面谈|复试|初试|视频面试|线下面试|到面|hr面/.test(text);
   const interviewScheduling =
     /时间|地点|地址|日期|安排|约|预约|通知|确认|几点|什么时候|在哪|哪里|方便面试/.test(text);
+  // 裸邀约兜底规则：真实 HR 常用"明天上午10点来面试吧"这类不带"时间/地点"字样的邀约。
+  // 宁可过拦（转人工无害），不可漏放（AI 代答面试邀约=红线事故）。
+  // 此规则不看 salary——面试邀约+薪资词混在一起时也必须转人工。
+  const interviewInviteSignals =
+    /(明天|后天|今天|本周|下周|周[一二三四五六日天]|\d+点|\d+号|上午|下午|来|到|参加|安排|约|定)/.test(
+      text
+    );
+  const interviewInvite = interviewMention && interviewInviteSignals;
   const interviewPlaceTime = interviewMention && interviewScheduling;
   const salary =
     /薪资|工资|待遇|薪酬|多少钱|期望薪/.test(text);
@@ -623,6 +857,13 @@ export function classifyIntent(hrMsg) {
     return {
       needManual: true,
       kind: "offer",
+      reason: "面试/Offer需人工确认",
+    };
+  }
+  if (interviewInvite) {
+    return {
+      needManual: true,
+      kind: "interview",
       reason: "面试/Offer需人工确认",
     };
   }
@@ -666,6 +907,34 @@ function chatCompletionsUrl(baseUrl, provider) {
   return `${clean}/chat/completions`;
 }
 
+// 错误分类：只描述类别，绝不携带 key 或响应正文
+class LlmCallError extends Error {
+  constructor(kind, message) {
+    super(message || kind);
+    this.name = "LlmCallError";
+    this.kind = kind; // network | http | timeout | parse | empty
+  }
+}
+
+function classifyErrorKind(error) {
+  if (error instanceof LlmCallError) return error.kind;
+  const msg = String(error?.message || "");
+  if (/abort|timeout|timed out/i.test(msg)) return "timeout";
+  if (/fetch failed|network|ECONNREFUSED|ENOTFOUND|socket|ECONNRESET|EAI_AGAIN/i.test(msg)) {
+    return "network";
+  }
+  return "network";
+}
+
+function describeError(error) {
+  const kind = classifyErrorKind(error);
+  const msg = String(error?.message || "")
+    .replace(/Bearer\s+\S+/gi, "Bearer [REDACTED]")
+    .replace(/https?:\/\/\S+/g, "[url]")
+    .slice(0, 80);
+  return { kind, msg };
+}
+
 export async function chatCompletion({
   messages,
   apiKey,
@@ -674,35 +943,102 @@ export async function chatCompletion({
   provider,
   maxTokens = 200,
   temperature = 0.8,
+  timeoutMs = DEFAULT_CHAT_TIMEOUT_MS,
+  omitMaxTokens = false,
+  systemPrompt = "",
   fetchImpl,
 } = {}) {
   const fetchFn = fetchImpl || globalThis.fetch;
   if (typeof fetchFn !== "function") {
-    throw new Error("no fetch implementation");
+    throw new LlmCallError("network", "no fetch implementation");
+  }
+  if (!trimText(apiKey)) {
+    throw new LlmCallError("config", `${provider || "provider"} 缺少 API key`);
+  }
+  const finalMessages = [];
+  if (trimText(systemPrompt)) {
+    finalMessages.push({ role: "system", content: sanitizePromptText(systemPrompt) });
+  }
+  for (const m of Array.isArray(messages) ? messages : []) {
+    if (m && typeof m.content === "string") {
+      finalMessages.push({ ...m, content: sanitizePromptText(m.content) });
+    } else if (m) {
+      finalMessages.push(m);
+    }
   }
   const url = chatCompletionsUrl(baseUrl, provider);
-  const response = await fetchFn(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      max_tokens: maxTokens,
-      temperature,
-    }),
-  });
+  const payload = {
+    model,
+    messages: finalMessages,
+    temperature,
+  };
+  if (!omitMaxTokens) {
+    payload.max_tokens = maxTokens;
+  }
+
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, Math.max(1, Number(timeoutMs) || 1))
+      : null;
+  let response;
+  try {
+    response = await fetchFn(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    if (timedOut || e?.name === "AbortError") {
+      throw new LlmCallError("timeout", `LLM 请求超时（${timeoutMs}ms）`);
+    }
+    throw new LlmCallError(classifyErrorKind(e), `LLM 网络错误（provider=${provider || "unknown"}）`);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
   if (!response || response.ok === false) {
     const status = response?.status || 0;
-    const message =
-      (await response?.text?.().catch(() => "")) || `LLM request failed ${status}`;
-    throw new Error(message);
+    // 不读取/不打印响应正文，避免泄露任何 key 或原始内容
+    throw new LlmCallError("http", `LLM 请求失败 HTTP ${status}（provider=${provider || "unknown"}）`);
   }
-  const data = await response.json();
+  let data;
+  try {
+    data = await response.json();
+  } catch (e) {
+    throw new LlmCallError("parse", "LLM 响应 JSON 解析失败");
+  }
   const text = trimText(data?.choices?.[0]?.message?.content);
+  if (!text) {
+    throw new LlmCallError("empty", "LLM 返回内容为空");
+  }
   return { text, raw: data };
+}
+
+function emitWarning(options, message) {
+  if (typeof options?.onWarning === "function") {
+    try {
+      options.onWarning(message);
+      return;
+    } catch (e) {
+      return;
+    }
+  }
+  if (typeof options?.log === "function") {
+    try {
+      options.log(message);
+    } catch (e) {
+      /* ignore */
+    }
+  }
 }
 
 export async function generateReply(hrMsg, name, skills, options = {}) {
@@ -717,12 +1053,12 @@ export async function generateReply(hrMsg, name, skills, options = {}) {
   }
 
   const config = getProviderConfig(options.env || process.env);
-  if (config.warning) {
-    if (typeof options.onWarning === "function") options.onWarning(config.warning);
-    else if (typeof options.log === "function") options.log(config.warning);
-  }
-  if (config.provider === "template") {
-    return templateReply(hrMsg, name, skills, options);
+  for (const warningMessage of config.warnings?.length
+    ? config.warnings
+    : config.warning
+      ? [config.warning]
+      : []) {
+    emitWarning(options, warningMessage);
   }
 
   const prompt = buildReplyPrompt({
@@ -745,32 +1081,64 @@ export async function generateReply(hrMsg, name, skills, options = {}) {
     safeResumeForWhitelist,
     options.resume || options.resumeEditor
   );
-  const providerConfig =
-    config.provider === "zhipu" ? config.zhipu : config.deepseek;
-
-  try {
-    const completion = await chatCompletion({
-      messages: [{ role: "user", content: prompt }],
-      apiKey: providerConfig.apiKey,
-      baseUrl: providerConfig.baseUrl,
-      model: providerConfig.model,
-      provider: config.provider,
-      fetchImpl: options.fetchImpl,
-      maxTokens: options.maxTokens,
-      temperature: options.temperature,
-    });
-    const reply = String(completion.text || "").slice(0, 200).trim();
-    if (!reply) return templateReply(hrMsg, name, skills, options);
-    const validation = validateReplyForCapabilities(reply, whitelist);
-    if (!validation.ok) {
-      return {
-        ok: false,
-        reason: "capability_guard",
-        reply: CAPABILITY_GUARD_REPLY,
-      };
-    }
-    return reply;
-  } catch (e) {
+  // 跨 provider 重试链：按 getProviderConfig 给出的顺序依次尝试真实可用的
+  // provider（localgateway → zhipu → deepseek），全部失败才落 templateReply。
+  const chain = (Array.isArray(config.chain) ? config.chain : []).filter(
+    (p) => p !== "template"
+  );
+  if (chain.length === 0) {
     return templateReply(hrMsg, name, skills, options);
   }
+
+  let lastErrorKind = "";
+  for (const providerName of chain) {
+    const providerConfig = config[providerName];
+    if (!providerConfig || !trimText(providerConfig.apiKey)) continue;
+    try {
+      const completion = await chatCompletion({
+        messages: [{ role: "user", content: prompt }],
+        apiKey: providerConfig.apiKey,
+        baseUrl: providerConfig.baseUrl,
+        model: providerConfig.model,
+        provider: providerName,
+        fetchImpl: options.fetchImpl,
+        maxTokens: options.maxTokens,
+        temperature: options.temperature,
+        timeoutMs: options.llmTimeoutMs ?? DEFAULT_CHAT_TIMEOUT_MS,
+        omitMaxTokens: !!providerConfig.omitMaxTokens,
+        systemPrompt: providerConfig.systemPrompt,
+      });
+      const reply = String(completion.text || "").slice(0, 200).trim();
+      if (!reply) {
+        lastErrorKind = "empty";
+        emitWarning(
+          options,
+          `[llm] provider=${providerName} 错误类别=empty，已尝试下一个提供方`
+        );
+        continue;
+      }
+      const validation = validateReplyForCapabilities(reply, whitelist);
+      if (!validation.ok) {
+        return {
+          ok: false,
+          reason: "capability_guard",
+          reply: CAPABILITY_GUARD_REPLY,
+        };
+      }
+      return reply;
+    } catch (e) {
+      const { kind, msg } = describeError(e);
+      lastErrorKind = kind;
+      const nextProvider = chain[chain.indexOf(providerName) + 1] || "template";
+      emitWarning(
+        options,
+        `[llm] provider=${providerName} 错误类别=${kind}（${msg}），降级到 ${nextProvider}`
+      );
+    }
+  }
+
+  if (lastErrorKind) {
+    emitWarning(options, `[llm] 全部提供方失败（最后类别=${lastErrorKind}），已落模板回复`);
+  }
+  return templateReply(hrMsg, name, skills, options);
 }

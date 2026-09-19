@@ -23,6 +23,31 @@ function migrateLegacyDb() {
   }
 }
 
+// M1: 距离/宿舍列迁移。老库（表已存在）不会重跑 CREATE TABLE，故用逐列
+// ALTER，重复列（"duplicate column name"）直接忽略，幂等。
+function migrateJobDistanceColumns() {
+  var d = getDb();
+  var alters = [
+    "ALTER TABLE Job ADD COLUMN lng REAL",
+    "ALTER TABLE Job ADD COLUMN lat REAL",
+    "ALTER TABLE Job ADD COLUMN distanceKm REAL",
+    "ALTER TABLE Job ADD COLUMN distanceTier TEXT",
+    "ALTER TABLE Job ADD COLUMN hasDormitory INTEGER",
+    "ALTER TABLE Job ADD COLUMN dormitorySource TEXT",
+  ];
+  for (var i = 0; i < alters.length; i++) {
+    try {
+      d.exec(alters[i] + ";");
+      console.log("[db] job column added: " + alters[i]);
+    } catch (e) {
+      // 列已存在 -> 忽略；其它错误也仅告警，不阻断启动
+      if (!/duplicate column name/i.test(String(e && e.message))) {
+        console.error("[db] migrate job columns failed: " + (e && e.message));
+      }
+    }
+  }
+}
+
 function applicationStatusRank(status) {
   if (status === "offer") return 5;
   if (status === "interview") return 4;
@@ -77,6 +102,7 @@ export function getDbPath() { return DB_PATH; }
 export function initDb() {
     var d = getDb();
     d.exec(SCHEMA_SQL);
+    migrateJobDistanceColumns();
     migrateDuplicateApplications();
     d.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_application_jobId_unique ON Application(jobId);");
     console.log("[db] DB ready: " + DB_PATH);

@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.mjs",
     "import:resume": "npx tsx scripts/import-resume.ts",
-    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs",
+    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs && node scripts/test-m1-distance.mjs && node scripts/test-m2-scheduler.mjs && node scripts/test-m3-llm.mjs",
     "build:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/generate-app-icon.ps1",
     "build:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-exe.ps1"
   },
@@ -23,7 +23,6 @@
     "esbuild": "^0.28.0",
     "postject": "^1.0.0-alpha.6",
     "rcedit": "^4.0.1",
-    "tsx": "^4.0.0",
-    "typescript": "^5.0.0"
+    "tsx": "^4.0.0"
   }
 }
