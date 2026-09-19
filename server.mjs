@@ -144,9 +144,11 @@ function apiStats(req, res) {
   var appStats = application.getStats();
   var strategy = buildStrategy();
   json(res, {
-    totalJobs: job.search({}).length,
-    activeJobs: job.search({ status: 'active' }).length,
-    closedJobs: job.search({ status: 'closed' }).length,
+    // 用 count() 而不是 search().length：search 默认 LIMIT 50，库里有 156 个岗位时
+    // 面板永远显示"总岗位 50"，与投递/队列看到的对不上（2026-09-19 实测）。
+    totalJobs: job.count({}),
+    activeJobs: job.count({ status: 'active' }),
+    closedJobs: job.count({ status: 'closed' }),
     totalResumes: resume.findAll().length,
     totalApplications: application.findAll().length,
     pending: appStats.pending || 0,
