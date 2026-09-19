@@ -17,6 +17,51 @@ export const DISTANCE_SUBSCORE = {
   OUT_OF_CITY: 0,     // 跨市
 };
 
+// 主投方向闸门（2026-09-19 用户签字：过渡岗为主，技术辅助类初级岗为次）。
+// 为什么需要它：评分是 skill/experience/education/distance 加权，过渡岗的 technologies
+// 基本为空 ⇒ 分数主要由"离家近"决定，于是后厨/护工/普工也能拿到 45 分进待确认队列；
+// 一旦一键放行就会给这些岗位发打招呼。方向闸门在评分之前把不对口的岗位剔掉。
+// 覆盖方式：调用方传 keywords（优先级更高）或 .env JOB_AGENT_DIRECTION_KEYWORDS。
+export const DEFAULT_DIRECTION_KEYWORDS = [
+  "外贸", "业务", "销售", "客服", "售前", "售后", "助理", "跟单", "采购", "内勤", "文员", "行政", "客户", "运营",
+  // 下面几个来自《个人真实能力地图》2026-08-30 结论 2「短时间可变就业的：AI 辅助开发/测试/产品验收方向的初级岗」
+  "数据", "文档", "资料", "技术支持", "实施", "测试",
+];
+
+export function directionKeywords(env = process.env) {
+  const raw = String(env.JOB_AGENT_DIRECTION_KEYWORDS || "").trim();
+  const list = raw ? raw.split(/[,，/|]/) : DEFAULT_DIRECTION_KEYWORDS;
+  return list.map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+}
+
+// 岗位是否落在主投方向关键词内（title/technologies/description 任一命中）。
+export function matchesDirection(job, keywords) {
+  const kws = keywords || directionKeywords();
+  if (!kws.length) return true;
+  const j = job || {};
+  const combined = [j.title, j.technologies, j.description].map(function (v) { return String(v || ""); }).join(" ").toLowerCase();
+  return kws.some(function (kw) { return combined.includes(kw); });
+}
+
+// 经验相关度（0-100，纯排序用，不参与 scoreJob 的加权总分——改了总分会让既有
+// 断言的期望值全部失效）。词来自《个人真实能力地图》里"真正能拿出来工作的"三项：
+// 需求定义与业务表达 L3、体感验收 L2-L3、AI 协作交付/文档体系 L2。
+export const EXPERIENCE_TERMS = [
+  "需求", "业务", "沟通", "对接", "验收", "质量", "文档", "资料", "整理", "归档",
+  "数据", "报表", "表格", "excel", "信息管理", "客户", "英语", "培训", "讲解", "演示",
+];
+
+export function experienceRelevance(job, terms) {
+  const list = terms || EXPERIENCE_TERMS;
+  const j = job || {};
+  const combined = [j.title, j.description, j.requirements, j.technologies]
+    .map(function (v) { return String(v || ""); }).join(" ").toLowerCase();
+  if (!combined.trim()) return 0;
+  let hits = 0;
+  for (const t of list) if (combined.includes(t)) hits++;
+  return Math.min(100, hits * 25);
+}
+
 function parseYears(str) {
   if (!str) return null;
   const s = String(str).replace(/年/g, "").trim();

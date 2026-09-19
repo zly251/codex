@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewReject } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject } from "./src/routes.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -432,6 +432,15 @@ var httpServer = http.createServer(function(req, res) {
     req.on("data", function(c) { rvBody += c; });
     req.on("end", async function() {
       try { await handleReviewApprove(req, res, rvBody ? JSON.parse(rvBody) : {}); }
+      catch (e) { json(res, { ok: false, error: e.message }, 500); }
+    });
+    return;
+  }
+  if (p === "/api/review/approve-all" && req.method === "POST") {
+    var raBody = "";
+    req.on("data", function(c) { raBody += c; });
+    req.on("end", function() {
+      try { handleReviewApproveAll(req, res, raBody ? JSON.parse(raBody) : {}); }
       catch (e) { json(res, { ok: false, error: e.message }, 500); }
     });
     return;

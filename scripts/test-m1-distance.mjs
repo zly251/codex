@@ -410,6 +410,32 @@ console.log("\n[effectiveTier] 已存 tier 优先，缺失即时推断");
   assert(effectiveTier({}) === "UNKNOWN", "无任何信息 → UNKNOWN");
 }
 
+// ─────────────────────────────────────────────
+console.log("\n[主投方向闸门 + 经验相关度]（2026-09-19：按签字方向与能力地图过滤/排序）");
+{
+  const { directionKeywords, matchesDirection, experienceRelevance, DEFAULT_DIRECTION_KEYWORDS } = await import("../src/scoring.js");
+  assert(matchesDirection({ title: "外贸业务员" }), "外贸业务员 → 通过方向闸门");
+  assert(matchesDirection({ title: "客服专员" }), "客服专员 → 通过方向闸门");
+  assert(matchesDirection({ title: "软件测试工程师" }), "软件测试工程师 → 通过（能力地图结论 2：测试方向初级岗）");
+  assert(!matchesDirection({ title: "后厨" }), "后厨 → 被方向闸门挡掉");
+  assert(!matchesDirection({ title: "护工陪护" }), "护工陪护 → 被方向闸门挡掉");
+  assert(!matchesDirection({ title: "中央空调维修普工" }), "空调维修普工 → 被方向闸门挡掉");
+  const before = process.env.JOB_AGENT_DIRECTION_KEYWORDS;
+  process.env.JOB_AGENT_DIRECTION_KEYWORDS = "只看这个";
+  assert(directionKeywords().join(",") === "只看这个", ".env JOB_AGENT_DIRECTION_KEYWORDS 可覆盖默认方向词");
+  assert(!matchesDirection({ title: "外贸业务员" }), "覆盖后默认词失效（确实以 env 为准）");
+  if (before === undefined) delete process.env.JOB_AGENT_DIRECTION_KEYWORDS;
+  else process.env.JOB_AGENT_DIRECTION_KEYWORDS = before;
+  assert(directionKeywords().includes("外贸"), "默认方向词含外贸");
+  assert(DEFAULT_DIRECTION_KEYWORDS.length >= 15, `默认方向词数量合理（${DEFAULT_DIRECTION_KEYWORDS.length}）`);
+
+  const good = experienceRelevance({ title: "外贸业务员", description: "负责客户沟通、订单资料整理与文档归档，需要英语" });
+  const bad = experienceRelevance({ title: "后厨", description: "负责备菜" });
+  assert(good > bad, `能力地图词命中多 → 相关度更高（${good} vs ${bad}）`);
+  assert(good >= 75 && good <= 100, `命中 3+ 词给到 75~100（${good}）`);
+  assert(experienceRelevance({ title: "x" }) === 0, "无 JD 正文 → 相关度 0（不瞎猜）");
+}
+
 // 清理临时库
 try { fs.unlinkSync(tmpDb); } catch {}
 

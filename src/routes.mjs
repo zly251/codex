@@ -18,7 +18,7 @@ import {
   DEFAULT_PROFILE,
   FALLBACK_PROFILE,
 } from "./edgeLauncher.js";
-import { scoreJob, decideJob, sortJobsForApplyWithDistance } from "./scoring.js";
+import { scoreJob, decideJob, sortJobsForApplyWithDistance, directionKeywords, matchesDirection, experienceRelevance } from "./scoring.js";
 import { applyDistanceToJob } from "./distance.js";
 import { enrichJobFromDetail, enrichmentPatch } from "./enrich.js";
 import { getPlatform } from "./platforms/index.js";
@@ -376,10 +376,13 @@ export async function handleEnrich(req, res, body) {
 
 function getDbEnrichCandidates() {
   // 缺 JD 正文 或 从未有宿舍来源 的活跃岗位（enrich 跑过但没找到宿舍时 dormitorySource 为空串/null，
-  // 为避免反复重跑同批无果岗位，只挑 description 为空的作为主信号）
+  // 为避免反复重跑同批无果岗位，只挑 description 为空的作为主信号）。
+  // 排序按"抓取时间"而不是 updatedAt：启动时的 refreshJobScores() 会把整表 updatedAt 刷成同一时刻，
+  // 一旦并列 SQLite 就退回 rowid 升序 ⇒ 刚搜到的新岗位（用户真正要投的那些）永远排在队尾，
+  // 增补只会去补三周前的老岗位（2026-09-19 实测：搜完外贸/客服后增补抓的是 id 25~76 的旧岗）。
   try {
     return getDb().prepare(
-      "SELECT * FROM Job WHERE (description IS NULL OR description = '') AND (status IS NULL OR status = 'active') ORDER BY updatedAt DESC"
+      "SELECT * FROM Job WHERE (description IS NULL OR description = '') AND (status IS NULL OR status = 'active') ORDER BY COALESCE(scrapedAt, updatedAt, '') DESC, id DESC"
     ).all();
   } catch (e) {
     return [];
@@ -536,6 +539,13 @@ export async function handleApply(req, res, body) {
         return keywords.some(function (kw) { return combined.includes(kw); });
       });
       liveLog.add(`关键词过滤: ${before} -> ${allJobs.length}`);
+    } else if (!jobId) {
+      // 没传关键词时按"主投方向"兜底（签字口径：过渡岗为主）。否则后厨/护工这类
+      // 只因离家近而够分的岗位会挤进待确认队列，一键放行就成了乱投。
+      const dir = directionKeywords();
+      const before = allJobs.length;
+      allJobs = allJobs.filter(function (j) { return matchesDirection(j, dir); });
+      liveLog.add(`主投方向兜底过滤: ${before} -> ${allJobs.length}（${dir.join("/")}；可在关键词框或 .env JOB_AGENT_DIRECTION_KEYWORDS 覆盖）`);
     }
 
     const profile = getProfile();
@@ -738,7 +748,14 @@ export function handleReviewList(req, res) {
           status: j.status || "active",
         } : null,
         liveScore: s ? s.score : null,
+        // 经验相关度：来自《个人真实能力地图》的能力词命中数（排序用，不进总分）
+        relevance: j ? experienceRelevance(j) : 0,
       };
+    });
+    // 先按经验相关度、再按分数排，让"跟我经历沾边"的岗位排在最上面
+    items.sort(function (a, b) {
+      if ((b.relevance || 0) !== (a.relevance || 0)) return (b.relevance || 0) - (a.relevance || 0);
+      return (b.liveScore || 0) - (a.liveScore || 0);
     });
     const stats = reviewQueue.countByStatus();
     json(res, { ok: true, review: items, pending: items.length, approved: stats.approved || 0, stats: stats });
@@ -768,6 +785,22 @@ export function handleReviewApprove(req, res, body) {
     reviewQueue.approve(id);
     liveLog.add(`待确认队列: 放行 #${id} (job ${row.jobId}, score ${row.score})，将进入下次投递`);
     json(res, { ok: true, review: reviewQueue.findById(id) });
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+// POST /api/review/approve-all  body {minScore?}：一键放行全部待确认（用户不想逐条点时用）。
+// minScore 给了就只放行分数达标的；返回实际放行条数。
+export function handleReviewApproveAll(req, res, body) {
+  try {
+    reviewQueue.ensureTable();
+    const minScore = Number(body?.minScore);
+    let rows = reviewQueue.findPending();
+    if (Number.isFinite(minScore)) rows = rows.filter((r) => Number(r.score) >= minScore);
+    for (const row of rows) reviewQueue.approve(row.id);
+    liveLog.add(`待确认队列: 一键放行 ${rows.length} 个，将进入下次投递`);
+    json(res, { ok: true, approved: rows.length });
   } catch (e) {
     json(res, { ok: false, error: e.message }, 500);
   }
