@@ -71,6 +71,11 @@ function extractAssets() {
     'tessdata/chi_sim.traineddata.gz': path.join(ROOT, 'tessdata', 'chi_sim.traineddata.gz'),
     'tessdata/eng.traineddata.gz': path.join(ROOT, 'tessdata', 'eng.traineddata.gz'),
     'server/server.cjs': path.join(ROOT, 'server', 'server.cjs'),
+    // 底细卡：exe 运行时 JOB_AGENT_ROOT=ROOT，而 resolveCandidateCardPath 只找
+    // <dataDir>/prompts 与 <PROJECT_ROOT>/prompts ⇒ 不随包资产发出去，桌面版就
+    // 完全没有底细卡（AI 提示词里没有事实卡、卡内白名单也为空）。与 .env 同样
+    // 每次启动从 blob 重新落地，仓库里的 prompts/candidate-card.md 是唯一来源。
+    'prompts/candidate-card.md': path.join(ROOT, 'prompts', 'candidate-card.md'),
     'worker/worker.cjs': path.join(ROOT, 'worker', 'worker.cjs'),
     'worker/tesseract-core-relaxedsimd-lstm.wasm': path.join(ROOT, 'worker', 'tesseract-core-relaxedsimd-lstm.wasm'),
     'worker/tesseract-core-relaxedsimd.wasm': path.join(ROOT, 'worker', 'tesseract-core-relaxedsimd.wasm'),

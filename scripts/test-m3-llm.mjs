@@ -497,7 +497,13 @@ section("G. 真实底细卡 prompts/candidate-card.md：白名单语义");
   const realPath = path.join(ROOT, "prompts", "candidate-card.md");
   ok(fs.existsSync(realPath), "真实底细卡文件存在");
   const card = fs.readFileSync(realPath, "utf8");
-  ok(card.includes("待用户签字确认"), "卡顶保留待签字确认标记");
+  // 2026-09-19：用户已就「年龄/期望薪资/到岗/主投方向」四项签字，卡顶标记由「待签字」改为「已签字」。
+  // 断言改为：卡顶必须带有明确的签字状态标记（未签 / 已签都算），防止将来被静默删掉。
+  ok(card.includes("待用户签字确认") || card.includes("已由用户签字确认"), "卡顶保留签字状态标记（未签/已签）");
+  if (card.includes("已由用户签字确认")) {
+    ok(!card.includes("〔待确认"), "已签字后卡内不再残留〔待确认〕字段");
+    ok(/不低于\s*4000/.test(card), "已签字卡片写明期望薪资底线 4000");
+  }
 
   const terms = candidateCardWhitelistTerms(card);
   ok(terms.length >= 12, `真实卡白名单 >=12 词（实际 ${terms.length}）`);

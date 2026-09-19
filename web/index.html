@@ -3121,7 +3121,7 @@ async function loadTasks() {
 
   h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">搜索参数</h3><p class="panel-desc">职位抓取配置</p></div></div>' +
     '<div class="form-grid">' +
-    '<div class="field"><label for="kw">关键词</label><input id="kw" value="C++"></div>' +
+    '<div class="field"><label for="kw">关键词</label><input id="kw" value="外贸业务员"></div>' +
     '<div class="field"><label for="city-input">城市</label><input id="city-input" placeholder="台州"></div>' +
     '<div class="field"><label for="pages">搜索页数</label><input id="pages" value="3" type="number"></div>' +
     '</div>' +
@@ -3215,7 +3215,7 @@ async function bossEnrich() {
 }
 
 async function bossSearch() {
-  var kw = document.getElementById("kw").value || "C++";
+  var kw = document.getElementById("kw").value || "外贸业务员";
   var city = document.getElementById("city-input").value || "";
   var pg = parseInt(document.getElementById("pages").value) || 3;
   var el = document.getElementById("sr");

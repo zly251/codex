@@ -7,6 +7,7 @@
     "tessdata/chi_sim.traineddata.gz": "tessdata/chi_sim.traineddata.gz",
     "tessdata/eng.traineddata.gz": "tessdata/eng.traineddata.gz",
     "server/server.cjs": "dist/sea-server.cjs",
+    "prompts/candidate-card.md": "prompts/candidate-card.md",
     "worker/worker.cjs": "dist/sea-worker.cjs",
     "worker/tesseract-core-relaxedsimd-lstm.wasm": "node_modules/tesseract.js-core/tesseract-core-relaxedsimd-lstm.wasm",
     "worker/tesseract-core-relaxedsimd.wasm": "node_modules/tesseract.js-core/tesseract-core-relaxedsimd.wasm",

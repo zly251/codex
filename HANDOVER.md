@@ -28,7 +28,7 @@
 - `src/scrapers/bossApi.js`：列表卡整包存 `rawData`（chatApply L1347 的匹配依赖由此复活）、防御式坐标提取、卡片福利标签宿舍扫描
 - `src/db/*`：`node:sqlite` 手写 CRUD；`initDb()` 内 `migrateJobDistanceColumns()` 幂等 ALTER 加 6 列（lng/lat/distanceKm/distanceTier/hasDormitory/dormitorySource）
 - `web/index.html`：控制台含"待确认岗位"面板（放行/拒绝）
-- `packaging/entry.cjs`、`scripts/build-exe.ps1`：SEA exe（`npm run build:exe` → `dist\求职助手.exe` 自动复制桌面）
+- `packaging/entry.cjs`、`scripts/build-exe.ps1`：SEA exe（`npm run build:exe` → `dist\求职助手.exe` 自动复制桌面）。**exe 每次启动会把 blob 内资产重新落地到数据根**（`web/index.html`、`.env`、`prompts/candidate-card.md`、tray 脚本、tessdata、server/worker bundle）⇒ **改这些文件必须重打 exe**，改数据根里的副本会在下次启动被覆盖（`sea-config.json` 的 assets 与 `packaging/setup-sea.cjs` 的 extractAssets 必须同时登记）
 
 ## 常用命令
 
