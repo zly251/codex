@@ -91,7 +91,7 @@ export function remove(id) { return getDb().prepare("DELETE FROM Job WHERE id = 
 export function updateEnrichment(id, data) {
     if (!data)
         return findById(id);
-    var allowed = ["lng", "lat", "distanceKm", "distanceTier", "hasDormitory", "dormitorySource", "description", "requirements"];
+    var allowed = ["lng", "lat", "distanceKm", "distanceTier", "hasDormitory", "dormitorySource", "description", "requirements", "district"];
     var patch = {};
     for (var i = 0; i < allowed.length; i++) {
         var k = allowed[i];

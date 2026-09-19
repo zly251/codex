@@ -32,11 +32,11 @@ function assert(cond, msg) {
 
 const {
   getHome, DEFAULT_HOME, DISTRICT_CENTERS, haversineKm, classifyDistance,
-  applyDistanceToJob, matchDistrict, tierForDistance,
+  applyDistanceToJob, matchDistrict, tierForDistance, isPlausibleCoord,
 } = await import("../src/distance.js");
 const { scoreJob, decideJob, sortJobsForApplyWithDistance, BASE_WEIGHTS, effectiveTier } = await import("../src/scoring.js");
 const { BossApiScraper } = await import("../src/scrapers/bossApi.js");
-const { enrichJobFromDetail, normalizeEnrichPayload } = await import("../src/enrich.js");
+const { enrichJobFromDetail, normalizeEnrichPayload, enrichmentPatch } = await import("../src/enrich.js");
 
 // ─────────────────────────────────────────────
 console.log("\n[getHome] 默认家坐标与 env 覆盖");
@@ -361,6 +361,45 @@ console.log("\n[enrichJobFromDetail] 注入假 page（不真开浏览器）");
   assert(threw, "page=null 抛错（接口要求）");
 
   assert(normalizeEnrichPayload(null).hasDormitory === 0, "normalizeEnrichPayload 空输入安全");
+}
+
+// ─────────────────────────────────────────────
+console.log("\n[回归] 真实 enrich 跑出的三类污染：占位坐标 / 反爬水印 / 详情页地址");
+{
+  // ① 页面占位坐标 0,0 不得顶掉区县近似（否则 0,0 距台州 1.3 万公里 → 全变 FAR）
+  const junk = classifyDistance({ city: "台州", district: "路桥区", lng: 0, lat: 0 });
+  assert(junk.source === "district" && junk.distanceTier === "NEAR", "lat/lng=0,0（页面占位）→ 回落区县近似 NEAR，不是 FAR");
+  const junkOut = classifyDistance({ city: "杭州", district: "西湖区", lng: 0, lat: 0 });
+  assert(junkOut.distanceTier === "OUT_OF_CITY", "外市 + 0,0 占位坐标 → 仍 OUT_OF_CITY");
+  const junkOnly = classifyDistance({ city: "台州", lng: 0, lat: 0 });
+  assert(junkOnly.distanceTier === "UNKNOWN", "只有 0,0 坐标、无区县 → UNKNOWN（不是 FAR 13035km）");
+  assert(isPlausibleCoord(28.65, 121.44) && !isPlausibleCoord(0, 0), "isPlausibleCoord：真坐标可信、0,0 不可信");
+  assert(!isPlausibleCoord(40, 0) && !isPlausibleCoord(NaN, 121), "isPlausibleCoord：境外/NaN 不可信");
+
+  // ② 反爬水印不得进库
+  const wm = normalizeEnrichPayload({ description: "岗boss位职责：负责BOSS直聘软件GUI开发", requirements: "负kanzhun责C++" });
+  assert(wm.description === "岗位职责：负责软件GUI开发", "正文水印（boss/BOSS直聘/kanzhun）被剔除");
+  assert(wm.requirements === "负责C++", "requirements 水印同步剔除");
+  assert(normalizeEnrichPayload({ description: "提供直聘宿舍，待遇从优" }).hasDormitory === 1, "水印夹在宿舍关键词里仍能判出宿舍");
+  assert(normalizeEnrichPayload({ tags: ["五boss险一金", "员工直聘宿舍"] }).hasDormitory === 1, "福利标签水印剔除后宿舍判定不变");
+
+  // ③ 坐标占位值不落库
+  const zc = normalizeEnrichPayload({ description: "x", lat: 0, lng: 0 });
+  assert(zc.lat === undefined && zc.lng === undefined, "normalizeEnrichPayload 丢弃 0,0 占位坐标");
+
+  // ④ 详情页地址 → 区县（M1 在列表卡没给区县时的唯一信息源）
+  const patch = enrichmentPatch({ description: "x", hasDormitory: 0, dormitorySource: null, address: "台州椒江区飞跃科创园西区81幢6楼" });
+  assert(patch.district === "椒江区", "详情页地址「台州椒江区…」抽出台州区县");
+  assert(enrichmentPatch({ hasDormitory: 0, dormitorySource: null }).district === undefined, "无地址时不写 district（不覆盖已有值）");
+  const addrOut = await enrichJobFromDetail({
+    async evaluate() { return { description: "岗直聘位职责：做事", address: "台州温岭市某某路 点击查看地图", tags: [] }; },
+  });
+  assert(addrOut.address === "台州温岭市某某路", "evaluate 路径取到 address 并去掉「点击查看地图」");
+  assert(enrichmentPatch(addrOut).district === "温岭市", "evaluate 路径地址 → district=温岭市 打通 patch");
+
+  // ⑤ 正文取不到时不再退回整页 innerText（非详情页会把导航文案写成 JD）
+  const noJd = await enrichJobFromDetail({ async evaluate() { return { description: "", requirements: "", tags: [] }; } });
+  assert(noJd.description === "", "取不到 .job-sec-text 时 description 留空，不写整页文案");
 }
 
 // ─────────────────────────────────────────────

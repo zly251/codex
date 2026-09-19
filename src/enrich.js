@@ -5,7 +5,17 @@
 // routes 接线由主代理负责：抓详情页 -> enrichJobFromDetail(page) ->
 // jobDb.updateEnrichment(jobId, res)。
 
+import { isPlausibleCoord, matchDistrict } from "./distance.js";
+
 const DORM_RE = /宿舍|住宿|包住|食宿|包吃住/;
+
+// BOSS 反爬会在正文节点文字里随机插入品牌词水印（实测："岗boss位职责"、"负kanzhun责"、
+// "负责BOSS直聘软件GUI"），直接落库会污染 JD 文本与技能匹配。词表正则；出现新水印词补进 RE。
+const WATERMARK_RE = /kanzhun|直聘|boss/gi;
+
+export function stripWatermark(text) {
+  return typeof text === "string" ? text.replace(WATERMARK_RE, "") : "";
+}
 
 function asText(v) {
   return typeof v === "string" ? v.trim() : "";
@@ -15,23 +25,29 @@ function asText(v) {
 export function normalizeEnrichPayload(payload) {
   payload = payload || {};
   const res = {
-    description: asText(payload.description),
-    requirements: asText(payload.requirements),
+    description: stripWatermark(asText(payload.description)),
+    requirements: stripWatermark(asText(payload.requirements)),
     hasDormitory: 0,
     dormitorySource: null,
   };
+  const address = stripWatermark(asText(payload.address))
+    .replace(/点击查看地图/g, "")
+    .replace(/^工作地址\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (address) res.address = address;
   const tags = Array.isArray(payload.tags) ? payload.tags : [];
   for (const t of tags) {
     const text = typeof t === "string" ? t : (t && (t.name || t.text) ? String(t.name || t.text) : "");
-    if (text && DORM_RE.test(text)) { res.hasDormitory = 1; break; }
+    if (text && DORM_RE.test(stripWatermark(text))) { res.hasDormitory = 1; break; }
   }
   // 正文里出现宿舍关键词也算（JD 常写"提供食宿"），但标签优先级更高
-  if (!res.hasDormitory && (DORM_RE.test(res.description) || DORM_RE.test(res.requirements) || DORM_RE.test(asText(payload.fullText)))) {
+  if (!res.hasDormitory && (DORM_RE.test(res.description) || DORM_RE.test(res.requirements) || DORM_RE.test(stripWatermark(asText(payload.fullText))))) {
     res.hasDormitory = 1;
   }
   if (res.hasDormitory) res.dormitorySource = "detail";
   const lat = Number(payload.lat), lng = Number(payload.lng);
-  if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) { res.lat = lat; res.lng = lng; }
+  if (isPlausibleCoord(lat, lng)) { res.lat = lat; res.lng = lng; }
   return res;
 }
 
@@ -46,6 +62,12 @@ export function enrichmentPatch(enriched) {
   if (enriched.requirements) out.requirements = enriched.requirements;
   if (enriched.lng != null) out.lng = enriched.lng;
   if (enriched.lat != null) out.lat = enriched.lat;
+  // 详情页工作地址（实测 .location-address：「台州椒江区飞跃科创园西区81幢6楼」）是
+  // M1 距离引擎在列表卡没给区县时唯一的信息源；抽不出区县就不写，不覆盖已有 district。
+  if (enriched.address) {
+    const district = matchDistrict(enriched.address);
+    if (district) out.district = district;
+  }
   out.hasDormitory = enriched.hasDormitory ? 1 : 0;
   out.dormitorySource = enriched.dormitorySource || null;
   return out;
@@ -85,18 +107,23 @@ function extractInPage() {
   }
   var descEl = q([".job-sec-text", ".job-detail-section .text", "[class*=job-desc]", ".job-keyword-list", "#job-detail .job-sec-text"]);
   var reqEl = q([".job-condition .text", ".requirements", "[class*=requirement]"]);
+  var addrEl = q([".location-address", "[class*=location-address]", ".job-location", "[class*=job-address]"]);
   var tagEls = document.querySelectorAll(".job-tags span, .tag-list li, [class*=label-item], .job-keyword-list li");
   var tags = [];
   for (var i = 0; i < tagEls.length; i++) tags.push(txt(tagEls[i]));
   var out = {
     description: txt(descEl),
     requirements: txt(reqEl),
+    address: txt(addrEl),
     tags: tags,
-    fullText: txt(document.body || document.documentElement),
+    fullText: "",
     lat: null, lng: null,
   };
-  if (!out.description && document.body) out.description = String(document.body.innerText || "").trim().slice(0, 8000);
-  // 详情页若有坐标属性也捞（防御式，未见实证）
+  // 注意：正文取不到时**不要**退回 document.body.innerText——非详情页（被重定向到
+  // 城市首页/登录页）会把整页导航文案写进 description（2026-09-19 真实 enrich 跑出的缺陷）。
+  // 是否真的落在详情页由调用方按 URL 判定，取不到正文就留空。
+
+  // 详情页若有坐标属性也捞（防御式，未见实证；占位值 0,0 会在 normalizeEnrichPayload 被丢弃）
   try {
     var html = document.documentElement.outerHTML;
     var mLat = html.match(/"lat(?:itude)?"\s*:\s*([0-9]+(?:\.[0-9]+)?)/);

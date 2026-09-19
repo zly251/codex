@@ -118,9 +118,19 @@ function toFiniteOrNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// 坐标可信度。BOSS 详情页里存在 "lat":0 / "lng":0 这类占位值（页面脚本注入的默认
+// 配置），一旦被当真实坐标落库就会顶掉区县中心近似：0,0 距台州约 1.3 万公里 ⇒ 全部
+// 岗位变 FAR（而 FAR 无宿舍直接 IGNORE）。只认中国境内的坐标。
+export function isPlausibleCoord(lat, lng) {
+  return (
+    Number.isFinite(lat) && Number.isFinite(lng) &&
+    lat >= 3 && lat <= 54 && lng >= 73 && lng <= 136
+  );
+}
+
 /**
  * 计算岗位距离信息（纯函数，不碰 DB）。
- * 优先级：真实坐标 > 区县中心近似 > UNKNOWN。
+ * 优先级：可信真实坐标 > 区县中心近似 > UNKNOWN（坐标不可信时按无坐标处理）。
  * city 明确非台州 -> tier=OUT_OF_CITY（distanceKm 仍尽量给出）。
  * @returns {{distanceKm:number|null, distanceTier:string, approx:boolean, source:("coords"|"district"|null)}}
  */
@@ -137,7 +147,7 @@ export function classifyDistance(job) {
   let approx = false;
   let source = null;
 
-  if (lat != null && lng != null) {
+  if (isPlausibleCoord(lat, lng)) {
     distanceKm = haversineKm(home, { lat, lng });
     source = "coords";
   } else if (districtKey) {

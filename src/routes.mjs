@@ -331,8 +331,23 @@ export async function handleEnrich(req, res, body) {
       if (!job.url || !/zhipin\.com/.test(job.url)) { skipped++; continue; }
       try {
         await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 });
+        // 必须真落在详情页：BOSS 会把失效/风控页重定向到城市首页，此时正文/地址/坐标
+        // 全是别的页面的内容，写库即污染（2026-09-19 实测：重定向页写出 lat/lng=0,0）。
+        const landed = String(page.url() || "");
+        if (!/job_detail/.test(landed)) {
+          skipped++;
+          liveLog.add("增补跳过(job " + job.id + "): 未落在详情页 " + landed.slice(0, 60));
+          continue;
+        }
         await sleep(1500 + Math.random() * 1500);
         const result = await enrichJobFromDetail(page);
+        // 空提取（页面是空白页/风控页/DOM 变了）不算成功：写库只会把 hasDormitory 抹成 0，
+        // 还会让"成功数"虚高掩盖真实故障。
+        if (!result.description && !result.address) {
+          skipped++;
+          liveLog.add("增补跳过(job " + job.id + "): 详情页未取到正文与地址");
+          continue;
+        }
         const patch = enrichmentPatch(result);
         const jobIdMatch = pick(job.url, job.rawData);
         const cardText = jobIdMatch ? String(job.rawData || "") : "";
