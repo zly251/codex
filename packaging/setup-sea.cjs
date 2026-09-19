@@ -16,8 +16,23 @@ function ensureDir(p) {
   fs.mkdirSync(p, { recursive: true });
 }
 
+// SEA 下 .env 是随包资产：先读它决定数据根，避免"先定根、再读 .env"的鸡生蛋问题。
+// 否则桌面 exe 永远退回 ~/.autonomous-job-agent/portable，看不到 E:\autonomous-job-agent-data 里的数据。
+function rootFromEmbeddedEnv() {
+  if (!isSea()) return "";
+  try {
+    const text = require('node:sea').getAsset('.env', 'utf8');
+    const m = String(text).match(/^\s*JOB_AGENT_DATA_DIR\s*=\s*(.+?)\s*$/m);
+    return m ? m[1].trim().replace(/^["']|["']$/g, "") : "";
+  } catch (e) {
+    return "";
+  }
+}
+
 function defaultRoot() {
   if (process.env.JOB_AGENT_DATA_DIR) return process.env.JOB_AGENT_DATA_DIR;
+  const embedded = rootFromEmbeddedEnv();
+  if (embedded) return embedded;
   const candidates = [
     process.env.JOB_AGENT_HOME,
     path.join(os.homedir(), '.autonomous-job-agent'),

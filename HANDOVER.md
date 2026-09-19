@@ -6,7 +6,7 @@
 
 - 项目源码：当前仓库根目录（分离仓库，git 操作见下文）
 - 运行：桌面 `求职助手.exe`（双击即用）或 `npm start`，服务 `http://127.0.0.1:3456`
-- 数据根：`.env` 的 `JOB_AGENT_DATA_DIR=E:\autonomous-job-agent-data`（2026-09-19 起；C 盘旧目录改名保留 7 天回滚）
+- 数据根：`.env` 的 `JOB_AGENT_DATA_DIR=E:\autonomous-job-agent-data`（2026-09-19 起）。**exe 与开发模式都读同一行**：`packaging/setup-sea.cjs` 的 `defaultRoot()` 会先读随包资产 `.env` 里的 `JOB_AGENT_DATA_DIR` 再定数据根（2026-09-19 修复的鸡生蛋问题——此前 exe 只看系统环境变量，会静默退回 `~/.autonomous-job-agent/portable` 的**空库**，看着能用其实没数据）
 - 当前状态：抓取、距离分档、宿舍信号、评分决策、待确认队列、节奏投递（默认干跑）、聊天监控、简历导出全链路可用；`npm test` 791 断言全绿（313+199+102+70+107 五段）
 - ⚠️ **真实打招呼开关**：`APPLY_DRY_RUN` 默认 `true`（只出节奏计划不触浏览器）。改为真实投递需 `.env` 显式 `APPLY_DRY_RUN=0`，属用户决策，勿代设
 
@@ -63,7 +63,7 @@ Git 操作（分离仓库）：
 
 ## 待办/风险
 
-- **M5 平台内核抽象未执行**：`docs/05_MODULARIZATION_PLAN.md` 蓝图已验收（8 步、每步 npm test 绿、re-export 垫片、chatApply.js 永为门面），改动前必读其"不可破坏清单"
+- **M5 拆分**：蓝图 `docs/05_MODULARIZATION_PLAN.md` 已验收；**步骤 1 已落地**（`src/core/utils.js` + `src/core/predicates.js`，chatApply 门面逐名 re-export，3260→3126 行）。步骤 2~8 是把 BOSS 专属代码整块搬进 `platforms/boss/**` 的纯搬迁（零行为变化），因多平台明确延后而暂缓——真接第二平台时按蓝图执行，每步 `npm test` 绿为准
 - 底细卡 `prompts/candidate-card.md` 尚有〔待确认〕字段，用户签字前 AI 对这些字段一律不报具体值
 - 详情页 enrich 需浏览器在环（登录态 Edge），批量首跑建议先 `limit=10` 试水
 - BOSS 页面结构或风控变化时，优先看 `<数据根>/logs/` 与控制台日志
