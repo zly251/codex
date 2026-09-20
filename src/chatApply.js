@@ -2856,6 +2856,9 @@ export class AutoApplyBot {
     let replied = 0;
     let manual = 0;
     let resumeSent = 0;
+    // 尝试回复但没送达的条数（未确认/无输入框/未就绪/异常）。replied+failed 才等于"处理过"，
+    // 轮次汇总必须同时报告两者，否则"回复 N 条"又会和实际送达数脱节。
+    let failed = 0;
     const check = async () => {
       // 互斥：setInterval 不等待 async check 完成，若上一轮 check 仍在本轮执行中，
       // 本次定时触发直接丢弃，避免同代两个 check 并发处理/回复同一会话。
@@ -2924,6 +2927,11 @@ export class AutoApplyBot {
               }
               const resumeResult = await attemptResumeForChat(c);
               if (resumeResult?.ok) resumeSent++;
+            } else {
+              // 尝试过但没送达（未确认/无输入框/未就绪/异常）：计 failed，不标 replied，
+              // chatState 保持"未回复"，下一轮会自然重试。轮次汇总据此报告真实送达数。
+              failed++;
+              log(`[chat] 回复未送达，稍后重试: ${c.name || c.company || "未知会话"} - ${replyResult?.reason || "no_result"}`);
             }
           } else if (c.hrLast && !c.unread) {
             const resumeResult = await attemptResumeForChat(c);
@@ -2967,7 +2975,7 @@ export class AutoApplyBot {
 
     await this._getPage();
     await check();
-    if (once) return { scanned, replied, manual, resumeSent };
+    if (once) return { scanned, replied, failed, manual, resumeSent };
     // stop 后立即 start：旧轮可能仍在本轮首轮 check 中，只有当前代仍有效才建立 timer
     if (!this.running || generation !== this.generation) return;
     // 竞态防御：stop/restart 或 fatal/restart 交错时旧 interval 可能未及时清理，
@@ -3004,17 +3012,38 @@ export class AutoApplyBot {
         return { ok: false, reason: "stopped", reply: text };
       }
 
-      const selected = chat ? await this._selectChatRow(this.page, chat) : false;
+      // 关键闸门（2026-09-19 假回执修复）：聊天页是 SPA，导航后可能还是空壳（无消息区/无输入框），
+      // 此前 sendReply 从不等待就绪就往下走，导致"未找到聊天输入框"或打进错误会话，
+      // 却仍打出"已回复 …"日志 —— 报告数与实际送达数就此背离。空壳时 reload 一次，仍不就绪则放弃本次发送。
+      if (!(await this._waitForChatReadyOrReload(this.page))) {
+        log(`[chat] 聊天页未就绪，放弃本次回复: ${hrName || "HR"}`);
+        result = { ok: false, reason: "chat_not_ready", reply: text };
+        return result;
+      }
+
+      if (!isCurrent()) {
+        log("[chat] 回复已停止（stop/重启），不再选择会话");
+        return { ok: false, reason: "stopped", reply: text };
+      }
+      // 会话行必须真实选中才能输入。此前 _selectChatRow 的返回值被忽略、名字兜底结果也被丢弃，
+      // 定位失败时照样往"当前恰好打开的会话"里打字发送——这是"报了回复、实际发错/没发"的直接根因。
+      let selected = chat ? await this._selectChatRow(this.page, chat) : false;
       if (!selected && hrName) {
-        await this.page.evaluate((name) => {
+        selected = await this.page.evaluate((name) => {
           const items = document.querySelectorAll("[class*='session'], [class*='chat-item'], [class*='conversation'], li[role='listitem']");
           for (const el of items) {
             if ((el.textContent || "").includes(name) && el.offsetParent !== null) {
-              el.click(); return;
+              el.click(); return true;
             }
           }
-        }, hrName).catch(() => {});
-        await randSleep(800, 1600);
+          return false;
+        }, hrName).catch(() => false);
+        if (selected) await randSleep(800, 1600);
+      }
+      if (!selected && hrName) {
+        log(`[chat] 未能定位会话「${hrName}」，放弃盲发`);
+        result = { ok: false, reason: "row_not_selected", reply: text };
+        return result;
       }
 
       const typed = await this._humanType(this.page, text);
@@ -3093,7 +3122,11 @@ export class AutoApplyBot {
       const verified = !!verifiedInfo && isReplyVerified(verifiedInfo);
 
       result = { ok: verified, reason: verified ? "sent" : "unverified", reply: text };
-      log(`已回复 ${hrName || "HR"}: ${String(text || "").slice(0, 20)}... ${verified ? "确认发送" : "未确认"}`);
+      // 日志措辞就是"回执"：ok:false 时绝不能写"已回复"，否则上层（autopilot 轮次汇总、
+      // 用户读日志）会把未确认的发送当成送达。已送达才说"已回复…确认发送"。
+      log(verified
+        ? `已回复 ${hrName || "HR"}: ${String(text || "").slice(0, 20)}... 确认发送`
+        : `发送未确认 ${hrName || "HR"}: ${String(text || "").slice(0, 20)}...（不计入已回复，稍后重试）`);
     } catch (e) {
       log(`[chat] 回复失败: ${(e?.message || "").slice(0, 60)}`);
     }

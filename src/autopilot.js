@@ -67,6 +67,7 @@ export function createAutopilot(deps = {}) {
   async function runRound(t0, round) {
     const errs = []; // 本轮各步骤的失败信息，逐步累积，不中断后续步骤
     let replied = 0;
+    let sendFailed = 0; // 尝试回复但未送达的条数：不能不算数地归入"没事了"，否则又会假装排空
     let sent = 0;
     let summaries = 0;
     let remaining = 0;
@@ -140,6 +141,7 @@ export function createAutopilot(deps = {}) {
     try {
       const r = await d.replyDueChats();
       replied = n0(r && r.replied);
+      sendFailed = n0(r && r.failed);
       pending = n0(r && r.pending);
     } catch (e) {
       chatOk = false;
@@ -175,17 +177,19 @@ export function createAutopilot(deps = {}) {
     state.stats.sent += sent;
     state.stats.summaries += summaries;
 
-    // —— 6. 空闲判定：待发 0 且待回 0 ——
+    // —— 6. 空闲判定：待发 0、待回 0，且本轮没有"尝试过但没送达"的回复 ——
     // 空闲不是退出，只是把节奏降到 idleIntervalMs 继续低频巡检（用户要的是「一直跑」）。
-    const idle = queueOk && chatOk && remaining === 0 && pending === 0;
+    // sendFailed>0 时必须保持 working 节奏尽快重试：未送达的会话不会被标已回复，
+    // 下一轮会重新扫到，若此时转入 30 分钟低频巡检，送达延迟会被无谓拉长。
+    const idle = queueOk && chatOk && remaining === 0 && pending === 0 && sendFailed === 0;
     const phase = idle ? "idle" : "working";
     state.phase = phase;
     note(
       idle
         ? `第 ${round} 轮结束：队列与待回消息都已排空，转入低频巡检`
-        : `第 ${round} 轮结束：回复 ${replied} 条、打招呼 ${sent} 个、待回 ${pending}、待发 ${remaining}`
+        : `第 ${round} 轮结束：回复 ${replied} 条、未送达 ${sendFailed} 条、打招呼 ${sent} 个、待回 ${pending}、待发 ${remaining}`
     );
-    return { phase, round, replied, sent, remaining, pending, summaries, ms: nowFn() - t0, errors: errs };
+    return { phase, round, replied, failed: sendFailed, sent, remaining, pending, summaries, ms: nowFn() - t0, errors: errs };
   }
 
   // 对外承诺：任何情况下都不抛异常 —— 兜底 catch 把 runRound 里漏网的意外（含 deps 里的同步 throw）收干净

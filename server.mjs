@@ -56,13 +56,32 @@ const SUMMARY_PATH =
   process.env.JOB_AGENT_SUMMARY_PATH ||
   path.join(process.env.JOB_AGENT_DATA_DIR || process.cwd(), "data", "chat-summaries.json");
 
-async function selfPost(pathname, body) {
-  const r = await fetch(SELF_BASE + pathname, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body || {}),
+// 自调用走 node:http 并显式 setTimeout：全局 fetch（undici）默认 300s 响应超时，
+// once 扫描带人味节奏常跑 5~10 分钟以上，会在服务端仍在干活时先报 "fetch failed"，
+// 巡航把"其实还在跑"的一轮误判为失败（2026-09-19 日志实证）。45 分钟上限足够覆盖
+// 最长扫描，又能保证真挂死时最终报错，不会让 autopilot 永久卡住。
+const SELF_TIMEOUT_MS = Number(process.env.JOB_AGENT_SELF_TIMEOUT_MS || 45 * 60 * 1000);
+
+function selfPost(pathname, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body || {});
+    const req = http.request(
+      SELF_BASE + pathname,
+      { method: "POST", headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload) } },
+      (res) => {
+        let data = "";
+        res.setEncoding("utf8");
+        res.on("data", (c) => (data += c));
+        res.on("end", () => {
+          try { resolve(JSON.parse(data)); }
+          catch (e) { reject(new Error(`自调用 ${pathname} 返回非 JSON (HTTP ${res.statusCode})`)); }
+        });
+      }
+    );
+    req.setTimeout(SELF_TIMEOUT_MS, () => req.destroy(new Error(`自调用 ${pathname} 超时（>${Math.round(SELF_TIMEOUT_MS / 60000)} 分钟）`)));
+    req.on("error", reject);
+    req.end(payload);
   });
-  return r.json();
 }
 
 // 会话要点摘要：把留档的会话原话交给 LLM 提要点，失败自动退回骨架（绝不抛）
@@ -106,13 +125,19 @@ const autopilot = createAutopilot({
     const j = await selfPost("/api/boss/chat/start", { once: true, sendResume: true, sendResumeScreenshot: false });
     if (j && j.ok === false && !j.needLogin && !j.busy) throw new Error(j.error || "chat once 扫描失败");
     const manual = Number(j && j.manual) || 0;
-    return { replied: Number(j && j.replied) || 0, pending: manual || manualPendingCount() };
+    return {
+      replied: Number(j && j.replied) || 0,
+      failed: Number(j && j.failed) || 0,
+      pending: manual || manualPendingCount(),
+    };
   },
   applyQueue: async () => {
     const before = approvedPendingCount();
     if (!before) return { sent: 0, remaining: 0 };
     const j = await selfPost("/api/boss/apply", { limit: 150 });
-    if (j && j.ok === false && !j.needLogin) throw new Error(j.error || "apply 失败");
+    // busy=once 扫描还占着页面，属正常互斥（与 sync-feedback 同一套语义），不算失败；
+    // 队列没排空，下一轮自然会再试（2026-09-19 修正：此前每轮都误报一条 applyQueue 失败）。
+    if (j && j.ok === false && !j.needLogin && !j.busy) throw new Error(j.error || "apply 失败");
     return { sent: Number(j && j.applied) || 0, remaining: approvedPendingCount() };
   },
   writeSummaries: () => runSummaries(),

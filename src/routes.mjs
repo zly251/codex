@@ -1039,9 +1039,14 @@ export async function handleChatStart(req, res, body) {
       try {
         const result = await startMonitor();
         resetChatState();
-        const stats = result || { scanned: 0, replied: 0, manual: 0, resumeSent: 0 };
-        liveLog.add(`[chat] once scan done: scanned=${stats.scanned} replied=${stats.replied} manual=${stats.manual} resumeSent=${stats.resumeSent}`);
-        json(res, { ok: true, message: "once_chat_scan_done", ...stats });
+        const stats = result || { scanned: 0, replied: 0, failed: 0, manual: 0, resumeSent: 0 };
+        // 旧服务端（升级中/未重启）可能不带 failed：缺失时按 scanned-replied-manual 估算，
+        // 宁可多报也不让"回复 0 条"再冒充"一切正常"。
+        const failedN = Number.isFinite(stats.failed)
+          ? stats.failed
+          : Math.max(0, (stats.scanned || 0) - (stats.replied || 0) - (stats.manual || 0));
+        liveLog.add(`[chat] once scan done: scanned=${stats.scanned} replied=${stats.replied} failed=${failedN} manual=${stats.manual} resumeSent=${stats.resumeSent}`);
+        json(res, { ok: true, message: "once_chat_scan_done", ...stats, failed: failedN });
       } catch (e) {
         state.lastError = e.message;
         resetChatState();
