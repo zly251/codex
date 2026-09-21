@@ -105,12 +105,21 @@ async function afterBrowserConnect() {
 
 // 给自动巡航（autopilot）用的登录态检查：浏览器没连/没页面/未登录都算 false。
 export async function checkLoggedIn() {
+  // 单次读 innerText 判登录态很容易被瞬时抖动误伤：cookie 轮询会偶发 reload 页面、
+  // BOSS 首页偶尔弹"登录/注册"遮罩，那一瞬间 innerText 命中关键字就误判未登录。
+  // 真机复现（2026-09-21）：同一轮里连查两次一次 true 一次 false，把巡航永久卡死在 need_login。
+  // 对策：最多探 3 次、每次间隔 1.2s，任一次确认登录即返回 true。只会减少假阴性，
+  // 不会把真未登录判成已登录（真未登录时每次都会命中"登录/注册"，三次仍 false）。
   try {
     const mgr = getManager();
     if (!mgr.browser?.connected) return false;
-    const page = await platform.findJobPage(mgr);
-    if (!page) return false;
-    return !!(await platform.isLoggedIn(page));
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1200));
+      const page = await platform.findJobPage(mgr);
+      if (!page) continue;
+      if (await platform.isLoggedIn(page)) return true;
+    }
+    return false;
   } catch (e) {
     return false;
   }

@@ -77,6 +77,7 @@ export function createAutopilot(deps = {}) {
     let autoApproved = 0; // 本轮自动放行的待确认岗位数，仅在注入 autoApprove 时增长
     let queueOk = true; // 只有「队列和待回消息都成功跑过且都排空」才算空闲，某步失败时宁可继续按正常节奏跑
     let chatOk = true;
+    let loginJustConfirmed = false; // 本轮步骤 1 已确认登录恢复时为 true，步骤 3 不再重复检查
 
     // —— 1. 已经判定需要登录：只探测登录态，别的动作一律不碰 ——
     // 为什么：未登录时每个动作都会撞上登录墙，反复去撞最容易触发 BOSS 风控，宁可空转一轮。
@@ -93,6 +94,7 @@ export function createAutopilot(deps = {}) {
         return { phase: "need_login", skipped: true, round, needLogin: true, ms: nowFn() - t0 };
       }
       state.needLogin = false;
+      loginJustConfirmed = true; // 本轮已确认登录，跳过步骤 3 的重复检查（见下）
       note("检测到登录已恢复，继续自动巡航");
     }
 
@@ -116,9 +118,14 @@ export function createAutopilot(deps = {}) {
     }
 
     // —— 3. 登录检查：没登录就停下来等扫码，不做任何其他动作 ——
+    // 例外：本轮步骤 1 刚刚确认过登录已恢复（loginJustConfirmed），不再重复检查。
+    // 为什么：checkLoggedIn 会读页面 innerText 找"登录/注册"，BOSS 页面渲染/跳转有瞬时抖动，
+    // 同一轮里连查两次很容易一次 true 一次 false，导致"检测到登录已恢复"后立刻又"未登录"，
+    // 循环被永久卡在 need_login（2026-09-21 真机复现）。步骤 1 的探测本身就是权威判据，
+    // 刚确认过就没必要在毫秒级内再问一次；下一轮若真掉登录，步骤 3 仍会拦住。
     let logged = false;
     try {
-      logged = !!(await d.checkLogin());
+      logged = loginJustConfirmed || !!(await d.checkLogin());
     } catch (e) {
       errs.push(fail(e, "checkLogin"));
     }
