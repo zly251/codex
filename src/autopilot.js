@@ -77,6 +77,7 @@ export function createAutopilot(deps = {}) {
     let autoApproved = 0; // 本轮自动放行的待确认岗位数，仅在注入 autoApprove 时增长
     let queueOk = true; // 只有「队列和待回消息都成功跑过且都排空」才算空闲，某步失败时宁可继续按正常节奏跑
     let chatOk = true;
+    let applyBlocked = false; // 投递命中 BOSS 账号访问受限/连续打不开熔断 → 本轮结束即整体停机（见 loop）
     let loginJustConfirmed = false; // 本轮步骤 1 已确认登录恢复时为 true，步骤 3 不再重复检查
 
     // —— 1. 已经判定需要登录：只探测登录态，别的动作一律不碰 ——
@@ -192,6 +193,7 @@ export function createAutopilot(deps = {}) {
       sent = n0(r && r.sent);
       remaining = n0(r && r.remaining);
       queueRemaining = remaining;
+      applyBlocked = !!(r && r.blocked); // 命中访问受限熔断：本轮结束即停机，不再巡检
     } catch (e) {
       queueOk = false;
       queueRemaining = 1; // 出错了就下一轮重试，别因为一次异常把发送永久停掉
@@ -219,18 +221,23 @@ export function createAutopilot(deps = {}) {
     // sendFailed>0 时必须保持 working 节奏尽快重试：未送达的会话不会被标已回复，
     // 下一轮会重新扫到，若此时转入 30 分钟低频巡检，送达延迟会被无谓拉长。
     const idle = queueOk && chatOk && remaining === 0 && pending === 0 && sendFailed === 0;
-    const phase = idle ? "idle" : "working";
+    let phase = idle ? "idle" : "working";
+    if (applyBlocked) phase = "blocked"; // 账号被限流/封禁：单独一档，供 loop 识别后整体停机
     state.phase = phase;
-    note(
-      idle
-        ? `第 ${round} 轮结束：队列与待回消息都已排空，转入低频巡检`
-        : `第 ${round} 轮结束：回复 ${replied} 条、未送达 ${sendFailed} 条、打招呼 ${sent} 个、待回 ${pending}、待发 ${remaining}`
-    );
+    if (applyBlocked) {
+      note(`第 ${round} 轮：检测到 BOSS 账号访问受限，已停止投递。为避免延长封禁，自动巡航整体停机，请等待解封（通常 24h）后手动重启。`);
+    } else {
+      note(
+        idle
+          ? `第 ${round} 轮结束：队列与待回消息都已排空，转入低频巡检`
+          : `第 ${round} 轮结束：回复 ${replied} 条、未送达 ${sendFailed} 条、打招呼 ${sent} 个、待回 ${pending}、待发 ${remaining}`
+      );
+    }
     // 补库存/自动放行有动作时单列一行，避免动到上面这条既有日志（存量断言只增不减）。
     if (replenished > 0 || autoApproved > 0) {
       note(`第 ${round} 轮：补库存 ${replenished}（搜索+增补）、自动放行 ${autoApproved}`);
     }
-    return { phase, round, replied, failed: sendFailed, sent, remaining, pending, summaries, replenished, autoApproved, ms: nowFn() - t0, errors: errs };
+    return { phase, round, replied, failed: sendFailed, sent, remaining, pending, summaries, replenished, autoApproved, blocked: applyBlocked, ms: nowFn() - t0, errors: errs };
   }
 
   // 对外承诺：任何情况下都不抛异常 —— 兜底 catch 把 runRound 里漏网的意外（含 deps 里的同步 throw）收干净
@@ -258,12 +265,20 @@ export function createAutopilot(deps = {}) {
   // 用递归式 while + await sleep 而不是 setInterval：天然串行，上一轮没跑完不会重入。
   async function loop(gen) {
     while (state.running && gen === runGen) {
+      let roundResult;
       try {
-        await tick(); // tick 自身已全 catch，这里再兜一层防止将来改坏
+        roundResult = await tick(); // tick 自身已全 catch，这里再兜一层防止将来改坏
       } catch (e) {
         fail(e, "loop.tick");
       }
       if (!state.running || gen !== runGen) return;
+      // 命中 BOSS 访问受限熔断：整体停机，不转空闲巡检。否则下一轮又会搜索+增补，
+      // 正是 BOSS 明令禁止、会延长封禁的行为（2026-09-21 真机教训）。
+      if (roundResult && roundResult.blocked) {
+        note("因 BOSS 账号访问受限，自动巡航已停机，等待解封后手动重启。");
+        stop();
+        return;
+      }
       if (state.round >= maxRounds) {
         stoppedForMaxRounds = true;
         note(`已达到 maxRounds=${maxRounds}，自动停止巡航`);

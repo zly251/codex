@@ -158,7 +158,9 @@ const autopilot = createAutopilot({
     // busy=once 扫描还占着页面，属正常互斥（与 sync-feedback 同一套语义），不算失败；
     // 队列没排空，下一轮自然会再试（2026-09-19 修正：此前每轮都误报一条 applyQueue 失败）。
     if (j && j.ok === false && !j.needLogin && !j.busy) throw new Error(j.error || "apply 失败");
-    return { sent: Number(j && j.applied) || 0, remaining: approvedPendingCount() };
+    // blocked=命中 BOSS 账号访问受限/连续打不开熔断。透传给调度器，让它【整体停机】而不是
+    // 转空闲继续巡检 —— 巡检下一轮会再搜索+增补，正是 BOSS 明令禁止、会延长封禁的行为。
+    return { sent: Number(j && j.applied) || 0, remaining: approvedPendingCount(), blocked: !!(j && j.blocked) };
   },
   writeSummaries: () => runSummaries(),
   log: (msg) => console.log("[autopilot] " + msg),

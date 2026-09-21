@@ -895,6 +895,7 @@ export async function handleApply(req, res, body) {
         failed: result.failed || 0,
         skippedApplied: (result.skipped || 0) + skippedApplied,
         total: jobs.length,
+        blocked: !!result.blocked,
         decisions: decisions,
         results: result.results || [],
       });

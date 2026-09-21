@@ -365,5 +365,38 @@ await t("replenish/autoApprove 抛错不阻断后续步骤，errors 各 +1", asy
   assert.ok(r.errors.some((m) => m.includes("autoApprove")), "errors 应含 autoApprove 的失败信息");
 });
 
+// —— 11. 访问受限熔断：本轮 blocked 透传，phase=blocked ——
+await t("applyQueue 返回 blocked 时本轮 phase=blocked 且透传 blocked", async () => {
+  const { deps } = makeDeps({
+    applyQueue: async () => ({ sent: 0, remaining: 10, blocked: true }),
+  });
+  const ap = createAutopilot(deps);
+  const r = await ap.tick();
+  assert.equal(r.blocked, true, "本轮结果应透传 blocked:true");
+  assert.equal(r.phase, "blocked", "命中访问受限熔断时 phase 应为 blocked（不是 working/idle）");
+  assert.ok(
+    ap.status().logs.some((l) => l.msg.includes("访问受限")),
+    "应留下含「访问受限」的醒目日志"
+  );
+});
+
+// —— 12. 关键：blocked 后 loop 必须整体停机，绝不转空闲巡检（否则下一轮再搜索+增补=延长封禁）——
+await t("命中 blocked 后 loop 整体停机，不再跑下一轮", async () => {
+  const { deps, calls } = makeDeps({
+    applyQueue: async () => ({ sent: 0, remaining: 10, blocked: true }),
+  });
+  const ap = createAutopilot(deps);
+  ap.start({ intervalMs: 5, idleIntervalMs: 5, maxRounds: 50 });
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(ap.status().running, false, "命中 blocked 后应已整体 stop（running=false）");
+  assert.equal(ap.status().phase, "blocked", "停机后 phase 应停留在 blocked");
+  // 只跑了一轮就停：applyQueue 只应被调用一次，绝不会因空闲巡检再来一轮
+  assert.equal(calls.applyQueue, 1, "blocked 后不得再跑下一轮（applyQueue 只应调用一次）");
+  assert.ok(
+    ap.status().logs.some((l) => l.msg.includes("自动巡航已停机") || l.msg.includes("整体停机")),
+    "应留下「巡航停机」的日志"
+  );
+});
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed > 0 ? 1 : 0);

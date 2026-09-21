@@ -141,6 +141,12 @@ const UPLOAD_DIALOG_SKIP_SELECTORS = [
 ];
 
 const BLOCKED_HINTS = ["验证码", "安全验证", "访问异常", "访问过于频繁", "系统繁忙", "请登录", "扫码登录"];
+// 账号级硬封禁文案：BOSS「访问受限 / 您的账户存在异常行为，已暂时被限制访问 / 请勿频繁提交刷新请求」。
+// 与 BLOCKED_HINTS 分开，因为命中它必须【整体停机】而非跳过当前岗位继续 —— 继续逐岗 goto 正是 BOSS 明令
+// 禁止、且会延长封禁的行为（2026-09-21 真机：冷启动 enrich 突增后连开 36 岗详情页，账号被封 24h）。
+const HARD_BLOCK_HINTS = ["访问受限", "限制访问", "异常行为"];
+// 连续多少个职位详情页打不开就判定"已被限流"、停机：单次可能是渲染抖动，连续 3 个几乎必是风控。
+const MAX_CONSECUTIVE_NOT_READY = 3;
 const SENT_MARKERS = ["送达", "已发送", "消息已发送", "发送成功", "已沟通", "继续沟通", "查看聊天", "打招呼成功", "已读"];
 
 // 运行期致命错误文案：浏览器/CDP 连接断开、页面或目标关闭等。这些错误之后任何页面操作都不可能
@@ -2587,6 +2593,8 @@ export class AutoApplyBot {
     let applied = 0;
     let failed = 0;
     let skipped = 0;
+    let consecutiveNotReady = 0; // 连续多少个职位详情页打不开（用于限流熔断，见循环内判定）
+    let blocked = false; // 命中账号访问受限/连续打不开 → 整体停机，交调用方决定是否停巡航
     const results = [];
     const total = (jobs || []).length;
     const useScreenshot = options.sendResumeScreenshot !== false;
@@ -2642,6 +2650,28 @@ export class AutoApplyBot {
           }
         }
         if (!detailState || !isJobDetailReady(detailState)) {
+          // 详情页没打开有两种可能：① 账号被 BOSS 限流/封禁（页面被跳成"访问受限"或城市首页）；
+          // ② 单纯渲染抖动。前者继续逐岗 goto 会加重风控、甚至延长封禁，必须立即整体停机。
+          // 这里读一次 innerText 做判定（"访问受限"页正文极短，成本可忽略），命中即 break 出整个投递循环。
+          // 用 try/catch 而非 .catch：evaluate 可能在调用点同步抛错（如页面已失效），需一并兜住降级为空文本。
+          let notReadyText = "";
+          try { notReadyText = await page.evaluate(() => document.body?.innerText || ""); } catch (e) {}
+          const hardBlock = HARD_BLOCK_HINTS.find((h) => notReadyText.includes(h));
+          consecutiveNotReady++;
+          if (hardBlock) {
+            blocked = true;
+            failed++;
+            results.push({ job: title, status: "blocked", reason: "账号访问受限：" + hardBlock });
+            log(`[${i + 1}/${total}] ⛔ BOSS 账号访问受限（${hardBlock}），立即停止投递，切勿继续刷新，等待自动解封后再跑: ${title}`);
+            break;
+          }
+          if (consecutiveNotReady >= MAX_CONSECUTIVE_NOT_READY) {
+            blocked = true;
+            failed++;
+            results.push({ job: title, status: "blocked", reason: `连续 ${consecutiveNotReady} 个职位详情页打不开，疑似限流` });
+            log(`[${i + 1}/${total}] ⛔ 连续 ${consecutiveNotReady} 个职位详情页打不开，疑似被限流，停止投递避免加重风控: ${title}`);
+            break;
+          }
           failed++;
           results.push({ job: title, status: "page_not_ready", reason: "页面未进入职位详情" });
           log(`[${i + 1}/${total}] 页面未进入职位详情，跳过，避免误点城市首页: ${title}`);
@@ -2649,6 +2679,7 @@ export class AutoApplyBot {
           if (this.running && i < total - 1) await this._humanWait(delayMin, delayMax);
           continue;
         }
+        consecutiveNotReady = 0; // 成功进入详情页，重置连续失败计数
 
         let state0 = await this._checkPageState(page);
         let bodyText = await page.evaluate(() => document.body?.innerText || "").catch(() => "");
@@ -2835,6 +2866,7 @@ export class AutoApplyBot {
         log(`[${i + 1}/${total}] 处理异常: ${(e.message || "").slice(0, 80)}`);
       }
 
+
       if (this.running && i < total - 1) {
         this._progress(options, i + 1, total, (jobs[i]?.title || ""), `等待随机 ${delayMin}-${delayMax} 秒`);
         await this._humanWait(delayMin, delayMax);
@@ -2842,8 +2874,8 @@ export class AutoApplyBot {
     }
 
     this._progress(options, total, total, "", "完成");
-    log(`投递结束: 成功 ${applied}，失败 ${failed}，跳过 ${skipped}，共处理 ${applied + failed + skipped}`);
-    return { applied, failed, skipped, total: applied + failed, results };
+    log(`投递结束: 成功 ${applied}，失败 ${failed}，跳过 ${skipped}，共处理 ${applied + failed + skipped}${blocked ? "（因访问受限提前熔断）" : ""}`);
+    return { applied, failed, skipped, total: applied + failed, results, blocked };
   }
 
   async monitorChat(onMsg, interval, options = {}) {
