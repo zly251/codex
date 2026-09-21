@@ -30,7 +30,8 @@ export function createAutopilot(deps = {}) {
     needLogin: false,
     intervalMs: DEFAULT_INTERVAL_MS,
     idleIntervalMs: DEFAULT_IDLE_INTERVAL_MS,
-    stats: { rounds: 0, replied: 0, sent: 0, summaries: 0, errors: 0 },
+    // replenished/autoApproved 只在注入对应 dep 时才会增长；默认（未注入）恒为 0，保持原行为。
+    stats: { rounds: 0, replied: 0, sent: 0, summaries: 0, errors: 0, replenished: 0, autoApproved: 0 },
     logs: [],
   };
   let maxRounds = Infinity; // 只在 start(opts) 里赋值，连跑多少轮后自动收工
@@ -72,6 +73,8 @@ export function createAutopilot(deps = {}) {
     let summaries = 0;
     let remaining = 0;
     let pending = 0;
+    let replenished = 0; // 本轮补库存新增的岗位数（搜索+增补），仅在注入 replenish 时增长
+    let autoApproved = 0; // 本轮自动放行的待确认岗位数，仅在注入 autoApprove 时增长
     let queueOk = true; // 只有「队列和待回消息都成功跑过且都排空」才算空闲，某步失败时宁可继续按正常节奏跑
     let chatOk = true;
 
@@ -126,9 +129,23 @@ export function createAutopilot(deps = {}) {
       return { phase: "need_login", round, needLogin: true, ms: nowFn() - t0 };
     }
 
-    // —— 4. 正常巡航：四个动作按固定顺序跑，每步单独 try/catch ——
+    // —— 4. 正常巡航：动作按固定顺序跑，每步单独 try/catch ——
     // 为什么每步都要单独兜：某一处失败（比如某页选择器变了）不该让整轮白跑，
     // 后面几步往往是独立的、还能正常出成果。
+    //
+    // replenish / autoApprove 两步是"无人值守补库存 + 自动放行"（2026-09-21 新增）：
+    // 缺省（未注入对应 dep）时完全不跑，管线与新增前逐字节一致；只有宿主注入这两个 dep
+    // 且 .env 开关打开时，巡航才自己搜新岗、增补、并把达标的待确认岗位放行进投递集合。
+
+    // 4.0 补库存（可选）：搜索新岗 + 详情增补，让巡航自己找活、不必人工先搜。
+    try {
+      if (typeof d.replenish === "function") {
+        const r = await d.replenish();
+        replenished = n0(r && r.searched) + n0(r && r.enriched);
+      }
+    } catch (e) {
+      errs.push(fail(e, "replenish"));
+    }
 
     // 4.1 同步聊天反馈（把页面上的新回复、状态变化抓回来）
     try {
@@ -147,6 +164,17 @@ export function createAutopilot(deps = {}) {
       chatOk = false;
       pending = 0; // 拿不到真实余量，按 0 展示，但下面的空闲判定会因 chatOk=false 拦住
       errs.push(fail(e, "replyDueChats"));
+    }
+
+    // 4.25 自动放行（可选）：无人值守时把达标的待确认岗位放进投递集合。
+    // 放在 applyQueue 之前 ⇒ 本轮放行的岗位本轮就能按节奏发出，不必等下一轮。
+    try {
+      if (typeof d.autoApprove === "function") {
+        const r = await d.autoApprove();
+        autoApproved = n0(r && r.approved);
+      }
+    } catch (e) {
+      errs.push(fail(e, "autoApprove"));
     }
 
     // 4.3 按节奏发打招呼。每轮都探一次队列：宿主适配器在"无可发"时是廉价空操作，
@@ -176,6 +204,8 @@ export function createAutopilot(deps = {}) {
     state.stats.replied += replied;
     state.stats.sent += sent;
     state.stats.summaries += summaries;
+    state.stats.replenished += replenished;
+    state.stats.autoApproved += autoApproved;
 
     // —— 6. 空闲判定：待发 0、待回 0，且本轮没有"尝试过但没送达"的回复 ——
     // 空闲不是退出，只是把节奏降到 idleIntervalMs 继续低频巡检（用户要的是「一直跑」）。
@@ -189,7 +219,11 @@ export function createAutopilot(deps = {}) {
         ? `第 ${round} 轮结束：队列与待回消息都已排空，转入低频巡检`
         : `第 ${round} 轮结束：回复 ${replied} 条、未送达 ${sendFailed} 条、打招呼 ${sent} 个、待回 ${pending}、待发 ${remaining}`
     );
-    return { phase, round, replied, failed: sendFailed, sent, remaining, pending, summaries, ms: nowFn() - t0, errors: errs };
+    // 补库存/自动放行有动作时单列一行，避免动到上面这条既有日志（存量断言只增不减）。
+    if (replenished > 0 || autoApproved > 0) {
+      note(`第 ${round} 轮：补库存 ${replenished}（搜索+增补）、自动放行 ${autoApproved}`);
+    }
+    return { phase, round, replied, failed: sendFailed, sent, remaining, pending, summaries, replenished, autoApproved, ms: nowFn() - t0, errors: errs };
   }
 
   // 对外承诺：任何情况下都不抛异常 —— 兜底 catch 把 runRound 里漏网的意外（含 deps 里的同步 throw）收干净

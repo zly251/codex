@@ -55,6 +55,15 @@ var state = {
 const platform = getPlatform();
 var cookieWatcher = null;
 
+// —— 无人值守补库存（replenish）节流状态：单进程内即可，无需持久化 ——
+// 反爬靠冷却：搜索默认 ≥3 小时一次、增补默认 ≥45 分钟一次；force=1 可忽略冷却。
+let lastReplenishSearchAt = 0;
+let lastReplenishEnrichAt = 0;
+let replenishKeywordIdx = 0;
+const REPLENISH_KEYWORDS = String(process.env.JOB_AGENT_REPLENISH_KEYWORDS || "外贸业务员,销售,客服,业务助理,跟单文员")
+  .split(/[,，]/).map(function (s) { return s.trim(); }).filter(Boolean);
+function minutesAgo(ts) { return ts ? (Date.now() - ts) / 60000 : Infinity; }
+
 async function savePlatformCookies() {
   try {
     const result = await platform.saveCookies(getManager(), DATA_ROOT);
@@ -371,36 +380,45 @@ export async function handleConnect(req, res, body) {
   }
 }
 
+// 搜索核心：被 handleSearch 与无人值守补库存（handleReplenish）共用，单一事实来源。
+// 未连接浏览器时抛错（含"浏览器未连接"），由调用方决定回 400 还是记入巡航错误。
+export async function runSearchJobs({ keyword, city, pages } = {}) {
+  const s = getScraper();
+  const mgr = getManager();
+  if (!mgr.browser?.connected) throw new Error("浏览器未连接，请先连接 Edge");
+  state.status = "searching";
+  const kw = keyword || "C++";
+  const ct = city || "";
+  const pg = pages || 3;
+  liveLog.add(`开始搜索: ${kw} ${ct || "全国"} ${pg} 页`);
+  const jobs = await s.searchJobs({ keyword: kw, city: ct, pages: pg });
+  if (jobs.length > 0) {
+    await s.saveJobs(jobs, jobDb, companyDb);
+    // M1 接线：落库后立即按坐标/区县回填距离档（纯 DB 计算，不碰网络）
+    let distOk = 0;
+    for (const j of jobs) {
+      try {
+        const row = jobDb.findByUrl(j.url);
+        if (row) { applyDistanceToJob(row); distOk++; }
+      } catch (e) {}
+    }
+    if (distOk > 0) liveLog.add(`距离回填: ${distOk}/${jobs.length} 个职位已分档`);
+  }
+  state.lastSearch = { keyword: kw, city: ct, pages: pg, count: jobs.length };
+  state.status = jobs.length > 0 ? "found" : "empty";
+  liveLog.add(`搜索完成: 找到 ${jobs.length} 个职位`);
+  return { count: jobs.length, jobs };
+}
+
 export async function handleSearch(req, res, body) {
   try {
-    const s = getScraper();
     const mgr = getManager();
     if (!mgr.browser?.connected) {
       json(res, { ok: false, error: "浏览器未连接，请先连接 Edge", hint: "请先连接浏览器" }, 400);
       return;
     }
-    state.status = "searching";
-    const keyword = body?.keyword || "C++";
-    const city = body?.city || "";
-    const pages = body?.pages || 3;
-    liveLog.add(`开始搜索: ${keyword} ${city || "全国"} ${pages} 页`);
-    const jobs = await s.searchJobs({ keyword, city, pages });
-    if (jobs.length > 0) {
-      await s.saveJobs(jobs, jobDb, companyDb);
-      // M1 接线：落库后立即按坐标/区县回填距离档（纯 DB 计算，不碰网络）
-      let distOk = 0;
-      for (const j of jobs) {
-        try {
-          const row = jobDb.findByUrl(j.url);
-          if (row) { applyDistanceToJob(row); distOk++; }
-        } catch (e) {}
-      }
-      if (distOk > 0) liveLog.add(`距离回填: ${distOk}/${jobs.length} 个职位已分档`);
-    }
-    state.lastSearch = { keyword, city, pages, count: jobs.length };
-    state.status = jobs.length > 0 ? "found" : "empty";
-    liveLog.add(`搜索完成: 找到 ${jobs.length} 个职位`);
-    json(res, { ok: true, count: jobs.length, jobs: jobs.slice(0, 50) });
+    const r = await runSearchJobs(body || {});
+    json(res, { ok: true, count: r.count, jobs: r.jobs.slice(0, 50) });
   } catch (e) {
     state.status = "error";
     state.lastError = e.message;
@@ -410,90 +428,93 @@ export async function handleSearch(req, res, body) {
 }
 
 // ── M1 接线：职位详情页增补（JD/福利标签/坐标 → 距离档） ──────────────
+// 详情增补核心：被 handleEnrich 与无人值守补库存（handleReplenish）共用，单一事实来源。
+// 抛出的 Error 带 .httpStatus，让 handleEnrich 保持原有的 400/404/500 语义。
+export async function runEnrichBatch({ jobId, limit, maxMs } = {}) {
+  const httpErr = function (msg, status) { const e = new Error(msg); e.httpStatus = status; return e; };
+  const mgr = getManager();
+  if (!mgr.browser?.connected) throw httpErr("浏览器未连接，请先连接 Edge", 400);
+  const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  const pick = function (a, b) {
+    for (const s of [a, b]) {
+      const m = String(s || "").match(/[?&]jobId=([^&#]+)/i);
+      if (m) return m[1];
+    }
+    return "";
+  };
+  // 待增补：指定 jobId 优先；否则取"缺 JD 或缺宿舍来源"的活跃岗位
+  let targets = [];
+  if (jobId) {
+    const one = jobDb.findById(Number(jobId));
+    if (!one) throw httpErr("岗位不存在", 404);
+    targets = [one];
+  } else {
+    targets = getDbEnrichCandidates();
+  }
+  const lim = Math.max(1, Math.min(Number(limit) || 20, 100));
+  targets = targets.slice(0, lim);
+  const budgetMs = Math.max(10000, Math.min(Number(maxMs) || 120000, 600000));
+  const startedAt = Date.now();
+
+  let page = null;
+  try { page = await mgr.getPage(); } catch (e) {
+    throw httpErr("获取页面失败: " + (e.message || "").slice(0, 80), 500);
+  }
+
+  let enriched = 0, failed = 0, skipped = 0;
+  const details = [];
+  for (const job of targets) {
+    if (Date.now() - startedAt > budgetMs) { liveLog.add("增补达到时间预算，剩余岗位下次再跑"); break; }
+    if (!job.url || !/zhipin\.com/.test(job.url)) { skipped++; continue; }
+    try {
+      await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 });
+      // 必须真落在详情页：BOSS 会把失效/风控页重定向到城市首页，此时正文/地址/坐标
+      // 全是别的页面的内容，写库即污染（2026-09-19 实测：重定向页写出 lat/lng=0,0）。
+      const landed = String(page.url() || "");
+      if (!/job_detail/.test(landed)) {
+        skipped++;
+        liveLog.add("增补跳过(job " + job.id + "): 未落在详情页 " + landed.slice(0, 60));
+        continue;
+      }
+      await sleep(1500 + Math.random() * 1500);
+      const result = await enrichJobFromDetail(page);
+      // 空提取（页面是空白页/风控页/DOM 变了）不算成功：写库只会把 hasDormitory 抹成 0，
+      // 还会让"成功数"虚高掩盖真实故障。
+      if (!result.description && !result.address) {
+        skipped++;
+        liveLog.add("增补跳过(job " + job.id + "): 详情页未取到正文与地址");
+        continue;
+      }
+      const patch = enrichmentPatch(result);
+      const jobIdMatch = pick(job.url, job.rawData);
+      const cardText = jobIdMatch ? String(job.rawData || "") : "";
+      if (jobIdMatch && !cardText.includes('"encryptJobId":"' + jobIdMatch)) {
+        liveLog.add("增补坐标跳过: 页面 encryptJobId 与库记录不匹配，防串写: job " + job.id);
+      } else {
+        jobDb.updateEnrichment(job.id, patch);
+        applyDistanceToJob(jobDb.findById(job.id));
+        enriched++;
+        details.push({ id: job.id, hasDormitory: patch.hasDormitory || 0, descLen: (patch.description || "").length });
+      }
+    } catch (e) {
+      failed++;
+      liveLog.add("增补失败(job " + job.id + "): " + (e.message || "").slice(0, 100));
+    }
+    // 岗位间随机停顿，避免访问节奏过密
+    await sleep(2500 + Math.random() * 3500);
+  }
+  liveLog.add(`详情增补完成: 成功 ${enriched} / 失败 ${failed} / 跳过 ${skipped}（共处理 ${Math.min(targets.length, enriched + failed + skipped)}）`);
+  return { enriched, failed, skipped, details: details.slice(0, 50) };
+}
+
 // POST /api/boss/enrich  { jobId?, limit?, maxMs? }
-// 浏览器只读浏览详情页，不点击任何投递/打招呼控件；单条失败不中断整批。
 export async function handleEnrich(req, res, body) {
   try {
-    const mgr = getManager();
-    if (!mgr.browser?.connected) {
-      json(res, { ok: false, error: "浏览器未连接，请先连接 Edge", needBrowser: true }, 400);
-      return;
-    }
-    const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-    const pick = function (a, b) {
-      for (const s of [a, b]) {
-        const m = String(s || "").match(/[?&]jobId=([^&#]+)/i);
-        if (m) return m[1];
-      }
-      return "";
-    };
-    // 待增补：指定 jobId 优先；否则取"缺 JD 或缺宿舍来源"的活跃岗位
-    let targets = [];
-    if (body?.jobId) {
-      const one = jobDb.findById(Number(body.jobId));
-      if (!one) { json(res, { ok: false, error: "岗位不存在" }, 404); return; }
-      targets = [one];
-    } else {
-      targets = getDbEnrichCandidates();
-    }
-    const limit = Math.max(1, Math.min(Number(body?.limit) || 20, 100));
-    targets = targets.slice(0, limit);
-    const maxMs = Math.max(10000, Math.min(Number(body?.maxMs) || 120000, 600000));
-    const startedAt = Date.now();
-
-    let page = null;
-    try { page = await mgr.getPage(); } catch (e) {
-      json(res, { ok: false, error: "获取页面失败: " + (e.message || "").slice(0, 80) }, 500);
-      return;
-    }
-
-    let enriched = 0, failed = 0, skipped = 0;
-    const details = [];
-    for (const job of targets) {
-      if (Date.now() - startedAt > maxMs) { liveLog.add("增补达到时间预算，剩余岗位下次再跑"); break; }
-      if (!job.url || !/zhipin\.com/.test(job.url)) { skipped++; continue; }
-      try {
-        await page.goto(job.url, { waitUntil: "domcontentloaded", timeout: 20000 });
-        // 必须真落在详情页：BOSS 会把失效/风控页重定向到城市首页，此时正文/地址/坐标
-        // 全是别的页面的内容，写库即污染（2026-09-19 实测：重定向页写出 lat/lng=0,0）。
-        const landed = String(page.url() || "");
-        if (!/job_detail/.test(landed)) {
-          skipped++;
-          liveLog.add("增补跳过(job " + job.id + "): 未落在详情页 " + landed.slice(0, 60));
-          continue;
-        }
-        await sleep(1500 + Math.random() * 1500);
-        const result = await enrichJobFromDetail(page);
-        // 空提取（页面是空白页/风控页/DOM 变了）不算成功：写库只会把 hasDormitory 抹成 0，
-        // 还会让"成功数"虚高掩盖真实故障。
-        if (!result.description && !result.address) {
-          skipped++;
-          liveLog.add("增补跳过(job " + job.id + "): 详情页未取到正文与地址");
-          continue;
-        }
-        const patch = enrichmentPatch(result);
-        const jobIdMatch = pick(job.url, job.rawData);
-        const cardText = jobIdMatch ? String(job.rawData || "") : "";
-        if (jobIdMatch && !cardText.includes('"encryptJobId":"' + jobIdMatch)) {
-          liveLog.add("增补坐标跳过: 页面 encryptJobId 与库记录不匹配，防串写: job " + job.id);
-        } else {
-          jobDb.updateEnrichment(job.id, patch);
-          applyDistanceToJob(jobDb.findById(job.id));
-          enriched++;
-          details.push({ id: job.id, hasDormitory: patch.hasDormitory || 0, descLen: (patch.description || "").length });
-        }
-      } catch (e) {
-        failed++;
-        liveLog.add("增补失败(job " + job.id + "): " + (e.message || "").slice(0, 100));
-      }
-      // 岗位间随机停顿，避免访问节奏过密
-      await sleep(2500 + Math.random() * 3500);
-    }
-    liveLog.add(`详情增补完成: 成功 ${enriched} / 失败 ${failed} / 跳过 ${skipped}（共处理 ${Math.min(targets.length, enriched + failed + skipped)}）`);
-    json(res, { ok: true, enriched, failed, skipped, details: details.slice(0, 50) });
+    const r = await runEnrichBatch(body || {});
+    json(res, { ok: true, enriched: r.enriched, failed: r.failed, skipped: r.skipped, details: r.details });
   } catch (e) {
-    liveLog.add("增补异常: " + (e.message || "").slice(0, 120));
-    json(res, { ok: false, error: e.message }, 500);
+    if (!e.httpStatus) liveLog.add("增补异常: " + (e.message || "").slice(0, 120));
+    json(res, { ok: false, error: e.message }, e.httpStatus || 500);
   }
 }
 
@@ -509,6 +530,45 @@ function getDbEnrichCandidates() {
     ).all();
   } catch (e) {
     return [];
+  }
+}
+
+// POST /api/boss/replenish  { force?, enrichLimit?, maxMs? }
+// 无人值守补库存：轮换搜索一个方向关键词 + 增补若干缺 JD 的岗位，让巡航自己找活。
+// 反爬靠冷却：搜索默认 ≥3 小时/次（JOB_AGENT_REPLENISH_SEARCH_MIN 分钟）、
+// 增补默认 ≥45 分钟/次（JOB_AGENT_REPLENISH_ENRICH_MIN 分钟）、单次 ≤10 条；force=1 忽略冷却。
+export async function handleReplenish(req, res, body) {
+  try {
+    const b = body || {};
+    const force = !!b.force;
+    const searchMin = Number(process.env.JOB_AGENT_REPLENISH_SEARCH_MIN) || 180;
+    const enrichMin = Number(process.env.JOB_AGENT_REPLENISH_ENRICH_MIN) || 45;
+    const city = String(process.env.JOB_AGENT_REPLENISH_CITY || "台州");
+    const pages = Number(process.env.JOB_AGENT_REPLENISH_PAGES) || 2;
+    let searched = 0, enriched = 0, failed = 0, skipped = 0;
+    // 1) 搜索：轮换关键词，受冷却闸门控制（首轮 lastReplenishSearchAt=0 ⇒ minutesAgo=Infinity ⇒ 立刻跑一次）
+    if (REPLENISH_KEYWORDS.length && (force || minutesAgo(lastReplenishSearchAt) >= searchMin)) {
+      const keyword = REPLENISH_KEYWORDS[replenishKeywordIdx % REPLENISH_KEYWORDS.length];
+      replenishKeywordIdx = (replenishKeywordIdx + 1) % REPLENISH_KEYWORDS.length;
+      lastReplenishSearchAt = Date.now();
+      const r = await runSearchJobs({ keyword, city, pages });
+      searched = r.count;
+      liveLog.add(`补库存搜索: ${keyword} ${city} -> ${searched} 个职位`);
+    } else {
+      liveLog.add("补库存：搜索冷却未到，本轮跳过搜索");
+    }
+    // 2) 增补：只补新落库/仍缺 JD 的岗位，单次 ≤10，受冷却闸门控制
+    if (force || minutesAgo(lastReplenishEnrichAt) >= enrichMin) {
+      lastReplenishEnrichAt = Date.now();
+      const e = await runEnrichBatch({ limit: Math.min(Number(b.enrichLimit) || 10, 10), maxMs: Number(b.maxMs) || 150000 });
+      enriched = e.enriched; failed = e.failed; skipped = e.skipped;
+    } else {
+      liveLog.add("补库存：增补冷却未到，本轮跳过增补");
+    }
+    json(res, { ok: true, searched, enriched, failed, skipped });
+  } catch (e) {
+    liveLog.add("补库存异常: " + (e.message || "").slice(0, 120));
+    json(res, { ok: false, error: e.message }, e.httpStatus || 500);
   }
 }
 
@@ -924,6 +984,43 @@ export function handleReviewApproveAll(req, res, body) {
     for (const row of rows) reviewQueue.approve(row.id);
     liveLog.add(`待确认队列: 一键放行 ${rows.length} 个，将进入下次投递`);
     json(res, { ok: true, approved: rows.length });
+  } catch (e) {
+    json(res, { ok: false, error: e.message }, 500);
+  }
+}
+
+// POST /api/review/auto-approve  body {minScore?, max?}
+// 无人值守自动放行：只挑"人大概率会点头"的待确认岗位放进投递集合，是保守闸门而非全量放行。
+// 闸门（全部满足才放行）：岗位 active ∧ 距离档 CORE/NEAR（≤15km，可通勤）∧ 命中主投方向关键词
+// ∧ 未拉黑公司 ∧ score ≥ 门槛（默认 55，JOB_AGENT_AUTO_APPROVE_MIN 可覆盖）。
+// 每轮上限 max（默认 25，JOB_AGENT_AUTO_APPROVE_MAX），避免一次把积压全放行、投递节奏过猛。
+// UNKNOWN 档不自动放行（未 enrich 数据本就该人工看）；FAR 不自动放行（通勤成本，尊重用户距离偏好）。
+export function handleReviewAutoApprove(req, res, body) {
+  try {
+    reviewQueue.ensureTable();
+    const minScore = Number(body?.minScore ?? process.env.JOB_AGENT_AUTO_APPROVE_MIN) || 55;
+    const maxN = Number(body?.max ?? process.env.JOB_AGENT_AUTO_APPROVE_MAX) || 25;
+    const dir = directionKeywords();
+    const profile = getProfile();
+    const rows = reviewQueue.findPending();
+    let approved = 0, considered = 0;
+    const approvedIds = [];
+    for (const row of rows) {
+      if (approved >= maxN) break;
+      considered++;
+      const j = jobDb.findById(row.jobId);
+      if (!j || (j.status && j.status !== "active")) continue;
+      if (isBlockedCompany(j)) continue;
+      const s = scoreJob(j, profile);
+      if (s.distanceTier !== "CORE" && s.distanceTier !== "NEAR") continue;
+      if (!matchesDirection(j, dir)) continue;
+      if (s.score < minScore) continue;
+      reviewQueue.approve(row.id);
+      approved++;
+      approvedIds.push(row.id);
+    }
+    liveLog.add(`无人值守自动放行: ${approved} 个（考察 ${considered} 个待确认，门槛 CORE/NEAR+方向+≥${minScore} 分、单轮上限 ${maxN}），将进入下次投递`);
+    json(res, { ok: true, approved, considered, ids: approvedIds });
   } catch (e) {
     json(res, { ok: false, error: e.message }, 500);
   }

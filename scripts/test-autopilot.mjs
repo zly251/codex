@@ -25,8 +25,10 @@ function makeDeps(over = {}) {
   const calls = {
     connectBrowser: 0,
     checkLogin: 0,
+    replenish: 0,
     syncFeedback: 0,
     replyDueChats: 0,
+    autoApprove: 0,
     applyQueue: 0,
     writeSummaries: 0,
   };
@@ -35,8 +37,11 @@ function makeDeps(over = {}) {
     isBrowserConnected: () => true,
     connectBrowser: async () => ({ ok: true }),
     checkLogin: async () => true,
+    // 补库存 / 自动放行默认成功且有产出，好让"注入了就会跑"在正常轮里可观测。
+    replenish: async () => ({ searched: 3, enriched: 2 }),
     syncFeedback: async () => ({ replied: 2 }),
     replyDueChats: async () => ({ replied: 1, pending: 3 }),
+    autoApprove: async () => ({ approved: 1 }),
     applyQueue: async () => ({ sent: 5, remaining: 4 }),
     writeSummaries: async () => ({ written: 2 }),
     log: () => {}, // 自检不想刷屏，静默
@@ -74,6 +79,8 @@ await t("正常一轮返回 working，且 stats 累加正确", async () => {
   assert.equal(r1.remaining, 4, "remaining 应取 applyQueue 的 remaining");
   assert.equal(r1.pending, 3, "pending 应取 replyDueChats 的 pending");
   assert.equal(r1.summaries, 2, "summaries 应取 writeSummaries 的 written");
+  assert.equal(r1.replenished, 5, "replenished 应取 replenish 的 searched+enriched（3+2）");
+  assert.equal(r1.autoApproved, 1, "autoApproved 应取 autoApprove 的 approved");
   assert.ok(typeof r1.ms === "number" && r1.ms >= 0, "ms 应为非负数字");
 
   const st1 = ap.status().stats;
@@ -81,12 +88,14 @@ await t("正常一轮返回 working，且 stats 累加正确", async () => {
   assert.equal(st1.replied, 1, "stats.replied 应累加到 1");
   assert.equal(st1.sent, 5, "stats.sent 应累加到 5");
   assert.equal(st1.summaries, 2, "stats.summaries 应累加到 2");
+  assert.equal(st1.replenished, 5, "stats.replenished 应累加到 5");
+  assert.equal(st1.autoApproved, 1, "stats.autoApproved 应累加到 1");
   assert.equal(st1.errors, 0, "全成功时 stats.errors 应为 0");
 
   assert.deepEqual(
     order,
-    ["checkLogin", "syncFeedback", "replyDueChats", "applyQueue", "writeSummaries"],
-    "动作顺序应为 登录检查 → 同步反馈 → 回消息 → 发招呼 → 写摘要"
+    ["checkLogin", "replenish", "syncFeedback", "replyDueChats", "autoApprove", "applyQueue", "writeSummaries"],
+    "动作顺序应为 登录检查 → 补库存 → 同步反馈 → 回消息 → 自动放行 → 发招呼 → 写摘要"
   );
 
   // 第二轮继续累加（队列还有剩余，所以 applyQueue 会再跑一次）
@@ -96,6 +105,8 @@ await t("正常一轮返回 working，且 stats 累加正确", async () => {
   assert.equal(st2.sent, 10, "stats.sent 两轮应累加到 10");
   assert.equal(st2.replied, 2, "stats.replied 两轮应累加到 2");
   assert.equal(st2.summaries, 4, "stats.summaries 两轮应累加到 4");
+  assert.equal(st2.replenished, 10, "stats.replenished 两轮应累加到 10");
+  assert.equal(st2.autoApproved, 2, "stats.autoApproved 两轮应累加到 2");
   assert.equal(calls.applyQueue, 2, "队列仍有剩余时每轮都应调用 applyQueue");
 });
 
@@ -307,6 +318,51 @@ await t("status() 返回的是副本，改返回值不影响下一次状态", as
   assert.equal(after.logs.length, before.logs.length, "往返回值 logs 里 push 不应污染内部日志");
   assert.equal(after.logs[0].msg, before.logs[0].msg, "改返回值 logs 里的条目不应污染内部日志");
   assert.notEqual(after.stats, mutated.stats, "两次 status() 的 stats 应是不同对象");
+});
+
+// —— 9. 存在性守卫：不注入 replenish/autoApprove 时，管线与"新增该两步之前"逐字节一致 ——
+await t("未注入 replenish/autoApprove 时保持原管线（向后兼容）", async () => {
+  const order = [];
+  const deps = {
+    isBrowserConnected: () => true,
+    connectBrowser: async () => ({ ok: true }),
+    checkLogin: async () => { order.push("checkLogin"); return true; },
+    syncFeedback: async () => { order.push("syncFeedback"); return { replied: 0 }; },
+    replyDueChats: async () => { order.push("replyDueChats"); return { replied: 0, pending: 0 }; },
+    applyQueue: async () => { order.push("applyQueue"); return { sent: 0, remaining: 0 }; },
+    writeSummaries: async () => { order.push("writeSummaries"); return { written: 0 }; },
+    log: () => {},
+    sleep: async () => { await new Promise((r) => setImmediate(r)); },
+    // 注意：故意不提供 replenish / autoApprove。
+  };
+  const ap = createAutopilot(deps);
+  const r = await ap.tick();
+  assert.equal(
+    order.join(","),
+    "checkLogin,syncFeedback,replyDueChats,applyQueue,writeSummaries",
+    "未注入两步时不得出现 replenish/autoApprove"
+  );
+  assert.equal(r.replenished, 0, "未注入时本轮 replenished 应为 0");
+  assert.equal(r.autoApproved, 0, "未注入时本轮 autoApproved 应为 0");
+  assert.equal(ap.status().stats.replenished, 0, "未注入时 stats.replenished 应恒为 0");
+  assert.equal(r.phase, "idle", "队列与待回都排空仍应 idle（两步缺席不影响空闲判定）");
+});
+
+// —— 10. 补库存/自动放行抛错不阻断后续，且各自计入 errors ——
+await t("replenish/autoApprove 抛错不阻断后续步骤，errors 各 +1", async () => {
+  const { deps, calls } = makeDeps({
+    replenish: async () => { throw new Error("搜索被风控掐断"); },
+    autoApprove: async () => { throw new Error("放行闸门读库失败"); },
+  });
+  const ap = createAutopilot(deps);
+  const r = await ap.tick();
+  assert.equal(r.phase, "working", "两步失败时本轮仍应算 working");
+  assert.equal(calls.syncFeedback, 1, "replenish 抛错后 syncFeedback 仍应被调用");
+  assert.equal(calls.applyQueue, 1, "autoApprove 抛错后 applyQueue 仍应被调用");
+  assert.equal(calls.writeSummaries, 1, "autoApprove 抛错后 writeSummaries 仍应被调用");
+  assert.ok(ap.status().stats.errors >= 2, "两次步骤失败应让 stats.errors 至少 +2");
+  assert.ok(r.errors.some((m) => m.includes("replenish")), "errors 应含 replenish 的失败信息");
+  assert.ok(r.errors.some((m) => m.includes("autoApprove")), "errors 应含 autoApprove 的失败信息");
 });
 
 console.log(`\n${passed} passed, ${failed} failed`);

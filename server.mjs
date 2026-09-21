@@ -17,7 +17,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { initDb } from "./src/db/index.js";
-import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject, checkLoggedIn, isBrowserConnected, ensureBrowserConnected, approvedPendingCount, manualPendingCount, recentChatTranscripts, isApplyDryRun } from "./src/routes.mjs";
+import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject, handleReplenish, handleReviewAutoApprove, checkLoggedIn, isBrowserConnected, ensureBrowserConnected, approvedPendingCount, manualPendingCount, recentChatTranscripts, isApplyDryRun } from "./src/routes.mjs";
 import { createAutopilot } from "./src/autopilot.js";
 import { buildSummaries, writeSummariesFile } from "./src/chatSummary.js";
 import { generateText, loadCandidateCardText } from "./src/llmProvider.js";
@@ -112,6 +112,26 @@ const autopilot = createAutopilot({
   },
   connectBrowser: () => ensureBrowserConnected(),
   checkLogin: () => checkLoggedIn(),
+  // —— 无人值守"补库存 + 自动放行"两步（2026-09-21 新增）——
+  // 默认关：只有 .env JOB_AGENT_REPLENISH / JOB_AGENT_AUTO_APPROVE 打开时，巡航才会自己搜新岗、
+  // 增补、并把达标待确认岗位放行进投递集合。关着时返回空对象，巡航行为与新增前完全一致。
+  replenish: async () => {
+    if (!/^(1|true|yes|on)$/i.test(String(process.env.JOB_AGENT_REPLENISH || "").trim())) {
+      return { searched: 0, enriched: 0, skipped: true };
+    }
+    const j = await selfPost("/api/boss/replenish");
+    // 补库存失败（浏览器没连/风控等）不当致命：交给调度器记一条 error，本轮其余动作照常。
+    if (j && j.ok === false && !j.busy) throw new Error(j.error || "replenish 失败");
+    return j || {};
+  },
+  autoApprove: async () => {
+    if (!/^(1|true|yes|on)$/i.test(String(process.env.JOB_AGENT_AUTO_APPROVE || "").trim())) {
+      return { approved: 0 };
+    }
+    const j = await selfPost("/api/review/auto-approve");
+    if (j && j.ok === false && !j.busy) throw new Error(j.error || "auto-approve 失败");
+    return j || {};
+  },
   syncFeedback: async () => {
     const j = await selfPost("/api/boss/sync-feedback");
     // busy=已有任务在跑，属正常情况，不算失败
@@ -580,6 +600,15 @@ var httpServer = http.createServer(function(req, res) {
     });
     return;
   }
+  if (p === "/api/review/auto-approve" && req.method === "POST") {
+    var aaBody = "";
+    req.on("data", function(c) { aaBody += c; });
+    req.on("end", function() {
+      try { handleReviewAutoApprove(req, res, aaBody ? JSON.parse(aaBody) : {}); }
+      catch (e) { json(res, { ok: false, error: e.message }, 500); }
+    });
+    return;
+  }
   if (p === "/api/review/reject" && req.method === "POST") {
     var rjBody = "";
     req.on("data", function(c) { rjBody += c; });
@@ -606,6 +635,7 @@ var httpServer = http.createServer(function(req, res) {
           else if (p === "/api/boss/launch") { await handleLaunch(req, res, data); }
           else if (p === "/api/boss/search") { await handleSearch(req, res, data); }
           else if (p === "/api/boss/enrich") { await handleEnrich(req, res, data); }
+          else if (p === "/api/boss/replenish") { await handleReplenish(req, res, data); }
           else if (p === "/api/boss/apply") { await handleApply(req, res, data); }
           else if (p === "/api/boss/stop") { handleChatStop(req, res); }
           else if (p === "/api/boss/chat/start") { await handleChatStart(req, res, data); }
