@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "求职助手 · 半自动",
+  "version": "0.1.0",
+  "description": "BOSS 直聘半自动助手：只读页面文本，本机 server 生成 AI 话术建议与含金量测算，在侧栏中展示并一键复制。不自动发送任何消息。",
+  "permissions": ["storage", "sidePanel", "scripting"],
+  "host_permissions": ["http://127.0.0.1/*", "https://*.zhipin.com/*"],
+  "action": {
+    "default_title": "开关求职小窗"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*.zhipin.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

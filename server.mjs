@@ -20,7 +20,9 @@ import { initDb } from "./src/db/index.js";
 import { getStatus as getBossStatus, handleConnect, handleLaunch, handleSearch, handleEnrich, handleApply, handleChatStart, handleChatStop, handleChatReply, handleChatSendResume, handleFeedbackSync, handleGetMessages, handleReviewList, handleReviewApprove, handleReviewApproveAll, handleReviewReject, handleReplenish, handleReviewAutoApprove, checkLoggedIn, isBrowserConnected, ensureBrowserConnected, approvedPendingCount, manualPendingCount, recentChatTranscripts, isApplyDryRun } from "./src/routes.mjs";
 import { createAutopilot } from "./src/autopilot.js";
 import { buildSummaries, writeSummariesFile } from "./src/chatSummary.js";
-import { generateText, loadCandidateCardText } from "./src/llmProvider.js";
+import { generateText, loadCandidateCardText, buildSafeResumeText } from "./src/llmProvider.js";
+import { buildLookResponse } from "./src/extensionLook.mjs";
+import { computeValueCard } from "./src/value.mjs";
 import * as company from "./src/db/company.js";
 import * as job from "./src/db/job.js";
 import * as resume from "./src/db/resume.js";
@@ -470,6 +472,58 @@ function apiDeleteApplication(req, res, id) {
   json(res, { ok: application.remove(id) });
 }
 
+// ══════════════════════════════════════════════════════════════════
+// 浏览器扩展 V0（任务卡-求职助手浏览器扩展V0）：扩展只读页面 → 本机算钱 + 出话术建议。
+// 与 puppeteer 自动化链路完全解耦：这里不碰浏览器、不写页面，纯请求/响应。
+// ══════════════════════════════════════════════════════════════════
+async function apiExtensionLook(req, res) {
+  readJsonBody(req, async function (data) {
+    try {
+      // 真机验收诊断：设 EXT_LOOK_DEBUG=<路径> 时把原始 pageText 落盘，供离线核对抽取假设。默认关。
+      if (process.env.EXT_LOOK_DEBUG) {
+        try {
+          fs.appendFileSync(
+            process.env.EXT_LOOK_DEBUG,
+            "\n==== " + new Date().toISOString() + " href=" + (data.href || "") + " ====\n" + (data.pageText || "") + "\n",
+            "utf8"
+          );
+        } catch (e) { /* 诊断失败不影响主流程 */ }
+      }
+      const profile = getProfile() || {};
+      const resumeEditor = loadResumeEditor(profile);
+      const expectedSalary = String(resumeEditor?.expectedSalary ?? "");
+      const resumeRow = resume.findDefault() || resume.findAll()[0] || null;
+      const out = await buildLookResponse(
+        {
+          pageText: data.pageText,
+          href: data.href,
+          commuteMode: data.commuteMode,
+          oneWayKm: data.oneWayKm,
+          profile,
+          resume: resumeRow,
+          resumeEditor,
+          expectedSalary,
+        },
+        { env: process.env, generateText }
+      );
+      json(res, out);
+    } catch (e) {
+      json(res, { ok: false, error: String(e?.message || e).slice(0, 200) }, 500);
+    }
+  });
+}
+
+// 含金量卡单独口子：面板可脱离聊天页，按手填薪资直接算（也走 value.mjs 纯函数）
+function apiValue(req, res) {
+  readJsonBody(req, function (data) {
+    try {
+      json(res, computeValueCard(data || {}));
+    } catch (e) {
+      json(res, { ok: false, reason: String(e?.message || e).slice(0, 200) }, 500);
+    }
+  });
+}
+
 var routes = {
   "/api/profile": apiGetProfile,
   "/api/stats": apiStats,
@@ -482,6 +536,7 @@ var routes = {
 var httpServer = http.createServer(function(req, res) {
   var url = new URL(req.url, 'http://localhost');
   var p = url.pathname;
+  if (p === "/api/value" && req.method === "POST") { apiValue(req, res); return; }
   if (p === "/api/profile" && req.method === "POST") { apiSaveProfile(req, res); return; }
   if (p === "/api/resumes/upload" && req.method === "POST") { apiUploadResume(req, res); return; }
   if (req.method === "POST" && /^\/api\/resumes\/\d+\/default$/.test(p)) {
@@ -491,6 +546,19 @@ var httpServer = http.createServer(function(req, res) {
   if (p === "/api/resume/editor" && req.method === "GET") { apiGetResumeEditor(req, res); return; }
   if (p === "/api/resume/editor" && req.method === "POST") { apiSaveResumeEditor(req, res); return; }
   if (p === "/api/resume/export" && req.method === "GET") { apiExportResume(req, res); return; }
+
+  // —— 扩展 V0：/api/extension/look（含 chrome-extension:// 源的 CORS 预检）——
+  if (p === "/api/extension/look" && req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Max-Age": "86400",
+    });
+    res.end();
+    return;
+  }
+  if (p === "/api/extension/look" && req.method === "POST") { apiExtensionLook(req, res); return; }
 
   if (req.method === "DELETE" && /^\/api\/resumes\/\d+$/.test(p)) {
     var id = parseInt(p.split('/').pop(), 10);

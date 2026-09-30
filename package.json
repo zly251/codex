@@ -6,7 +6,9 @@
   "scripts": {
     "start": "node server.mjs",
     "import:resume": "npx tsx scripts/import-resume.ts",
-    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs && node scripts/test-m1-distance.mjs && node scripts/test-m2-scheduler.mjs && node scripts/test-m3-llm.mjs && node scripts/test-autopilot.mjs && node scripts/test-chat-summary.mjs && node scripts/test-human-rhythm.mjs && node scripts/test-reply-delivery.mjs",
+    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs && node scripts/test-m1-distance.mjs && node scripts/test-m2-scheduler.mjs && node scripts/test-m3-llm.mjs && node scripts/test-autopilot.mjs && node scripts/test-chat-summary.mjs && node scripts/test-human-rhythm.mjs && node scripts/test-reply-delivery.mjs && node scripts/test-v0-value.mjs && node scripts/test-v0-extension-look.mjs",
+    "test:v0-value": "node scripts/test-v0-value.mjs",
+    "test:v0-extension-look": "node scripts/test-v0-extension-look.mjs",
     "build:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/generate-app-icon.ps1",
     "build:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-exe.ps1"
   },

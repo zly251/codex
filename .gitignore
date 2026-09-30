@@ -63,6 +63,12 @@ prisma/*.db*
 src/scrapers/*.bakcheck
 src/scrapers/*_orig_check.*
 
+# 扩展 V0 诊断产物（2026-09-30）：本地排查用，794KB 起，绝不入库
+/.ext-last.json
+/.ext-look-debug.txt
+/ext_debug/
+/*.ext-log.txt
+
 # Diagnostic/temp scripts, not part of the application
 /click_fix*.mjs
 /edit_*.mjs

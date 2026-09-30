@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>求职助手 · 小窗</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <header id="drag-bar">
+    <span id="title">求职助手</span>
+    <span id="status">未连接</span>
+  </header>
+
+  <div id="job-bar" class="hidden">
+    <span id="job-tag">当前岗位</span>
+    <span id="job-name">—</span>
+  </div>
+
+  <main id="main">
+    <section id="manual" class="hidden">⚠️ 这条建议人工回复</section>
+    <section id="suggestions"></section>
+    <section id="value-card" class="hidden">
+      <div class="vc-head">含金量测算</div>
+      <div class="vc-big">
+        <div class="vc-num"><span id="vc-net">—</span><small>到手/月</small></div>
+        <div class="vc-num"><span id="vc-disposable">—</span><small>可支配/月</small></div>
+      </div>
+      <div class="vc-row"><span>税前月薪</span><span id="vc-gross"></span></div>
+      <div class="vc-row"><span>五险一金</span><span id="vc-insurance"></span></div>
+      <div class="vc-sub" id="vc-insurance-items"></div>
+      <div class="vc-row"><span>个税</span><span id="vc-tax"></span></div>
+      <div class="vc-row"><span>通勤费</span><span id="vc-commute"></span></div>
+      <details id="vc-detail">
+        <summary>怎么算出来的（明细）</summary>
+        <div id="vc-breakdown"></div>
+      </details>
+    </section>
+  </main>
+
+  <footer id="settings">
+    <details>
+      <summary>设置</summary>
+      <label>Server 地址
+        <input type="text" id="set-server" placeholder="http://127.0.0.1:3456" />
+      </label>
+      <label>轮询间隔（秒）
+        <input type="number" id="set-interval" min="2" max="120" step="1" />
+      </label>
+      <label>通勤方式
+        <select id="set-commute-mode">
+          <option value="metro">地铁</option>
+          <option value="bus">公交</option>
+          <option value="ebyke">电动车</option>
+          <option value="drive">自驾</option>
+          <option value="walk">步行</option>
+          <option value="none">无通勤</option>
+        </select>
+      </label>
+      <label>单程距离（公里）
+        <input type="number" id="set-commute-km" min="0" max="200" step="0.5" />
+      </label>
+      <button id="set-save">保存设置</button>
+    </details>
+  </footer>
+
+  <script src="panel.js"></script>
+</body>
+</html>
