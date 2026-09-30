@@ -87,6 +87,8 @@ L3 冻结旧链     src/legacy-*           —— 不删、不跑、加围栏（
 - 任何 `await import(变量)` / 动态 specifier —— 会打断 esbuild 静态图，打包必断（05 蓝图 §5.1）。
 - 任何模块不得 import `../platforms/boss` —— 平台细节只在 `modules/channels/boss/**`。
 - 扩展侧（`extension/**`）不得出现 DOM 写操作（`innerText=`、`appendChild`、`dispatchEvent` 等）——A7 已用 grep 验证过一次，现在要变成常驻守卫。
+- **轮询请求必须带身份三元组**：`requestId` + `jobId`|`conversationId` + `timestamp`。缺任一项 = 拒绝处理（07 §1.6 坑 3：5 秒轮询在服务端耗时 > 5s 时会出现 t=0/5/10 三个请求并发重入）。
+- **响应必须带 `schemaVersion`，且服务端必须丢弃过期结果**。判定规则：`timestamp` 早于该 `requestId` 家族已处理的最新结果 ⇒ 直接丢弃、不得返回给调用方，防止"旧建议覆盖新建议"。这条由 `payloadContract.js` 提供判定函数、`guards` 检请求侧是否传齐三元组。
 
 ### 3.3 六个模块
 
@@ -106,6 +108,8 @@ M1–M4 之间零依赖，**四个子代理可同时开工**；M5 只碰平台�
 `scripts/test-multiagent-flow.mjs` 以 `new AutoApplyBot({})` 直接调用约 26 个**私有方法**（`_waitForResumeConfirmEnabled` / `_sendResumeViaDialog` / `_selectChatRow` / `_sendResumeForChat` / `autoApply` …），且从 `../src/chatApply.js` 具名 import 27 个符号。搬文件 = 打断这条 import 面 = 11 套测试红。
 
 因此：**并行期只做"新代码进新家 + 旧路径门面 re-export"**，与 05 蓝图步骤 7 的 facade 手法一致。存量代码的物理搬移放到 P3 **串行**进行（一次一个模块，每步 `npm test` 绿）。理由：让 6 个子代理的风险从"改 2932 行老代码"降到"写新文件"。
+
+**ABI 措辞（07 §1.5 元问题二，补记）**：这 26 个私有方法在 P3 完成前被视为**暂时存在的 ABI** —— 它们被 `scripts/test-multiagent-flow.mjs` 以具名 import + 空 manager + 假 page 直接调用，名字与签名就是测试契约。红线：**"最后串行搬迁"这一步不得与"修测试""修契约"混在同一步**。模块化过程中看到私有方法"不漂亮"，只允许**加委托 / 加注释 / 加测试**，不许改名、不许改签名、不许改入参形状。若发现某个私有方法确实该改，开独立议题，走 P3 之外的单独 commit。
 
 ---
 
@@ -165,21 +169,53 @@ M1–M4 之间零依赖，**四个子代理可同时开工**；M5 只碰平台�
 
 ## 6. L3 旧链围栏方案（不删、不跑、不改）
 
-**决定：物理文件全部留在原位**（移动会打断测试 import 面），只加三道围栏：
+**围栏的定义**：运行期**不可达** + 改动**即失败**。等价于外部意见建议的"新链路绝不 import legacy"，但不通过搬目录实现（理由见下）。
+
+### 6.0 为什么不采用物理隔离目录（07 §2.2 B1 裁决）
+
+外部意见建议搬到 `legacy/auto-apply/` 且"不参与构建"。**本项目做不到**，三条硬约束：
+
+1. `src/routes.mjs`（现役路由，40+ 端点）静态 import `chatApply.js` 的 `AutoApplyBot` —— 移文件即断图。
+2. `scripts/test-multiagent-flow.mjs` 从 `../src/chatApply.js` 具名 import **27 个符号**，并以 `new AutoApplyBot({})` 驱动假 page 调 26 个私有方法 —— 移文件即 11 套测试红。
+3. esbuild 打包走**静态 import 图**，任何 `await import(变量)` 或路径断裂都会让 `build:exe` 断链（05 蓝图 §5.1）。
+
+**改用等价手段达成同一目标**：文件原地不动（保留 import 面与打包图可达），靠运行期门禁 + 文件头注释 + guards 检查把旧链挡在新链路之外。物理搬移交 P3 串行，届时同步改 import 面 + 测试。
+
+### 6.1 三道围栏
 
 1. **启动门禁**：`src/core/guards/legacyFence.js` —— `edgeLauncher` / `browserManager` / `autopilot` / `applyScheduler` / `replenish` 的启动路径统一检查 `JOB_AGENT_LEGACY`；未显式置 `1` 则**拒绝启动浏览器并打日志说明原因**（旧链是封号来源，默认关是唯一安全默认值）。
 2. **文档围栏**：每个旧链文件头加三行注释——为什么冻结、什么时候可以解冻、解冻需要什么证据。
 3. **资产化**：旧链不是垃圾，是**平台知识资产**（选择器表、20 钩子的真实来源、采集逻辑）。M5 立约时从旧链"读"实现，不"搬"实现。
+4. **改动即失败**：guards 检查旧链文件的指纹/哈希清单；旧链文件被修改而未同步更新清单 ⇒ `npm run guards` 失败。（这条替代物理隔离的"不参与构建"效果：改不动）
+
+外部意见量化（07 §1.4，置信度 0.78）：删除会损失"数百到上千行"值得保留的选择器/DOM 经验；继续让它参与主工程维护，每次改动增加约 **10–20%** 的认知/回归负担。金句：**保存知识，废弃机制。**
 
 `.env` 现状（`AUTOPILOT=1`、`JOB_AGENT_AUTO_APPROVE=1`、`APPLY_DLY_RUN=0` 真发）在围栏落地后**必须显式关闭**，否则门禁形同虚设。
 
 ---
 
-## 7. 配置单一真源
+## 7. 配置两级真源（按"归属"拆分，不是按"整包"选 A/B/C）
 
 现状三处真源：`.env`（服务进程 + 内嵌进 exe）、`extension/panel.js` 的 `storage.local`（`serverBase`/`pollIntervalSec`/`commuteMode`/`oneWayKm`）、控制台表单。
 
-**目标**：服务端 `config/` 一份，`configContract.js` 定义键名与默认值；扩展**启动时向服务端拉取**并只读缓存（它本来就在轮询服务端，加一个 `GET /api/config` 成本≈0）；控制台只读渲染 + 显式提交；`.env` 降级为**环境覆盖层**（优先级：env > 配置文件 > 默认值）。
+外部意见的关键修正（07 §1.3，置信度 0.93）：**不要四项全走 `/api/config`** —— `serverBase` 和 `pollIntervalSec` 是扩展自有运行参数，硬拉到服务端会凭空制造一次同步。按"谁真正消费这个值"划分：
+
+| 配置键 | 真源 | 理由 | 读取方式 |
+|---|---|---|---|
+| `serverBase` | **扩展 `storage.local`** | 回环地址是"我从哪儿连你"，只有扩展自己需要 | 扩展本地自持 |
+| `pollIntervalSec` | **扩展 `storage.local`** | 扩展自己的调度参数，服务端不消费 | 扩展本地自持 |
+| `commuteMode` | **服务端 `config/`** | 参与服务端距离/含金量计算 | `GET /api/config` 只读拉取 |
+| `oneWayKm` | **服务端 `config/`** | 参与服务端计算（用户实测期望值） | `GET /api/config` 只读拉取 |
+
+**核心禁令：不要双写。** 双写只是把"多个真源"变成"多个真源 + 同步一致性问题"（07 §1.3）。
+
+**失败模式示例**（外部原文）：扩展显示 5km / 服务端实际 8km / 控制台 3km，而**测试可能仍然全绿，因为测试直接调用服务端私有方法**。这正是"业务口径必须落在服务端"的硬理由。
+
+**落地规则**：
+- 服务端 `config/` 一份，`configContract.js` 定义键名 + 默认值 + 类型；扩展启动时向服务端**只读**拉取业务配置用于显示，**不写回**。
+- 控制台只读渲染业务配置 + 显式提交（提交走服务端 `POST /api/config`，写服务端真源）。
+- `.env` 降级为**环境覆盖层**（优先级：env > 配置文件 > 默认值）。
+- 扩展自持的两项在扩展 UI 里可改，改动只落 `storage.local`，**不进服务端、不进控制台表单**。
 
 **配置键必须登记的两处**（09-19 事故根因）：`sea-config.json` 的 assets + `packaging/setup-sea.cjs`。任何新增数据资产（如 `prompts/candidate-card.md`、未来的 `config/`）**必须同时登记这两处**，否则桌面版静默缺资产。这条写进 `guards` 的打包检查。
 
@@ -189,14 +225,16 @@ M1–M4 之间零依赖，**四个子代理可同时开工**；M5 只碰平台�
 
 | 期 | 内容 | 执行者 | 合入门槛 |
 |---|---|---|---|
-| **P0** | 契约层四份文件 + `guards` 六条不变量 + legacy 围栏 + 配置单一真源 | **Lead 亲自**（定所有人的边界，不能外包） | `npm test` 11 套绿 + `npm run guards` 绿 |
+| **P0.0** | **先冻结事实，再冻结契约**：现状取证 → Compatibility Matrix（模块/当前入口/当前输入/当前输出/被谁调用/测试覆盖/保留-修改-废弃） | **Lead 亲自** | Matrix 覆盖全部 40+ 端点 + 扩展 payload + 27 具名 import 面；文档落库 |
+| **P0** | 契约层四份文件 + `guards` 六条不变量 + legacy 围栏 + 配置两级真源 | **Lead 亲自**（定所有人的边界，不能外包） | `npm test` 11 套绿 + `npm run guards` 绿 |
 | **P0.5** | 提交 V0 基线（先 commit 未提交扩展工作，含 `.gitignore` 补 `.ext-*`），架构文档落库 | Lead | 单 commit，不夹带 |
 | **P1** | 六个模块并行（M1–M6 六个子代理，写范围互斥） | 子代理 | 各模块自测绿 + README 齐全 + `npm test` 绿 |
 | **P2** | 集成：M6 接 M2/M3/M4 的契约，扩展切到 `GET /api/config` | 子代理（写范围单点） | 扩展零写守卫 + 端点冒烟 |
 | **P3** | 串行搬移存量代码（一次一模块，facade re-export，旧路径留 shim） | Lead | 每步 `npm test` 绿，每步一 commit |
 | **P4** | **真机验收**：用户装载扩展 → 跑一次真实 BOSS 页面 → 按结果分叉 | 用户 + Lead | 09-22 任务卡 A1~A7 结清 |
 
-**P1 并行安全的三个前提**（缺一不可）：① 契约层已冻结；② 每个子代理写范围只有"自己的目录 + 一个新测试文件"；③ 禁止改 `package.json` / `server.mjs` / 任何存量文件。
+**P1 并行安全的三个前提**（缺一不可）：① 契约层已冻结（P0.0 事实已取证、P0 契约已落）；② 每个子代理写范围只有"自己的目录 + 一个新测试文件"；③ 禁止改 `package.json` / `server.mjs` / 任何存量文件。
+**契约变更集中收口**（07 §1.5）：P1 期间任何对契约的修改不在子代理侧发散，统一由 Lead 收口——子代理发现契约不足时**上报而非自改**，Lead 改 `core/**` 后通知受影响子代理 rebase。
 
 ---
 
