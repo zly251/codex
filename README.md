@@ -259,8 +259,9 @@ server.mjs         本地 HTTP 服务入口
 
 ## Git
 
-- 远端：https://github.com/zly251/codex
-- 项目分支：`autonomous-job-agent`（远端 `main` 已被其他工作区占用，不覆盖）
+- 远端：https://github.com/zly251/job-agent
+- 默认分支：`main`
+- 历史归档：最早的 monorepo 版本在 https://github.com/zly251/codex （分支 `autonomous-job-agent`），已独立为当前仓库
 - 仓库内不写本机盘符和用户绝对路径；需要本机路径时使用环境变量、相对路径或 `-NodeExe` 等参数
 
 ```powershell
