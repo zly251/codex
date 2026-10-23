@@ -6,9 +6,15 @@
   "scripts": {
     "start": "node server.mjs",
     "import:resume": "npx tsx scripts/import-resume.ts",
-    "test": "node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs && node scripts/test-m1-distance.mjs && node scripts/test-m2-scheduler.mjs && node scripts/test-m3-llm.mjs && node scripts/test-autopilot.mjs && node scripts/test-chat-summary.mjs && node scripts/test-human-rhythm.mjs && node scripts/test-reply-delivery.mjs && node scripts/test-v0-value.mjs && node scripts/test-v0-extension-look.mjs",
+    "test": "node scripts/guards.mjs && node scripts/test-multiagent-flow.mjs && node scripts/test-reply-salary.mjs && node scripts/test-m1-distance.mjs && node scripts/test-m2-scheduler.mjs && node scripts/test-m3-llm.mjs && node scripts/test-autopilot.mjs && node scripts/test-chat-summary.mjs && node scripts/test-human-rhythm.mjs && node scripts/test-reply-delivery.mjs && node scripts/test-v0-value.mjs && node scripts/test-v0-extension-look.mjs && node tests/modules/ingest/test-ingest.mjs && node tests/modules/value/test-value.mjs && node tests/modules/copilot/test-copilot.mjs && node tests/modules/evidence/evidence.test.mjs && node tests/modules/console/test-console.mjs",
+    "test:ingest": "node tests/modules/ingest/test-ingest.mjs",
+    "test:value": "node tests/modules/value/test-value.mjs",
+    "test:copilot": "node tests/modules/copilot/test-copilot.mjs",
+    "test:console": "node tests/modules/console/test-console.mjs",
     "test:v0-value": "node scripts/test-v0-value.mjs",
     "test:v0-extension-look": "node scripts/test-v0-extension-look.mjs",
+    "test:evidence": "node scripts/test-evidence.mjs",
+    "guards": "node scripts/guards.mjs",
     "build:icon": "powershell -NoProfile -ExecutionPolicy Bypass -File packaging/generate-app-icon.ps1",
     "build:exe": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-exe.ps1"
   },
