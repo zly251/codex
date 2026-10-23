@@ -13,13 +13,17 @@
 
 ## 界面预览
 
-| 岗位推荐 | 投递 Pipeline |
+| AI 沟通 | 岗位推荐 |
 | --- | --- |
-| ![岗位推荐](docs/screenshots/02-jobs.png) | ![投递 Pipeline](docs/screenshots/03-pipeline.png) |
+| ![AI 沟通](docs/screenshots/01-chat.png) | ![岗位推荐](docs/screenshots/02-jobs.png) |
 
-| 简历 AI | 任务监控 |
+| 投递 Pipeline | 简历 AI |
 | --- | --- |
-| ![简历 AI](docs/screenshots/04-resume.png) | ![任务监控](docs/screenshots/05-tasks.png) |
+| ![投递 Pipeline](docs/screenshots/03-pipeline.png) | ![简历 AI](docs/screenshots/04-resume.png) |
+
+| 任务监控 |
+| --- |
+| ![任务监控](docs/screenshots/05-tasks.png) |
 
 ## 功能
 
@@ -109,7 +113,7 @@ Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打�
 
 ## 操作台
 
-![求职助手操作台](docs/screenshots/05-tasks.png)
+![AI 沟通中心](docs/screenshots/01-chat.png)
 
 ## 操作步骤
 

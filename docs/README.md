@@ -25,7 +25,7 @@
 
 | 文件 | 页面 |
 | --- | --- |
-| [01-dashboard.png](screenshots/01-dashboard.png) | Agent 状态（总览仪表盘） |
+| [01-chat.png](screenshots/01-chat.png) | AI 沟通中心（衔接/发简历/自动回复） |
 | [02-jobs.png](screenshots/02-jobs.png) | 岗位推荐流（匹配度 + 沟通入口） |
 | [03-pipeline.png](screenshots/03-pipeline.png) | 投递 Pipeline（待处理/已查看/已回复/面试/Offer 看板） |
 | [04-resume.png](screenshots/04-resume.png) | 简历 AI（完整性评分 + 优化建议 + 结构化编辑） |
