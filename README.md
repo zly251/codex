@@ -1,6 +1,25 @@
-# 求职助手
+# 求职助手 · JobAgent
 
-本地运行的自动求职代理。当前默认平台是 BOSS 直聘，负责职位抓取、筛选、评分、简历匹配、投递和反馈统计。
+![JobAgent](assets/social-preview.png)
+
+本地运行的 **AI 求职控制台**。当前默认平台是 BOSS 直聘，负责职位抓取、筛选、评分、简历匹配、投递、聊天反馈闭环与到手价值核算。
+
+<p>
+<img alt="Node" src="https://img.shields.io/badge/Node.js-18%2B-339933?logo=node.js&logoColor=white">
+<img alt="Platform" src="https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-4f8bff">
+<img alt="License" src="https://img.shields.io/badge/License-MIT-green">
+<img alt="Tests" src="https://img.shields.io/badge/Tests-1900%2B%20passed-22c55e">
+</p>
+
+## 界面预览
+
+| 岗位推荐 | 投递 Pipeline |
+| --- | --- |
+| ![岗位推荐](docs/screenshots/02-jobs.png) | ![投递 Pipeline](docs/screenshots/03-pipeline.png) |
+
+| 简历 AI | 任务监控 |
+| --- | --- |
+| ![简历 AI](docs/screenshots/04-resume.png) | ![任务监控](docs/screenshots/05-tasks.png) |
 
 ## 功能
 
