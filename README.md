@@ -109,7 +109,7 @@ Windows 也可以使用 `launcher.ps1` 或桌面 exe。首次使用在自动打�
 
 ## 操作台
 
-![求职助手操作台](docs/console-screenshot.png)
+![求职助手操作台](docs/screenshots/05-tasks.png)
 
 ## 操作步骤
 

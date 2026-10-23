@@ -31,7 +31,6 @@
 | [04-resume.png](screenshots/04-resume.png) | 简历 AI（完整性评分 + 优化建议 + 结构化编辑） |
 | [05-tasks.png](screenshots/05-tasks.png) | 任务监控（自动化任务 + 搜索/投递参数） |
 
-> `console-screenshot.png` / `console-original.png` 是 2026-08 的旧版界面存档，保留作历史对照。
 
 ## 4. 代码从哪看起
 
