@@ -4,10 +4,15 @@
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const tmpDb = path.join(os.tmpdir(), `job-agent-m1-${process.pid}-${Date.now()}.db`);
 process.env.JOB_AGENT_DB_PATH = tmpDb;
-// 距离相关环境变量显式清空 -> 测默认家坐标（台州椒江大润发）
+// 区域配置固定指向入库的通用示例（北京），保证测试与本地私有 config/region.json 无关
+process.env.JOB_AGENT_REGION_CONFIG = path.join(__dirname, "..", "config", "region.example.json");
+// 距离相关环境变量显式清空 -> 测默认家坐标（北京示例）
 delete process.env.JOB_AGENT_HOME_LAT;
 delete process.env.JOB_AGENT_HOME_LNG;
 
@@ -42,7 +47,7 @@ const { enrichJobFromDetail, normalizeEnrichPayload, enrichmentPatch } = await i
 console.log("\n[getHome] 默认家坐标与 env 覆盖");
 {
   const h = getHome();
-  assert(h.lat === 28.6478331 && h.lng === 121.4233538, "默认家 = 台州椒江大润发 (28.6478331,121.4233538)");
+  assert(h.lat === 39.9087 && h.lng === 116.3975, "默认家 = 北京示例 (39.9087,116.3975)");
   process.env.JOB_AGENT_HOME_LAT = "30.1";
   process.env.JOB_AGENT_HOME_LNG = "120.2";
   const h2 = getHome();
@@ -56,18 +61,18 @@ console.log("\n[getHome] 默认家坐标与 env 覆盖");
 console.log("\n[haversine] 已知点对");
 {
   const home = getHome();
-  const dJiaojiang = haversineKm(home, DISTRICT_CENTERS["椒江区"]);
-  assert(dJiaojiang > 0 && dJiaojiang < 6, `家→椒江区中心 ${dJiaojiang.toFixed(2)}km 在 (0,6) 区间（椒江区内，合理）`);
-  const dLuqiao = haversineKm(home, DISTRICT_CENTERS["路桥区"]);
-  assert(dLuqiao > 8 && dLuqiao < 15, `家→路桥区中心 ${dLuqiao.toFixed(2)}km 落在 (8,15)，NEAR 档合理`);
-  assert(tierForDistance(dLuqiao) === "NEAR", "路桥中心距离 → NEAR");
-  const dLinhai = haversineKm(home, DISTRICT_CENTERS["临海市"]);
-  assert(dLinhai > 15, `家→临海中心 ${dLinhai.toFixed(2)}km > 15km → FAR 侧`);
-  assert(tierForDistance(dLinhai) === "FAR", "临海距离 → FAR");
-  const dHangzhou = haversineKm(home, DISTRICT_CENTERS["上城区"]);
-  assert(dHangzhou > 100, `家→杭州上城 ${dHangzhou.toFixed(1)}km > 100km`);
-  const dYuhuan = haversineKm(home, DISTRICT_CENTERS["玉环市"]);
-  assert(dYuhuan > 40 && dYuhuan < 80, `家→玉环 ${dYuhuan.toFixed(1)}km 在 (40,80) 合理`);
+  const dDongcheng = haversineKm(home, DISTRICT_CENTERS["东城区"]);
+  assert(dDongcheng > 0 && dDongcheng < 6, `家→东城区中心 ${dDongcheng.toFixed(2)}km 在 (0,6) 区间（城内，合理）`);
+  const dChaoyang = haversineKm(home, DISTRICT_CENTERS["朝阳区"]);
+  assert(dChaoyang > 5 && dChaoyang < 15, `家→朝阳区中心 ${dChaoyang.toFixed(2)}km 落在 (5,15)，NEAR 档合理`);
+  assert(tierForDistance(dChaoyang) === "NEAR", "朝阳中心距离 → NEAR");
+  const dTongzhou = haversineKm(home, DISTRICT_CENTERS["通州区"]);
+  assert(dTongzhou > 15, `家→通州中心 ${dTongzhou.toFixed(2)}km > 15km → FAR 侧`);
+  assert(tierForDistance(dTongzhou) === "FAR", "通州距离 → FAR");
+  const dTianjin = haversineKm(home, DISTRICT_CENTERS["和平区"]);
+  assert(dTianjin > 100, `家→天津和平 ${dTianjin.toFixed(1)}km > 100km`);
+  const dYanqing = haversineKm(home, DISTRICT_CENTERS["延庆区"]);
+  assert(dYanqing > 40 && dYanqing < 80, `家→延庆 ${dYanqing.toFixed(1)}km 在 (40,80) 合理`);
   assert(haversineKm(null, home) === null, "坏输入返回 null");
   assert(haversineKm({ lat: "abc", lng: 1 }, home) === null, "非数字坐标返回 null");
 }
@@ -75,23 +80,23 @@ console.log("\n[haversine] 已知点对");
 // ─────────────────────────────────────────────
 console.log("\n[classifyDistance] 三档 + UNKNOWN + OUT_OF_CITY");
 {
-  // 坐标输入：CORE（椒江区内 ~家附近 2km 处）
-  const core = classifyDistance({ city: "台州", lng: 121.43, lat: 28.65, district: "椒江区" });
+  // 坐标输入：CORE（东城区内 ~家附近 2km 处）
+  const core = classifyDistance({ city: "北京", lng: 116.3975, lat: 39.9257, district: "东城区" });
   assert(core.distanceTier === "CORE" && core.distanceKm < 5, `坐标在 5km 内 → CORE (${core.distanceKm?.toFixed(2)}km)`);
   assert(core.source === "coords" && core.approx === false, "坐标输入 source=coords 非近似");
 
-  // 坐标输入：FAR（温岭方向 >15km）
-  const far = classifyDistance({ city: "台州", lng: 121.38, lat: 28.37, district: "温岭市" });
+  // 坐标输入：FAR（通州方向 >15km）
+  const far = classifyDistance({ city: "北京", lng: 116.3975, lat: 40.0887, district: "通州区" });
   assert(far.distanceTier === "FAR" && far.distanceKm > 15, `坐标 >15km → FAR (${far.distanceKm?.toFixed(1)}km)`);
 
   // 仅区县命中：approx
-  const approx = classifyDistance({ city: "台州", district: "路桥区" });
-  assert(approx.distanceTier === "NEAR" && approx.approx === true, "仅 district=路桥区 → 区中心近似 NEAR + approx=true");
+  const approx = classifyDistance({ city: "北京", district: "朝阳区" });
+  assert(approx.distanceTier === "NEAR" && approx.approx === true, "仅 district=朝阳区 → 区中心近似 NEAR + approx=true");
   assert(approx.source === "district", "仅区县 source=district");
 
   // district 文本脏数据也能命中
-  const dirty = matchDistrict(" 路桥 · 开发大楼 ");
-  assert(dirty === "路桥区", "district 脏文本子串命中 路桥区");
+  const dirty = matchDistrict(" 朝阳 · 开发大楼 ");
+  assert(dirty === "朝阳区", "district 脏文本子串命中 朝阳区");
 
   // 全缺 → UNKNOWN
   const unk = classifyDistance({ title: "无位置岗位" });
@@ -100,20 +105,20 @@ console.log("\n[classifyDistance] 三档 + UNKNOWN + OUT_OF_CITY");
   assert(unk2.distanceTier === "UNKNOWN", "空对象 → UNKNOWN");
 
   // 外市
-  const out = classifyDistance({ city: "杭州", district: "西湖区" });
-  assert(out.distanceTier === "OUT_OF_CITY", "city=杭州 → OUT_OF_CITY");
+  const out = classifyDistance({ city: "天津", district: "和平区" });
+  assert(out.distanceTier === "OUT_OF_CITY", "city=天津 → OUT_OF_CITY");
   assert(typeof out.distanceKm === "number" && out.distanceKm > 100, "外市仍给出距离 km 供展示");
 
-  // city 缺失但 district 命中杭州区县 → OUT_OF_CITY
-  const outNoCity = classifyDistance({ district: "萧山区" });
-  assert(outNoCity.distanceTier === "OUT_OF_CITY", "city 缺失 + 萧山区（外市区县）→ OUT_OF_CITY");
+  // city 缺失但 district 命中外市区县 → OUT_OF_CITY
+  const outNoCity = classifyDistance({ district: "和平区" });
+  assert(outNoCity.distanceTier === "OUT_OF_CITY", "city 缺失 + 和平区（外市区县）→ OUT_OF_CITY");
 
-  // 台州辖区但不在中心表（如路桥镇级脏数据不匹配）→ UNKNOWN
-  const noMatch = classifyDistance({ city: "台州", district: "某某未知街道" });
-  assert(noMatch.distanceTier === "UNKNOWN", "台州 + 未知区县 → UNKNOWN");
+  // 本市辖区但不在中心表（如街道级脏数据不匹配）→ UNKNOWN
+  const noMatch = classifyDistance({ city: "北京", district: "某某未知街道" });
+  assert(noMatch.distanceTier === "UNKNOWN", "北京 + 未知区县 → UNKNOWN");
 
   // 坐标优先于 district
-  const prefer = classifyDistance({ city: "台州", district: "椒江区", lng: 120.73, lat: 28.85 }); // 仙居方向坐标
+  const prefer = classifyDistance({ city: "北京", district: "东城区", lng: 116.3975, lat: 40.4287 }); // 延庆方向坐标
   assert(prefer.source === "coords" && prefer.distanceTier === "FAR", "坐标与区县冲突时以坐标为准");
 }
 
@@ -131,11 +136,11 @@ console.log("\n[DB] M1 新列迁移 + create/update/updateEnrichment");
 
   const created = jobDb.create({
     title: "C++工程师A", url: "https://www.zhipin.com/job_detail/test-m1-a.html",
-    city: "台州", district: "椒江区", technologies: "C++",
-    lng: 121.43, lat: 28.65, distanceKm: 1.2, distanceTier: "CORE",
+    city: "北京", district: "东城区", technologies: "C++",
+    lng: 116.4, lat: 39.92, distanceKm: 1.2, distanceTier: "CORE",
     hasDormitory: 1, dormitorySource: "card",
   });
-  assert(created.lng === 121.43 && created.lat === 28.65, "create 写入 lng/lat");
+  assert(created.lng === 116.4 && created.lat === 39.92, "create 写入 lng/lat");
   assert(created.distanceTier === "CORE" && created.hasDormitory === 1 && created.dormitorySource === "card", "create 写入 distanceTier/hasDormitory/dormitorySource");
 
   const enriched = jobDb.updateEnrichment(created.id, {
@@ -161,18 +166,18 @@ console.log("\n[DB] M1 新列迁移 + create/update/updateEnrichment");
 // ─────────────────────────────────────────────
 console.log("\n[applyDistanceToJob] 计算 + 回写");
 {
-  const j = jobDb.create({ title: "回写测试", url: "https://www.zhipin.com/job_detail/test-m1-b.html", city: "台州", district: "温岭市" });
+  const j = jobDb.create({ title: "回写测试", url: "https://www.zhipin.com/job_detail/test-m1-b.html", city: "北京", district: "通州区" });
   const info = applyDistanceToJob(j, jobDb);
-  assert(info.distanceTier === "FAR" && info.approx === true, "仅区县（温岭市）→ FAR approx 回写值");
+  assert(info.distanceTier === "FAR" && info.approx === true, "仅区县（通州区）→ FAR approx 回写值");
   const row = jobDb.findById(j.id);
   assert(row.distanceTier === "FAR" && typeof row.distanceKm === "number" && row.distanceKm > 15, "distanceKm/distanceTier 已落库");
   assert(j.distanceApprox === true && j.distanceTier === "FAR", "内存 job 对象同步更新（approx 标记只在内存/返回值）");
 
-  const j2 = jobDb.create({ title: "坐标回写", url: "https://www.zhipin.com/job_detail/test-m1-c.html", city: "台州", lng: 121.4385711, lat: 28.6758042 });
+  const j2 = jobDb.create({ title: "坐标回写", url: "https://www.zhipin.com/job_detail/test-m1-c.html", city: "北京", lng: 116.3975, lat: 39.9257 });
   const info2 = applyDistanceToJob(j2, jobDb);
   assert(info2.distanceTier === "CORE" && jobDb.findById(j2.id).distanceTier === "CORE", "真实坐标 → CORE 并落库");
 
-  const noId = { city: "台州", district: "椒江区" };
+  const noId = { city: "北京", district: "东城区" };
   const r3 = applyDistanceToJob(noId, jobDb);
   assert(r3.distanceTier === "CORE" && noId.distanceTier === "CORE", "无 id 对象只改内存不回写（不抛错）");
 }
@@ -183,10 +188,10 @@ console.log("\n[scoreJob] 距离/宿舍子分 + 权重参数化");
   const profile = { skills: "C++,Qt,Linux", experience: "3年经验", education: "本科", expectedSalary: "10k" };
   const base = { title: "C++开发工程师", technologies: "C++,Qt", experience: "1-3年", education: "本科", url: "u" };
 
-  const core = scoreJob(Object.assign({}, base, { city: "台州", lng: 121.43, lat: 28.65 }), profile);
-  const far = scoreJob(Object.assign({}, base, { city: "台州", district: "温岭市" }), profile);
-  const farDorm = scoreJob(Object.assign({}, base, { city: "台州", district: "温岭市", hasDormitory: 1 }), profile);
-  const unk = scoreJob(Object.assign({}, base, { city: "台州" }), profile);
+  const core = scoreJob(Object.assign({}, base, { city: "北京", lng: 116.39, lat: 39.91 }), profile);
+  const far = scoreJob(Object.assign({}, base, { city: "北京", district: "通州区" }), profile);
+  const farDorm = scoreJob(Object.assign({}, base, { city: "北京", district: "通州区", hasDormitory: 1 }), profile);
+  const unk = scoreJob(Object.assign({}, base, { city: "北京" }), profile);
 
   assert(core.distanceScore === 100, "CORE 距离子分=100");
   assert(far.distanceScore === 0, "FAR 无宿 距离子分=0");
@@ -197,9 +202,9 @@ console.log("\n[scoreJob] 距离/宿舍子分 + 权重参数化");
   assert(core.distanceTier === "CORE" && far.distanceTier === "FAR", "score 结果带 distanceTier");
 
   // 权重参数化：distance 拉满 vs 归零
-  const wNoDist = scoreJob(Object.assign({}, base, { city: "台州", district: "温岭市" }), profile, { distance: 0, skill: 0.65, experience: 0.2, education: 0.15 });
+  const wNoDist = scoreJob(Object.assign({}, base, { city: "北京", district: "通州区" }), profile, { distance: 0, skill: 0.65, experience: 0.2, education: 0.15 });
   assert(wNoDist.score > far.score, `distance 权重=0 时分数(${wNoDist.score})回到接近旧版(${far.score})：权重参数生效`);
-  const wAllDist = scoreJob(Object.assign({}, base, { city: "台州", lng: 121.43, lat: 28.65 }), profile, { distance: 0.7, skill: 0.1, experience: 0.1, education: 0.1 });
+  const wAllDist = scoreJob(Object.assign({}, base, { city: "北京", lng: 116.39, lat: 39.91 }), profile, { distance: 0.7, skill: 0.1, experience: 0.1, education: 0.1 });
   assert(wAllDist.score === 100, "distance 权重 0.7 + CORE → 满分（极端权重验证参数化）");
   assert(BASE_WEIGHTS.skill === 0.5 && BASE_WEIGHTS.distance === 0.15 && BASE_WEIGHTS.dormitory === 0.05, "BASE_WEIGHTS 导出且为 M1 新值");
   const sum = Object.values(BASE_WEIGHTS).reduce((a, b) => a + b, 0);
@@ -226,7 +231,7 @@ console.log("\n[decideJob] 距离/宿舍规则叠加 + 旧签名兼容");
   const dFarDormLower = decideJob(45, 30, { distanceTier: "FAR", hasDormitory: 1 });
   assert(dFarDormLower.decision === "REVIEW", "FAR 有宿 + 45（<50）→ 回落 REVIEW");
 
-  const dUnknown = decideJob(90, 30, { city: "台州" });
+  const dUnknown = decideJob(90, 30, { city: "北京" });
   assert(dUnknown.decision === "REVIEW", "UNKNOWN + 高分90 → 最多 REVIEW 不许 AUTO");
   assert(/UNKNOWN|未知/.test(dUnknown.reason), "UNKNOWN 理由写明距离未知");
 
@@ -242,7 +247,7 @@ console.log("\n[decideJob] 距离/宿舍规则叠加 + 旧签名兼容");
   assert(dNear.decision === "AUTO_APPLY", "NEAR + 70 走原主干 AUTO");
 
   // job 无 tier 字段时经坐标即时推断
-  const dInfer = decideJob(80, 30, { city: "台州", lng: 121.43, lat: 28.65 });
+  const dInfer = decideJob(80, 30, { city: "北京", lng: 116.39, lat: 39.91 });
   assert(dInfer.tier === "CORE" && dInfer.decision === "AUTO_APPLY", "job 只有坐标：decideJob 即时推断 CORE");
 }
 
@@ -250,10 +255,10 @@ console.log("\n[decideJob] 距离/宿舍规则叠加 + 旧签名兼容");
 console.log("\n[sortJobsForApplyWithDistance] tier 主键 + 薪资次键");
 {
   const items = [
-    { job: { title: "远无宿", salaryRaw: "20k", district: "温岭市", city: "台州" }, match: 0.9 },
-    { job: { title: "近低薪", salaryRaw: "6k", city: "台州", lng: 121.43, lat: 28.65 }, match: 0.3 },
-    { job: { title: "外市高薪", salaryRaw: "30k", city: "杭州" }, match: 0.95 },
-    { job: { title: "远有宿", salaryRaw: "18k", district: "临海市", city: "台州", hasDormitory: 1 }, match: 0.8 },
+    { job: { title: "远无宿", salaryRaw: "20k", district: "通州区", city: "北京" }, match: 0.9 },
+    { job: { title: "近低薪", salaryRaw: "6k", city: "北京", lng: 116.39, lat: 39.91 }, match: 0.3 },
+    { job: { title: "外市高薪", salaryRaw: "30k", city: "天津" }, match: 0.95 },
+    { job: { title: "远有宿", salaryRaw: "18k", district: "昌平区", city: "北京", hasDormitory: 1 }, match: 0.8 },
   ];
   const sorted = sortJobsForApplyWithDistance(items);
   assert(sorted[0].job.title === "近低薪", "CORE 排最前（薪资/匹配更低也让位距离）");
@@ -272,18 +277,18 @@ console.log("\n[_parseJobs] rawData 复活 + 防御式坐标 + 卡片宿舍标�
   const scraper = new BossApiScraper(null);
   const items = [
     {
-      encryptJobId: "J1", jobName: "C++工程师", salaryDesc: "10-15K", cityName: "台州",
-      areaDistrict: "椒江区", jobExperience: "1-3年", jobDegree: "本科",
+      encryptJobId: "J1", jobName: "C++工程师", salaryDesc: "10-15K", cityName: "北京",
+      areaDistrict: "东城区", jobExperience: "1-3年", jobDegree: "本科",
       skills: ["C++", "包住"],                        // 卡片福利标签命中宿舍
-      lat: "28.65", lng: "121.44",                    // 字符串坐标也要收
+      lat: "39.92", lng: "116.40",                    // 字符串坐标也要收
     },
     {
-      encryptJobId: "J2", jobName: "后端开发", salaryDesc: "12K", cityName: "台州",
-      areaDistrict: "温岭市",
-      geo: { latitude: 28.37, longitude: 121.38 },   // 嵌套坐标
+      encryptJobId: "J2", jobName: "后端开发", salaryDesc: "12K", cityName: "北京",
+      areaDistrict: "通州区",
+      geo: { latitude: 40.09, longitude: 116.40 },   // 嵌套坐标
       // 无宿舍标签
     },
-    { encryptJobId: "J3", jobName: "无坐标岗", salaryDesc: "8K", cityName: "台州", areaDistrict: "黄岩区" },
+    { encryptJobId: "J3", jobName: "无坐标岗", salaryDesc: "8K", cityName: "北京", areaDistrict: "西城区" },
     { encryptJobId: "J4", jobName: "坏坐标岗", lat: "abc", lng: 999 }, // 超量程/非数字 → null
     { jobName: "缺id丢弃", encryptJobId: "" },
   ];
@@ -292,11 +297,11 @@ console.log("\n[_parseJobs] rawData 复活 + 防御式坐标 + 卡片宿舍标�
 
   const j1 = out.find((x) => x.url.includes("J1"));
   assert(j1.rawData && JSON.parse(j1.rawData).jobName === "C++工程师", "rawData 为整包 item 的 JSON（可回读）");
-  assert(j1.lat === 28.65 && j1.lng === 121.44, "字符串坐标解析为 number");
+  assert(j1.lat === 39.92 && j1.lng === 116.40, "字符串坐标解析为 number");
   assert(j1.hasDormitory === 1 && j1.dormitorySource === "card", "卡片标签「包住」→ hasDormitory=1 source=card");
 
   const j2 = out.find((x) => x.url.includes("J2"));
-  assert(j2.lat === 28.37 && j2.lng === 121.38, "嵌套 geo.latitude/longitude 兜底取到");
+  assert(j2.lat === 40.09 && j2.lng === 116.40, "嵌套 geo.latitude/longitude 兜底取到");
   assert(j2.hasDormitory === undefined, "无宿舍标签时不设置 hasDormitory 字段");
 
   const j3 = out.find((x) => x.url.includes("J3"));
@@ -322,7 +327,7 @@ console.log("\n[enrichJobFromDetail] 注入假 page（不真开浏览器）");
         description: "负责服务端开发，提供员工宿舍。",
         requirements: "熟悉 C++/Linux",
         tags: ["五险一金", "员工宿舍", "双休"],
-        lat: 28.65, lng: 121.44,
+        lat: 39.92, lng: 116.40,
         fullText: "……",
       };
     },
@@ -331,7 +336,7 @@ console.log("\n[enrichJobFromDetail] 注入假 page（不真开浏览器）");
   assert(r.description.includes("服务端开发"), "evaluate 路径取到 JD 正文");
   assert(r.requirements.includes("Linux"), "取到 requirements");
   assert(r.hasDormitory === 1 && r.dormitorySource === "detail", "标签「员工宿舍」→ hasDormitory=1 source=detail");
-  assert(r.lat === 28.65 && r.lng === 121.44, "详情页坐标属性被捞到");
+  assert(r.lat === 39.92 && r.lng === 116.40, "详情页坐标属性被捞到");
 
   const noDormPage = { async evaluate() { return { description: "普通岗位", requirements: "", tags: ["五险一金"], fullText: "x" }; } };
   const r2 = await enrichJobFromDetail(noDormPage);
@@ -366,14 +371,14 @@ console.log("\n[enrichJobFromDetail] 注入假 page（不真开浏览器）");
 // ─────────────────────────────────────────────
 console.log("\n[回归] 真实 enrich 跑出的三类污染：占位坐标 / 反爬水印 / 详情页地址");
 {
-  // ① 页面占位坐标 0,0 不得顶掉区县近似（否则 0,0 距台州 1.3 万公里 → 全变 FAR）
-  const junk = classifyDistance({ city: "台州", district: "路桥区", lng: 0, lat: 0 });
+  // ① 页面占位坐标 0,0 不得顶掉区县近似（否则 0,0 距本市上万公里 → 全变 FAR）
+  const junk = classifyDistance({ city: "北京", district: "朝阳区", lng: 0, lat: 0 });
   assert(junk.source === "district" && junk.distanceTier === "NEAR", "lat/lng=0,0（页面占位）→ 回落区县近似 NEAR，不是 FAR");
-  const junkOut = classifyDistance({ city: "杭州", district: "西湖区", lng: 0, lat: 0 });
+  const junkOut = classifyDistance({ city: "天津", district: "和平区", lng: 0, lat: 0 });
   assert(junkOut.distanceTier === "OUT_OF_CITY", "外市 + 0,0 占位坐标 → 仍 OUT_OF_CITY");
-  const junkOnly = classifyDistance({ city: "台州", lng: 0, lat: 0 });
-  assert(junkOnly.distanceTier === "UNKNOWN", "只有 0,0 坐标、无区县 → UNKNOWN（不是 FAR 13035km）");
-  assert(isPlausibleCoord(28.65, 121.44) && !isPlausibleCoord(0, 0), "isPlausibleCoord：真坐标可信、0,0 不可信");
+  const junkOnly = classifyDistance({ city: "北京", lng: 0, lat: 0 });
+  assert(junkOnly.distanceTier === "UNKNOWN", "只有 0,0 坐标、无区县 → UNKNOWN（不是 FAR 上万公里）");
+  assert(isPlausibleCoord(39.92, 116.40) && !isPlausibleCoord(0, 0), "isPlausibleCoord：真坐标可信、0,0 不可信");
   assert(!isPlausibleCoord(40, 0) && !isPlausibleCoord(NaN, 121), "isPlausibleCoord：境外/NaN 不可信");
 
   // ② 反爬水印不得进库
@@ -388,14 +393,14 @@ console.log("\n[回归] 真实 enrich 跑出的三类污染：占位坐标 / 反
   assert(zc.lat === undefined && zc.lng === undefined, "normalizeEnrichPayload 丢弃 0,0 占位坐标");
 
   // ④ 详情页地址 → 区县（M1 在列表卡没给区县时的唯一信息源）
-  const patch = enrichmentPatch({ description: "x", hasDormitory: 0, dormitorySource: null, address: "台州椒江区飞跃科创园西区81幢6楼" });
-  assert(patch.district === "椒江区", "详情页地址「台州椒江区…」抽出台州区县");
+  const patch = enrichmentPatch({ description: "x", hasDormitory: 0, dormitorySource: null, address: "北京市朝阳区某某科技园3号楼" });
+  assert(patch.district === "朝阳区", "详情页地址「北京市朝阳区…」抽出本市区县");
   assert(enrichmentPatch({ hasDormitory: 0, dormitorySource: null }).district === undefined, "无地址时不写 district（不覆盖已有值）");
   const addrOut = await enrichJobFromDetail({
-    async evaluate() { return { description: "岗直聘位职责：做事", address: "台州温岭市某某路 点击查看地图", tags: [] }; },
+    async evaluate() { return { description: "岗直聘位职责：做事", address: "北京市通州区某某路 点击查看地图", tags: [] }; },
   });
-  assert(addrOut.address === "台州温岭市某某路", "evaluate 路径取到 address 并去掉「点击查看地图」");
-  assert(enrichmentPatch(addrOut).district === "温岭市", "evaluate 路径地址 → district=温岭市 打通 patch");
+  assert(addrOut.address === "北京市通州区某某路", "evaluate 路径取到 address 并去掉「点击查看地图」");
+  assert(enrichmentPatch(addrOut).district === "通州区", "evaluate 路径地址 → district=通州区 打通 patch");
 
   // ⑤ 正文取不到时不再退回整页 innerText（非详情页会把导航文案写成 JD）
   const noJd = await enrichJobFromDetail({ async evaluate() { return { description: "", requirements: "", tags: [] }; } });
@@ -406,7 +411,7 @@ console.log("\n[回归] 真实 enrich 跑出的三类污染：占位坐标 / 反
 console.log("\n[effectiveTier] 已存 tier 优先，缺失即时推断");
 {
   assert(effectiveTier({ distanceTier: "NEAR" }) === "NEAR", "已存 distanceTier 直接采用");
-  assert(effectiveTier({ city: "杭州" }) === "OUT_OF_CITY", "无 tier 时按 city 推断 OUT_OF_CITY");
+  assert(effectiveTier({ city: "天津" }) === "OUT_OF_CITY", "无 tier 时按 city 推断 OUT_OF_CITY");
   assert(effectiveTier({}) === "UNKNOWN", "无任何信息 → UNKNOWN");
 }
 

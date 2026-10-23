@@ -17,7 +17,7 @@
 ## 架构（本轮新增/关键）
 
 - `src/platforms/index.js` + `src/platforms/boss.js`：平台注册表与 BOSS adapter（`createScraper()/createBot()/findJobPage/isLoggedIn`）
-- `src/distance.js`：**距离引擎**。家坐标（`JOB_AGENT_HOME_LAT/LNG` 可覆盖，默认椒江大润发 WGS84）；坐标→haversine 精确档，无坐标→区县中心近似（approx）；档位 CORE ≤5km / NEAR ≤15km / FAR >15km / UNKNOWN / OUT_OF_CITY。`DISTRICT_CENTERS` 为 Nominatim 构建期一次性硬编码（2026-09-19），GCJ02/WGS84 数百米偏差对档位划分可忽略，未做转换。**坐标须过 `isPlausibleCoord` 才采用**（见下方 2026-09-19 修复）
+- `src/distance.js`：**距离引擎**。家坐标（`JOB_AGENT_HOME_LAT/LNG` 可覆盖，默认家坐标来自 config/region.json（示例为北京市中心 WGS84））；坐标→haversine 精确档，无坐标→区县中心近似（approx）；档位 CORE ≤5km / NEAR ≤15km / FAR >15km / UNKNOWN / OUT_OF_CITY。`DISTRICT_CENTERS` 为 Nominatim 构建期一次性硬编码（2026-09-19），GCJ02/WGS84 数百米偏差对档位划分可忽略，未做转换。**坐标须过 `isPlausibleCoord` 才采用**（见下方 2026-09-19 修复）
 - `src/enrich.js`：详情页增补（JD 正文/福利标签宿舍/工作地址→区县/可能坐标），page 契约可注入假对象。**反爬水印剔除**（`stripWatermark`：BOSS 在正文里随机插 `boss`/`kanzhun`/`直聘`，实测「岗boss位职责」）+ **占位坐标丢弃**（`isPlausibleCoord`，只认中国境内）
 - `src/scoring.js`：五维权重 `BASE_WEIGHTS={skill:.5,experience:.15,education:.15,distance:.15,dormitory:.05}`；`decideJob(score, reviewThreshold, job)` 三参返回 `{decision,reason,tier,hasDormitory}`；规则叠加：OUT_OF_CITY→IGNORE；FAR 无宿舍→IGNORE；FAR 有宿舍→AUTO 门槛下调 10；UNKNOWN→封顶 REVIEW（**未 enrich 的数据永远不会自动投递**）；CORE→门槛下调 10
 - `src/applyScheduler.js`：每日 150 配额、2~4h 窗口随机时间轴、30~90s 间隔、约每 20 单 5~15 分钟长休息、22:00 硬截断；`dryRunReport()` 输出审计时间轴
@@ -63,7 +63,7 @@ Git 操作（分离仓库）：
 
 ## 待办/风险
 
-- **🔴 2026-09-19 晚修复：详情增补把 0,0 占位坐标写进库，导致距离档集体跑偏**（只有真跑浏览器才暴露，791 断言全绿都测不到）。真跑 `POST /api/boss/enrich` 后 10 个岗位被写成 `lng=0,lat=0`，`classifyDistance` 让坐标优先 → 全部算出 **13035km → FAR**（FAR 无宿舍直接 IGNORE），把原本 CORE/NEAR 的岗位静默降级。**根因三处，已全部堵住**：① 提取端正则匹配了页面里的 `"lat":0` 占位值 → `isPlausibleCoord`（只认中国境内）在 `normalizeEnrichPayload` 与 `classifyDistance` 两端拦截；② 非详情页（被重定向到城市首页/空白页）也照样写库 → `handleEnrich` 增加 URL 必须含 `job_detail` 的落地校验 + 「正文与地址都空则跳过」；③ 正文取不到时曾退回 `document.body.innerText` → 已删除该回退（会把整页导航文案写成 JD）。**顺带**：提取 `.location-address` 工作地址并抽区县写回 `district`（列表卡没给区县的岗位，这是距离引擎唯一信息源；实测地址「台州椒江区飞跃科创园西区81幢6楼」→ 椒江区，job#10 从 UNKNOWN 变 CORE 3.45km）；剔除 BOSS 反爬水印（`boss`/`kanzhun`/`直聘`，实测「岗boss位职责」污染 JD 与技能匹配）。存量损坏数据已修：清 10 行 0,0 坐标 + 重跑 `enrich-jobs.mjs`，档位恢复 CORE16/NEAR9/FAR26/UNKNOWN35/OUT_OF_CITY19，`npm test` 806 断言全绿（m1 段 102→117）
+- **🔴 2026-09-19 晚修复：详情增补把 0,0 占位坐标写进库，导致距离档集体跑偏**（只有真跑浏览器才暴露，791 断言全绿都测不到）。真跑 `POST /api/boss/enrich` 后 10 个岗位被写成 `lng=0,lat=0`，`classifyDistance` 让坐标优先 → 全部算出 **13035km → FAR**（FAR 无宿舍直接 IGNORE），把原本 CORE/NEAR 的岗位静默降级。**根因三处，已全部堵住**：① 提取端正则匹配了页面里的 `"lat":0` 占位值 → `isPlausibleCoord`（只认中国境内）在 `normalizeEnrichPayload` 与 `classifyDistance` 两端拦截；② 非详情页（被重定向到城市首页/空白页）也照样写库 → `handleEnrich` 增加 URL 必须含 `job_detail` 的落地校验 + 「正文与地址都空则跳过」；③ 正文取不到时曾退回 `document.body.innerText` → 已删除该回退（会把整页导航文案写成 JD）。**顺带**：提取 `.location-address` 工作地址并抽区县写回 `district`（列表卡没给区县的岗位，这是距离引擎唯一信息源；实测地址「北京市朝阳区某某科技园西区3号楼6层」→ 朝阳区，job#10 从 UNKNOWN 变 CORE 3.45km）；剔除 BOSS 反爬水印（`boss`/`kanzhun`/`直聘`，实测「岗boss位职责」污染 JD 与技能匹配）。存量损坏数据已修：清 10 行 0,0 坐标 + 重跑 `enrich-jobs.mjs`，档位恢复 CORE16/NEAR9/FAR26/UNKNOWN35/OUT_OF_CITY19，`npm test` 806 断言全绿（m1 段 102→117）
 - **⚠️ BOSS 反爬会掐页面**：连续自动访问约 16 个详情页后实测出现 `net::ERR_ABORTED` 与标签页落到 `about:blank`。批量增补建议**一次 ≤10 条、分批间隔开**，别连跑
 - **M5 拆分**：蓝图 `docs/05_MODULARIZATION_PLAN.md` 已验收；**步骤 1 已落地**（`src/core/utils.js` + `src/core/predicates.js`，chatApply 门面逐名 re-export，3260→3126 行）。步骤 2~8 是把 BOSS 专属代码整块搬进 `platforms/boss/**` 的纯搬迁（零行为变化），因多平台明确延后而暂缓——真接第二平台时按蓝图执行，每步 `npm test` 绿为准
 - 底细卡 `prompts/candidate-card.md` 尚有〔待确认〕字段，用户签字前 AI 对这些字段一律不报具体值

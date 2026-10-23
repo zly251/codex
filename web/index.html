@@ -2296,7 +2296,7 @@ async function loadJobs(filters) {
     '<aside class="panel filter-panel">' +
     '<div><h3 class="panel-title">推荐筛选</h3><p class="panel-desc">调整岗位推荐流</p></div>' +
     '<div class="field"><label for="job-filter-kw">关键词</label><input id="job-filter-kw" value="' + escAttr(filters.keyword || "") + '" placeholder="C++, Qt, 嵌入式"></div>' +
-    '<div class="field"><label for="job-filter-city">城市</label><input id="job-filter-city" value="' + escAttr(filters.city || "") + '" placeholder="台州"></div>' +
+    '<div class="field"><label for="job-filter-city">城市</label><input id="job-filter-city" value="' + escAttr(filters.city || "") + '" placeholder="北京"></div>' +
     '<div class="field"><label for="job-filter-status">状态</label><select id="job-filter-status"><option value="">全部状态</option><option value="active">有效</option><option value="closed">已关闭</option></select></div>' +
     '<div class="form-actions">' +
     '<button class="btn btn-primary" type="button" onclick="loadJobs({keyword:document.getElementById(\'job-filter-kw\').value,city:document.getElementById(\'job-filter-city\').value,status:document.getElementById(\'job-filter-status\').value})">' + icon("search") + '筛选岗位</button>' +
@@ -2738,7 +2738,7 @@ async function loadResume() {
     '<div class="field"><label for="re-status">求职状态</label><select id="re-status">' + statusOptions + '</select></div>' +
     '<div class="field"><label for="re-phone">手机</label><input id="re-phone" value="' + escAttr(r.phone || "") + '"></div>' +
     '<div class="field"><label for="re-email">邮箱</label><input id="re-email" value="' + escAttr(r.email || "") + '"></div>' +
-    '<div class="field"><label for="re-city">现居地</label><input id="re-city" value="' + escAttr(r.city || "") + '" placeholder="台州椒江区"></div>' +
+    '<div class="field"><label for="re-city">现居地</label><input id="re-city" value="' + escAttr(r.city || "") + '" placeholder="北京市朝阳区"></div>' +
     '<div class="field"><label for="re-birth">出生年月</label><input id="re-birth" value="' + escAttr(r.birthDate || "") + '" placeholder="2003年5月27日"></div>' +
     '<div class="field"><label for="re-ethnicity">民族</label><input id="re-ethnicity" value="' + escAttr(r.ethnicity || "") + '"></div>' +
     '<div class="field"><label for="re-education">学历</label><select id="re-education">' + eduOptions + '</select></div>' +
@@ -2954,7 +2954,7 @@ async function loadChat() {
   var lastSearch = bs.lastSearch
     ? "上次搜索: " + escapeHtml((bs.lastSearch.keyword || "") + " · " + (bs.lastSearch.count || 0) + " 个")
     : "尚未搜索";
-  var defaultCity = (profile && profile.city) || "台州";
+  var defaultCity = (profile && profile.city) || "北京";
   var defaultKeywords = String((profile && profile.skills) || "C++,Qt,Python,嵌入式");
   var defaultGreeting = (profile && profile.greeting) || "您好，我是{name}，有{skills}相关经验，对贵司的{job}岗位很感兴趣，方便沟通一下吗？";
   var resumeFiles = await api("/api/resumes").catch(function() { return { resumes: [] }; });
@@ -3254,15 +3254,15 @@ async function loadTasks() {
   h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">搜索参数</h3><p class="panel-desc">职位抓取配置</p></div></div>' +
     '<div class="form-grid">' +
     '<div class="field"><label for="kw">关键词</label><input id="kw" value="外贸业务员"></div>' +
-    '<div class="field"><label for="city-input">城市</label><input id="city-input" placeholder="台州"></div>' +
+    '<div class="field"><label for="city-input">城市</label><input id="city-input" placeholder="北京"></div>' +
     '<div class="field"><label for="pages">搜索页数</label><input id="pages" value="3" type="number"></div>' +
     '</div>' +
     '<div class="form-actions"><button class="btn btn-primary" type="button" onclick="bossSearch()">' + icon("search") + '搜索职位</button><span id="sr" class="result-line" aria-live="polite"></span></div></section>';
 
   h += '<section class="panel"><div class="panel-head"><div><h3 class="panel-title">投递参数</h3><p class="panel-desc">自动打招呼筛选和节奏</p></div></div>' +
     '<div class="form-grid">' +
-    '<div class="field"><label for="filter-city">城市</label><input id="filter-city" value="台州"></div>' +
-    '<div class="field"><label for="filter-district">区域</label><input id="filter-district" placeholder="椒江"></div>' +
+    '<div class="field"><label for="filter-city">城市</label><input id="filter-city" value="北京"></div>' +
+    '<div class="field"><label for="filter-district">区域</label><input id="filter-district" placeholder="朝阳"></div>' +
     '<div class="field"><label for="filter-keywords">关键词</label><input id="filter-keywords" value="C++,Qt,Python,嵌入式"></div>' +
     '<div class="field"><label for="min-match">匹配度不低于</label><div class="range-pair"><input id="min-match" type="number" value="30" min="0" max="100"><span>%</span></div></div>' +
     '<div class="field"><label for="limit">投递份数</label><input id="limit" type="number" value="20" min="1" max="50"></div>' +

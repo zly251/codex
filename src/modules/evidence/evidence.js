@@ -5,13 +5,13 @@
 
 import { SCHEMA_VERSION, validateEvidenceReceipt } from "./types.js";
 
-// —— 配置项（env 覆盖，默认台州经验值）——
+// —— 配置项（env 覆盖，默认示例城市经验值）——
 function envNum(name, dflt) {
   const v = Number(process.env[name]);
   return Number.isFinite(v) ? v : dflt;
 }
 
-// 最低月工资标准（台州 2024：2280 元/月，可 env 覆盖）
+// 最低月工资标准（示例城市 2024：2280 元/月，可 env 覆盖）
 const MIN_MONTHLY_SALARY = envNum("JOB_EVIDENCE_MIN_SALARY", 2280);
 // 薪资上限（超过则标记异常高，可能是欺诈）
 const MAX_MONTHLY_SALARY = envNum("JOB_EVIDENCE_MAX_SALARY", 50000);

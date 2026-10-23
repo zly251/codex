@@ -22,7 +22,7 @@ console.log("\n[组1] 薪资抽取");
   const e = M.extractSalaryFromText("预算 15000 元/月");
   assert(e === null, "无K单位不误抽 15000");
   // 真机坑（2026-09-25）：联系人列表别的职位薪资先撞上 → 有职位卡锚点时只认卡头部
-  const f = M.extractSalaryFromText("热门职位\n销售经理 19-25K\n杭州\n项目交付及运维工程师（驻台州三门项目部）\n6-10K\n台州\n经验不限\n查看职位\nHR: 你好");
+  const f = M.extractSalaryFromText("热门职位\n销售经理 19-25K\n杭州\n项目交付及运维工程师（驻北京昌平项目部）\n6-10K\n北京\n经验不限\n查看职位\nHR: 你好");
   assert(f && f.salaryK === 8 && f.matched.includes("6-10K"), "锚点前卡头优先，得" + (f && f.matched) + "，不抽19K");
   const g = M.extractSalaryFromText("销售经理 19-25K\n杭州\n经验不限\n学历不限\n五险一金\n单休\n加班补贴\n餐饮补贴\n查看职位\nHR: 你好");
   assert(g === null, "卡头6行窗口内无薪资 → null（宁缺勿错抽列表19K）");
@@ -107,7 +107,7 @@ console.log("\n[组4] tailOfPageText（碎片过滤+句末起截，2026-09-25 �
   const long = M.tailOfPageText("x".repeat(10000));
   assert(long.length <= 220, "尾部截 220");
   // 职位卡碎片（≤12字无标点）不得混入意图输入
-  const card = M.tailOfPageText("我: 能和您聊聊吗？很想加入贵团队！\n项目交付及运维工程师\n6-10K\n台州\n经验不限\n学历不限\n五险一金\n周末加班");
+  const card = M.tailOfPageText("我: 能和您聊聊吗？很想加入贵团队！\n项目交付及运维工程师\n6-10K\n北京\n经验不限\n学历不限\n五险一金\n周末加班");
   assert(card === "我: 能和您聊聊吗？很想加入贵团队！", "卡片碎片被滤，只留最后一条消息句，得「" + card + "」");
 }
 
@@ -115,25 +115,25 @@ console.log("\n[组5] 岗位名抽取 + 算式明细（2026-09-25 用户要求�
 {
   // 真机聊天页版式：HR行 → 职位卡标题 → 薪资 → 城市 → 查看职位
   const chatT = M.extractJobTitleFromText(
-    "宗爱琴 领泽合希信息技术 HR 更多\n项目交付及运维工程师（驻台州三门项目部）\n6-10K\n台州\n查看职位\n11:10 送达 能和您聊聊吗？"
+    "张女士 某某信息技术 HR 更多\n项目交付及运维工程师（驻北京昌平项目部）\n6-10K\n北京\n查看职位\n11:10 送达 能和您聊聊吗？"
   );
-  assert(chatT === "项目交付及运维工程师（驻台州三门项目部）", "聊天页跳过HR行取职位标题，得「" + chatT + "」");
+  assert(chatT === "项目交付及运维工程师（驻北京昌平项目部）", "聊天页跳过HR行取职位标题，得「" + chatT + "」");
   const detT = M.extractJobTitleFromText(
-    "首页 搜索\n高中数学老师|全职兼职均可\n8-12K\n台州椒江区\n查看职位\n职位描述…",
+    "首页 搜索\n高中数学老师|全职兼职均可\n8-12K\n北京市朝阳区\n查看职位\n职位描述…",
     "https://www.zhipin.com/job_detail/abc.html"
   );
   assert(detT === "高中数学老师|全职兼职均可", "详情页取锚点前最近足量行，得「" + detT + "」");
-  const noneT = M.extractJobTitleFromText("6-10K\n台州\n经验不限");
+  const noneT = M.extractJobTitleFromText("6-10K\n北京\n经验不限");
   assert(noneT === null, "全是噪音行 → null（宁缺勿滥）");
-  const singleT = M.extractJobTitleFromText("宗爱琴 领泽合希信息技术 HR 更多 项目交付及运维工程师（驻台州三门项目部） 6-10K 台州 查看职位");
+  const singleT = M.extractJobTitleFromText("张女士 某某信息技术 HR 更多 项目交付及运维工程师（驻北京昌平项目部） 6-10K 北京 查看职位");
   assert(singleT === null || singleT.length <= 60, "单行糊版式不乱抽（得「" + singleT + "」）");
 
   // 算式明细：随卡下发、含真实数字、到手行算式可对账
   const r = await M.buildLookResponse(
-    { pageText: "宗爱琴 领泽合希信息技术 HR\n项目交付及运维工程师（驻台州三门项目部）\n6-10K\n台州\n查看职位\n我: 能和您聊聊吗？很想加入贵团队！", commuteMode: "ebyke", oneWayKm: 5 },
+    { pageText: "张女士 某某信息技术 HR\n项目交付及运维工程师（驻北京昌平项目部）\n6-10K\n北京\n查看职位\n我: 能和您聊聊吗？很想加入贵团队！", commuteMode: "ebyke", oneWayKm: 5 },
     { env: { LLM_PROVIDER: "template" }, generateText: async () => "追问|请问办公地点在三门哪里？" }
   );
-  assert(r.jobTitle === "项目交付及运维工程师（驻台州三门项目部）", "响应带 jobTitle");
+  assert(r.jobTitle === "项目交付及运维工程师（驻北京昌平项目部）", "响应带 jobTitle");
   const bd = r.value.breakdown || [];
   assert(bd.length >= 5, "明细 ≥5 行，得" + bd.length);
   // 区间薪资 → 到手/可支配如实显示为区间（用户 2026-09-25 指出「税前对不上」：6-10K 不该只报一个到手数）
@@ -150,7 +150,7 @@ console.log("\n[组5] 岗位名抽取 + 算式明细（2026-09-25 用户要求�
 
   // 单值薪资（8K）→ 不产出区间，仍报单一数字
   const r1v = await M.buildLookResponse(
-    { pageText: "HR: 在招 运营专员 8K\n台州\n查看职位\n我: 想了解下岗位细节。", commuteMode: "none", oneWayKm: 0 },
+    { pageText: "HR: 在招 运营专员 8K\n北京\n查看职位\n我: 想了解下岗位细节。", commuteMode: "none", oneWayKm: 0 },
     { env: { LLM_PROVIDER: "template" }, generateText: async () => "追问|请问具体做什么？" }
   );
   assert(r1v.value.grossRange === null && r1v.value.netRange === null, "单值薪资 → 无区间，grossRange/netRange=null");

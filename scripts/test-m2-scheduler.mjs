@@ -52,7 +52,7 @@ function mockRes() {
 // ═══ 1. partitionByDecision：M1 三参接口（返回对象）分桶 ═══
 console.log("[M2] partitionByDecision 决策分桶（M1 对象接口）");
 {
-  const core = { id: 1, title: "核心岗位", city: "台州", distanceTier: "CORE" };
+  const core = { id: 1, title: "核心岗位", city: "北京", distanceTier: "CORE" };
   const unknown = { id: 2, title: "未知距离岗位" }; // 无 city/district/坐标 -> UNKNOWN
   const outTown = { id: 3, title: "跨市岗位", city: "杭州", distanceTier: "OUT_OF_CITY" };
   const farNoDorm = { id: 4, title: "远无宿舍", distanceTier: "FAR", hasDormitory: 0 };
@@ -86,8 +86,8 @@ console.log("[M2] partitionByDecision 决策分桶（M1 对象接口）");
 console.log("[M2] reviewQueue 队列表操作");
 {
   reviewQueue.ensureTable();
-  const j1 = jobDb.create({ title: "待确认一", url: "https://example.com/m2/j1", city: "台州", technologies: "C++" });
-  const j2 = jobDb.create({ title: "待确认二", url: "https://example.com/m2/j2", city: "台州", technologies: "Java" });
+  const j1 = jobDb.create({ title: "待确认一", url: "https://example.com/m2/j1", city: "北京", technologies: "C++" });
+  const j2 = jobDb.create({ title: "待确认二", url: "https://example.com/m2/j2", city: "北京", technologies: "Java" });
   const r1 = reviewQueue.enqueue({ jobId: j1.id, score: 42, decision: "REVIEW", reason: "距离档位 UNKNOWN" });
   assert(!!r1 && r1.status === "pending" && r1.decision === "REVIEW", "入队 pending/REVIEW");
   const r1b = reviewQueue.enqueue({ jobId: j1.id, score: 45, decision: "REVIEW", reason: "刷新" });
@@ -114,7 +114,7 @@ console.log("[M2] reviewQueue 队列表操作");
 // ═══ 3. handleReview* API（mock res，不启动服务器） ═══
 console.log("[M2] /api/review 处理器");
 {
-  const j3 = jobDb.create({ title: "API岗位", url: "https://example.com/m2/j3", city: "台州", technologies: "Go" });
+  const j3 = jobDb.create({ title: "API岗位", url: "https://example.com/m2/j3", city: "北京", technologies: "Go" });
   reviewQueue.enqueue({ jobId: j3.id, score: 35, decision: "REVIEW", reason: "API 测试理由" });
   let res = mockRes();
   handleReviewList({}, res);
@@ -251,7 +251,7 @@ console.log("[M2] APPLY_DRY_RUN 解析");
 // ═══ 8. 端到端回归：放行岗位必须能被下次投递取出（findApproved 消费路径） ═══
 console.log("[M2] 放行->下次投递取出 端到端（DB 层）");
 {
-  const j5 = jobDb.create({ title: "放行回归岗位", url: "https://example.com/m2/j5", city: "台州", technologies: "C++", distanceTier: "NEAR" });
+  const j5 = jobDb.create({ title: "放行回归岗位", url: "https://example.com/m2/j5", city: "北京", technologies: "C++", distanceTier: "NEAR" });
   const r5 = reviewQueue.enqueue({ jobId: j5.id, score: 40, decision: "REVIEW", reason: "e2e" });
   // pending 状态不可被取出
   assert(reviewQueue.findApproved().every(function (x) { return x.id !== r5.id; }), "pending 不在 findApproved（REVIEW 绝不自动投）");

@@ -44,7 +44,7 @@ console.log("[1] extractFacts 面试时间与地点");
     messages: [
       { role: "hr", text: "你好，方便聊聊吗？", time: "2026-09-19 10:12" },
       { role: "me", text: "您好，方便", time: "2026-09-19 10:13" },
-      { role: "hr", text: "明天下午2点面试，地址在椒江区飞跃科创园81幢", time: "2026-09-19 10:14" },
+      { role: "hr", text: "明天下午2点面试，地址在朝阳区某某科技园3号楼", time: "2026-09-19 10:14" },
     ],
   });
   assert(facts.interview !== null, "能抽到 interview 对象");
@@ -53,8 +53,8 @@ console.log("[1] extractFacts 面试时间与地点");
     "interview.time 含『明天下午2点』，实际：" + facts.interview.time
   );
   assert(
-    facts.interview.place.includes("椒江区飞跃科创园81幢"),
-    "interview.place 含『椒江区飞跃科创园81幢』，实际：" + facts.interview.place
+    facts.interview.place.includes("朝阳区某某科技园3号楼"),
+    "interview.place 含『朝阳区某某科技园3号楼』，实际：" + facts.interview.place
   );
   assert(facts.msgCount === 3, "msgCount 统计有效消息数 = 3，实际：" + facts.msgCount);
   assert(facts.hrAsked.length === 2, "hrAsked 取 HR 的 2 条消息，实际：" + facts.hrAsked.length);
@@ -138,11 +138,11 @@ console.log("[4] extractFacts needHuman");
 console.log("[5] parseSummaryJson 容错");
 {
   const fenced = parseSummaryJson(
-    '好的，以下是根据聊天记录整理的结果：\n```json\n{"hrAsked":["什么时候能到岗"],"weAnswered":["下周一"],"interview":{"time":"明天下午2点","place":"椒江区","contact":"王经理"},"salaryTalk":"8K","nextStep":"准备面试","prepare":["带简历"]}\n```\n希望有帮助！'
+    '好的，以下是根据聊天记录整理的结果：\n```json\n{"hrAsked":["什么时候能到岗"],"weAnswered":["下周一"],"interview":{"time":"明天下午2点","place":"朝阳区","contact":"王经理"},"salaryTalk":"8K","nextStep":"准备面试","prepare":["带简历"]}\n```\n希望有帮助！'
   );
   assert(fenced !== null, "能吃下 ```json 包裹 + 前后解释文字");
   assert(fenced.nextStep === "准备面试", "剥掉解释文字后 nextStep 正确");
-  assert(fenced.interview.place === "椒江区", "interview.place 正确");
+  assert(fenced.interview.place === "朝阳区", "interview.place 正确");
   assert(fenced.prepare.length === 1, "prepare 数组解析正确");
 
   const bare = parseSummaryJson('前面废话 {"salaryTalk":"10K"} 后面废话');
@@ -230,7 +230,7 @@ console.log("[8] buildSummaries");
       JSON.stringify({
         hrAsked: ["能明天面试吗"],
         weAnswered: ["可以"],
-        interview: { time: "明天下午2点", place: "椒江区", contact: "王经理" },
+        interview: { time: "明天下午2点", place: "朝阳区", contact: "王经理" },
         salaryTalk: "8K",
         nextStep: "确认面试",
         prepare: ["带简历", "查路线"],

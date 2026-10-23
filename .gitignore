@@ -105,3 +105,6 @@ src/scrapers/*_orig_check.*
 
 # 本地重构备份目录（2026-10-23）：*.bak 只匹配文件，备份目录需单独排除
 .bak-*/
+
+# 本地私有区域配置（2026-10-23）：真实住址/常驻城市不入库，只入库 region.example.json
+config/region.json

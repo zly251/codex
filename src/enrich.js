@@ -62,7 +62,7 @@ export function enrichmentPatch(enriched) {
   if (enriched.requirements) out.requirements = enriched.requirements;
   if (enriched.lng != null) out.lng = enriched.lng;
   if (enriched.lat != null) out.lat = enriched.lat;
-  // 详情页工作地址（实测 .location-address：「台州椒江区飞跃科创园西区81幢6楼」）是
+  // 详情页工作地址（实测 .location-address：「北京市朝阳区某某科技园西区3号楼6层」）是
   // M1 距离引擎在列表卡没给区县时唯一的信息源；抽不出区县就不写，不覆盖已有 district。
   if (enriched.address) {
     const district = matchDistrict(enriched.address);

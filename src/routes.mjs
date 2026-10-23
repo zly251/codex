@@ -552,7 +552,7 @@ export async function handleReplenish(req, res, body) {
     const force = !!b.force;
     const searchMin = Number(process.env.JOB_AGENT_REPLENISH_SEARCH_MIN) || 180;
     const enrichMin = Number(process.env.JOB_AGENT_REPLENISH_ENRICH_MIN) || 45;
-    const city = String(process.env.JOB_AGENT_REPLENISH_CITY || "台州");
+    const city = String(process.env.JOB_AGENT_REPLENISH_CITY || "北京");
     const pages = Number(process.env.JOB_AGENT_REPLENISH_PAGES) || 2;
     let searched = 0, enriched = 0, failed = 0, skipped = 0;
     // 1) 搜索：轮换关键词，受冷却闸门控制（首轮 lastReplenishSearchAt=0 ⇒ minutesAgo=Infinity ⇒ 立刻跑一次）

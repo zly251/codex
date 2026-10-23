@@ -37,7 +37,7 @@ function assertTrue(cond, msg) {
   assertEqual(!!cond, true, msg);
 }
 
-// ════════════════ 1. 常量与默认口径（台州经验值） ════════════════
+// ════════════════ 1. 常量与默认口径（示例城市经验值） ════════════════
 assertEqual(SOCIAL_RATES.pension, 0.08, "养老比例默认 8%");
 assertEqual(SOCIAL_RATES.medical, 0.02, "医疗比例默认 2%");
 assertEqual(SOCIAL_RATES.unemployment, 0.005, "失业比例默认 0.5%");

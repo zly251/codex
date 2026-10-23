@@ -67,7 +67,7 @@ export const CONFIG_SCHEMA = [
   {
     key: "homeAddress",
     type: "string",
-    default: "椒江大润发",
+    default: "市中心（示例）",
     description: "家地址（用于距离计算）",
     envVar: "JOB_HOME_ADDRESS",
   },

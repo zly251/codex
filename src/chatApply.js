@@ -1880,7 +1880,7 @@ export class AutoApplyBot {
   }
 
   async _selectResumeFromDialog(page, resume, fileName, options = {}) {
-    const matchNames = [resume?.name, fileName, "周礼洋简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
+    const matchNames = [resume?.name, fileName, "简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
     const chosen = await page.evaluate((dialogSels, itemSelector, names) => {
       const isVisible = (el) => !!el && el.getClientRects().length > 0;
       const isPdf = (el) => {
@@ -2050,7 +2050,7 @@ export class AutoApplyBot {
   }
 
   async _sendResumeViaDialog(page, resume, fileName, options = {}) {
-    const altNames = [resume?.name, "周礼洋简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
+    const altNames = [resume?.name, "简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
     log("[resume] 尝试 BOSS 选择简历弹窗流程");
     if (!(await this._openResumeSendDialog(page, options))) {
       if (!this._isResumeCurrent(options)) return this._stoppedResumeResult(fileName);
@@ -2084,7 +2084,7 @@ export class AutoApplyBot {
       log("[resume] 没有可发送的简历文件，跳过附件");
       return { ok: false, reason: "no_file" };
     }
-    const altNames = [resume.name, "周礼洋简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
+    const altNames = [resume.name, "简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
     log("[resume] 开始发送附件简历: " + fileName);
 
     // 已发送预检：只认真实简历/附件强特征；竞争者PK/共人投递/查看详细分析不是附件已发送证据。
@@ -2775,7 +2775,7 @@ export class AutoApplyBot {
           if (state1 && (state1.hasDelivered || state1.hasGreeted)) {
             if (resumeOpenedBySubmit) {
               // 投递按钮已点，不再重复发送附件；但只有页面出现简历发送强特征才算已发送
-              const resumeAltNames = [resume?.name, "周礼洋简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
+              const resumeAltNames = [resume?.name, "简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
               const resumeSent = await this._resumeSentMarker(page, resume?.filePath ? path.basename(resume.filePath) : "", { allowFileName: false, allowResidualInput: true }, resumeAltNames);
               resumeResult = resumeSent
                 ? { ok: true, reason: "button_submit", fileName: resume?.filePath }
@@ -2812,7 +2812,7 @@ export class AutoApplyBot {
             await this._humanWait(2, 3.5);
             if (resumeOpenedBySubmit) {
               // 投递按钮已点，不再重复发送附件；但只有页面出现简历发送强特征才算已发送
-              const resumeAltNames = [resume?.name, "周礼洋简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
+              const resumeAltNames = [resume?.name, "简历.pdf"].map((n) => String(n || "").trim()).filter(Boolean);
               const resumeSent = await this._resumeSentMarker(page, resume?.filePath ? path.basename(resume.filePath) : "", { allowFileName: false, allowResidualInput: true }, resumeAltNames);
               resumeResult = resumeSent
                 ? { ok: true, reason: "button_submit", fileName: resume?.filePath }

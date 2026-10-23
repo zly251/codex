@@ -6,7 +6,7 @@
 // 原则：钱的数字全部代码算，LLM 不参与；每个口径可 env 覆盖；输出处处带「来源标签」。
 // 用户 2026-09-22 拍板：砍掉「实际时薪」，到手为王 —— 本模块核心输出 = 月到手 + 扣通勤后月可支配。
 
-// —— 配置项（env 覆盖，默认台州经验值；全部是「估算」口径）——
+// —— 配置项（env 覆盖，默认示例城市经验值；全部是「估算」口径）——
 function envNum(name, dflt) {
   const v = Number(process.env[name]);
   return Number.isFinite(v) ? v : dflt;

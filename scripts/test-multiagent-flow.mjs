@@ -324,23 +324,23 @@ assert(isResumeDialogConfirmAvailable({ hasDialog: true, hasConfirmButton: true,
 assert(isResumeDialogConfirmAvailable({ hasDialog: true, hasConfirmButton: true, confirmDisabled: true }) === false, "弹窗内确认按钮 disabled -> 不可点击");
 
 console.log("[resumeDialog] PDF 简历项判定");
-assert(isResumePdfItem({ text: "周礼洋简历.pdf" }) === true, "文本含 .pdf -> PDF");
+assert(isResumePdfItem({ text: "张三简历.pdf" }) === true, "文本含 .pdf -> PDF");
 assert(isResumePdfItem({ className: "icon-pdf" }) === true, "class 含 icon-pdf -> PDF");
 assert(isResumePdfItem({ text: "个人简历.docx" }) === false, "docx 不是 PDF");
 assert(isResumePdfItem({ text: "头像.png" }) === false, "png 不是 PDF");
 
 console.log("[resumeEvidence] 当前选中会话最后一条简历文件判定");
-assert(isResumeFileLastText("周礼洋简历.pdf", ["周礼洋简历.pdf", "周礼洋简历"]) === true, "选中行 lastText=周礼洋简历.pdf -> 视为简历文件");
-assert(isResumeFileLastText("周礼洋简历.docx", ["周礼洋简历.docx"]) === true, "选中行 lastText 精确匹配 .docx -> 视为简历文件");
-assert(isResumeFileLastText("你好，方便聊一下吗", ["周礼洋简历.pdf"]) === false, "普通打招呼消息不是简历文件");
-assert(isResumeFileLastText(["普通消息", "周礼洋简历.pdf"], ["周礼洋简历.pdf"]) === true, "选中行候选列表命中简历文件");
-assert(isResumeFileLastText("请发送周礼洋简历.pdf", ["周礼洋简历.pdf"]) === false, "HR 请求文本不是简历文件");
+assert(isResumeFileLastText("张三简历.pdf", ["张三简历.pdf", "张三简历"]) === true, "选中行 lastText=张三简历.pdf -> 视为简历文件");
+assert(isResumeFileLastText("张三简历.docx", ["张三简历.docx"]) === true, "选中行 lastText 精确匹配 .docx -> 视为简历文件");
+assert(isResumeFileLastText("你好，方便聊一下吗", ["张三简历.pdf"]) === false, "普通打招呼消息不是简历文件");
+assert(isResumeFileLastText(["普通消息", "张三简历.pdf"], ["张三简历.pdf"]) === true, "选中行候选列表命中简历文件");
+assert(isResumeFileLastText("请发送张三简历.pdf", ["张三简历.pdf"]) === false, "HR 请求文本不是简历文件");
 
 console.log("[resumeEvidence] 选中行兜底启用条件");
 assert(isSelectedResumeFallbackAllowed({ hasChatArea: false }) === true, "聊天区为空 -> 允许选中行兜底");
 assert(isSelectedResumeFallbackAllowed({ hasChatArea: true, chatAreaText: "" }) === true, "聊天区加载中但无文本 -> 允许选中行兜底");
 assert(isSelectedResumeFallbackAllowed({ hasChatArea: true, chatAreaText: "加载中..." }) === true, "聊天区加载文案 -> 允许选中行兜底");
-assert(isSelectedResumeFallbackAllowed({ hasChatArea: true, chatAreaText: "周礼洋简历.pdf" }) === false, "聊天区已有消息 -> 不以选中行兜底");
+assert(isSelectedResumeFallbackAllowed({ hasChatArea: true, chatAreaText: "张三简历.pdf" }) === false, "聊天区已有消息 -> 不以选中行兜底");
 assert(isSelectedResumeFallbackAllowed({ hasChatArea: false, pendingChip: true }) === false, "pending chip 残留 -> 不判已发送");
 assert(isSelectedResumeFallbackAllowed({ hasChatArea: false, pendingFile: true }) === false, "待发送文件残留 -> 不判已发送");
 
@@ -468,7 +468,7 @@ const sentWhileDialogOpen = await resumeDialogBot._waitForResumeDialogSendDone({
       confirmVisible: true,
     };
   },
-}, "周礼洋简历.pdf", [], 0);
+}, "张三简历.pdf", [], 0);
 assert(sentWhileDialogOpen.ok === true, "弹窗仍打开但强成功证据已出现 -> 确认流程直接成功");
 assert(sentWhileDialogOpenChecks >= 1, "强成功证据等待至少检查一次");
 
@@ -494,7 +494,7 @@ const dialogClosedAfterClick = await resumeDialogBot._waitForResumeDialogSendDon
       resumeSendText: "求简历",
     };
   },
-}, "周礼洋简历.pdf", [], 0);
+}, "张三简历.pdf", [], 0);
 assert(dialogClosedAfterClick.ok === false, "DOM 点击后弹窗已关闭但无强成功证据 -> 不能判定成功");
 assert(dialogClosedAfterClick.reason === "unverified", "弹窗关闭但无强成功证据 -> 返回 unverified");
 assert(dialogClosedAfterClick.dialogOpen === false, "弹窗关闭作为辅助状态返回");
@@ -521,7 +521,7 @@ const dialogStillPending = await resumeDialogBot._waitForResumeDialogSendDone({
       resumeSendText: "求简历",
     };
   },
-}, "周礼洋简历.pdf", [], 0);
+}, "张三简历.pdf", [], 0);
 assert(dialogStillPending.ok === false, "弹窗仍打开且无成功证据 -> 不判定成功，允许进入 Vue 兜底");
 assert(dialogStillPending.sendInEffect === false, "按钮仍可用且无发送生效 -> 允许进入 Vue 兜底");
 
@@ -547,7 +547,7 @@ const sendInEffectDetected = await resumeDialogBot._waitForResumeDialogSendDone(
       resumeSendText: "求简历",
     };
   },
-}, "周礼洋简历.pdf", [], 0);
+}, "张三简历.pdf", [], 0);
 assert(sendInEffectDetected.sendInEffect === true, "按钮进入「正在请求中」状态 -> 发送请求已生效");
 assert(sendInEffectDetected.ok === false, "发送请求已生效但尚无强证据 -> 返回未确认");
 
@@ -561,7 +561,7 @@ noClickBot._invokeVueMethod = async () => {
 };
 const noClickResult = await noClickBot._confirmResumeDialog(
   { evaluate: async () => false },
-  "周礼洋简历.pdf",
+  "张三简历.pdf",
   []
 );
 assert(noClickResult === false, "未点击发送且无强成功证据 -> false");
@@ -584,7 +584,7 @@ closedNoEvidenceBot._invokeVueMethod = async () => {
 };
 const closedNoEvidenceResult = await closedNoEvidenceBot._confirmResumeDialog(
   { evaluate: async () => true },
-  "周礼洋简历.pdf",
+  "张三简历.pdf",
   []
 );
 assert(closedNoEvidenceResult === false, "点击发送但弹窗关闭且无强成功证据 -> false");
@@ -604,7 +604,7 @@ strongEvidenceBot._invokeVueMethod = async () => {
 };
 const strongEvidenceResult = await strongEvidenceBot._confirmResumeDialog(
   { evaluate: async () => true },
-  "周礼洋简历.pdf",
+  "张三简历.pdf",
   []
 );
 assert(strongEvidenceResult === true, "点击发送且弹窗仍打开但强成功证据已出现 -> true");
@@ -628,7 +628,7 @@ pendingSendBot._invokeVueMethod = async () => {
 };
 const pendingSendResult = await pendingSendBot._confirmResumeDialog(
   { evaluate: async () => true },
-  "周礼洋简历.pdf",
+  "张三简历.pdf",
   []
 );
 assert(pendingSendResult === false, "发送请求已生效但无强证据 -> 返回未确认");
@@ -639,13 +639,13 @@ const selectedRowFakePage = {
     if (args.length > 0 && typeof args[0] === "string") {
       return { hasChatArea: false, chatAreaText: "", pendingChip: false, pendingFile: false };
     }
-    return ["周礼洋简历.pdf"];
+    return ["张三简历.pdf"];
   },
 };
 const selectedRowFake = await resumeDialogBot._selectedResumeSent(
   selectedRowFakePage,
   "resume.pdf",
-  ["周礼洋简历.pdf"]
+  ["张三简历.pdf"]
 );
 assert(selectedRowFake === true, "_selectedResumeSent 能识别当前选中会话最后一条简历文件");
 
@@ -654,13 +654,13 @@ const chatNonEmptyPage = {
     if (args.length > 0 && typeof args[0] === "string") {
       return { hasChatArea: true, chatAreaText: "你好，方便聊一下吗", pendingChip: false, pendingFile: false };
     }
-    return ["周礼洋简历.pdf"];
+    return ["张三简历.pdf"];
   },
 };
 const chatNonEmptySelected = await resumeDialogBot._selectedResumeSent(
   chatNonEmptyPage,
   "resume.pdf",
-  ["周礼洋简历.pdf"]
+  ["张三简历.pdf"]
 );
 assert(chatNonEmptySelected === false, "聊天区非空但选中行是简历文件 -> 不以选中行判 already_sent");
 
@@ -669,13 +669,13 @@ const pendingChipPage = {
     if (args.length > 0 && typeof args[0] === "string") {
       return { hasChatArea: false, chatAreaText: "", pendingChip: true, pendingFile: false };
     }
-    return ["周礼洋简历.pdf"];
+    return ["张三简历.pdf"];
   },
 };
 const pendingChipSelected = await resumeDialogBot._selectedResumeSent(
   pendingChipPage,
   "resume.pdf",
-  ["周礼洋简历.pdf"]
+  ["张三简历.pdf"]
 );
 assert(pendingChipSelected === false, "pending chip 残留时不使用选中行兜底");
 
@@ -683,7 +683,7 @@ const outsideSelected = {
   getClientRects: () => [{}],
   querySelector: () => null,
   querySelectorAll: () => [],
-  innerText: "周礼洋简历.pdf",
+  innerText: "张三简历.pdf",
   __vue__: null,
   __vueParentComponent: null,
   parentElement: null,
@@ -727,7 +727,7 @@ const scopePage = {
   },
 };
 const scopedTexts = await resumeDialogBot._collectSelectedResumeLastText(scopePage);
-assert(!scopedTexts.includes("周礼洋简历.pdf"), "非会话容器残留 .selected 不参与判断");
+assert(!scopedTexts.includes("张三简历.pdf"), "非会话容器残留 .selected 不参与判断");
 
 console.log("[chatApply] _sendResumeForChat 发送与重试");
 const sendResumeChatBot = new AutoApplyBot({});
@@ -739,11 +739,11 @@ sendResumeChatBot._selectChatRow = async () => true;
 let sendResumeChatCalls = 0;
 sendResumeChatBot._sendResume = async () => {
   sendResumeChatCalls++;
-  return { ok: true, reason: "already_sent", fileName: "周礼洋简历.pdf" };
+  return { ok: true, reason: "already_sent", fileName: "张三简历.pdf" };
 };
 const sendResumeChatResult = await sendResumeChatBot._sendResumeForChat(
   { name: "HR", company: "A公司" },
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 9, sendResumeScreenshot: false }
 );
 assert(sendResumeChatResult?.ok === true && sendResumeChatResult?.reason === "already_sent", "已发送时 _sendResumeForChat 返回 already_sent");
@@ -758,11 +758,11 @@ retryResumeBot._selectChatRow = async () => true;
 let retryResumeCalls = 0;
 retryResumeBot._sendResume = async () => {
   retryResumeCalls++;
-  return { ok: false, reason: "resume_unavailable", fileName: "周礼洋简历.pdf" };
+  return { ok: false, reason: "resume_unavailable", fileName: "张三简历.pdf" };
 };
 const retryResumeResult = await retryResumeBot._sendResumeForChat(
   { name: "HR", company: "A公司" },
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 10, sendResumeScreenshot: false, retryDelayMin: 1, retryDelayMax: 2 }
 );
 assert(retryResumeResult?.ok === false && retryResumeResult?.reason === "resume_unavailable", "resume_unavailable 重试一次后仍返回原状态");
@@ -781,7 +781,7 @@ stoppedResumeBot._sendResume = async () => {
 };
 const stoppedResumeResult = await stoppedResumeBot._sendResumeForChat(
   { name: "HR", company: "A公司" },
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 11, sendResumeScreenshot: false }
 );
 assert(stoppedResumeResult?.ok === false && stoppedResumeResult?.reason === "stopped", "停止时不继续发送简历");
@@ -807,12 +807,12 @@ persistResumeBot._selectChatRow = async () => true;
 let persistResumeCalls = 0;
 persistResumeBot._sendResume = async () => {
   persistResumeCalls++;
-  return { ok: true, reason: "sent", fileName: "周礼洋简历.pdf" };
+  return { ok: true, reason: "sent", fileName: "张三简历.pdf" };
 };
 const persistChat = { name: persistCompany.name, rowId: "persist-row" };
 const persistResult = await persistResumeBot._sendResumeForChat(
   persistChat,
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 12, sendResumeScreenshot: false }
 );
 const persistedApp = applicationDb.findById(persistApp.id);
@@ -835,7 +835,7 @@ emptyChatBot._selectChatRow = async () => {
 emptyChatBot._sendResume = async () => ({ ok: false, reason: "no_file" });
 const emptyChatResult = await emptyChatBot._sendResumeForChat(
   {},
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 13, sendResumeScreenshot: false }
 );
 assert(emptySelectCalls === 0, "manual-hr 为空时 _sendResumeForChat 不选择行，使用当前会话");
@@ -1075,7 +1075,7 @@ uploadStopBot._clickResumeConfirm = async () => {
 };
 const uploadStopResult = await uploadStopBot._confirmResumeUpload(
   {},
-  "周礼洋简历.pdf",
+  "张三简历.pdf",
   { generation: 20 }
 );
 assert(uploadStopResult?.stopped === true && uploadStopResult?.reason === "stopped", "旧附件上传路径中途 stop 返回 stopped");
@@ -1312,12 +1312,12 @@ currentIdentityBot._collectCurrentChatIdentity = async () => ({
 let currentResumeCalls = 0;
 currentIdentityBot._sendResume = async () => {
   currentResumeCalls++;
-  return { ok: true, reason: "sent", fileName: "周礼洋简历.pdf" };
+  return { ok: true, reason: "sent", fileName: "张三简历.pdf" };
 };
 const currentEmptyChat = {};
 const currentResult = await currentIdentityBot._sendResumeForChat(
   currentEmptyChat,
-  { filePath: "fake.pdf", name: "周礼洋简历.pdf" },
+  { filePath: "fake.pdf", name: "张三简历.pdf" },
   { generation: 30, sendResumeScreenshot: false }
 );
 const currentAppAfter = applicationDb.findById(currentApp.id);
@@ -1338,11 +1338,11 @@ try {
   alreadySentBot._isOnChatPage = async () => true;
   const alreadySentResult = await alreadySentBot._sendResume(
     {},
-    { filePath: fakeResumePath, name: "周礼洋简历.pdf" }
+    { filePath: fakeResumePath, name: "张三简历.pdf" }
   );
   assert(
     alreadySentResult?.ok === true && alreadySentResult?.reason === "already_sent",
-    "聊天区空但当前选中行 lastText=周礼洋简历.pdf -> already_sent"
+    "聊天区空但当前选中行 lastText=张三简历.pdf -> already_sent"
   );
 
   const unavailableBot = new AutoApplyBot({});
@@ -1353,7 +1353,7 @@ try {
   unavailableBot._isOnChatPage = async () => true;
   const unavailableResult = await unavailableBot._sendResume(
     {},
-    { filePath: fakeResumePath, name: "周礼洋简历.pdf" }
+    { filePath: fakeResumePath, name: "张三简历.pdf" }
   );
   assert(
     unavailableResult?.ok === false && unavailableResult?.reason === "resume_unavailable",
@@ -1372,7 +1372,7 @@ try {
   };
   const stopMidResult = await stopMidBot._sendResume(
     {},
-    { filePath: fakeResumePath, name: "周礼洋简历.pdf" }
+    { filePath: fakeResumePath, name: "张三简历.pdf" }
   );
   assert(stopMidResult?.ok === false && stopMidResult?.reason === "stopped", "发送中途 stop/restart 后 _sendResume 返回 stopped");
 } finally {
@@ -1392,7 +1392,7 @@ const ignoreWaitSent = await resumeDialogBot._waitForResumeSent({
       confirmVisible: true,
     };
   },
-}, "周礼洋简历.pdf", 1000, [], { ignoreConfirmVisible: true });
+}, "张三简历.pdf", 1000, [], { ignoreConfirmVisible: true });
 assert(ignoreWaitSent === true, "_waitForResumeSent 支持 ignoreConfirmVisible，弹窗仍打开也可判强成功");
 assert(ignoreWaitChecks >= 1, "_waitForResumeSent ignoreConfirmVisible 至少检查一次");
 
@@ -1405,13 +1405,13 @@ const defaultWaitBlocked = await resumeDialogBot._waitForResumeSent({
     pendingChip: false,
     confirmVisible: true,
   }),
-}, "周礼洋简历.pdf", 50, []);
+}, "张三简历.pdf", 50, []);
 assert(defaultWaitBlocked === false, "默认等待仍要求弹窗关闭，避免误判");
 
 const noDialog = await resumeDialogBot._sendResumeViaDialog(
   { evaluate: async () => false },
   null,
-  "周礼洋简历.pdf"
+  "张三简历.pdf"
 );
 assert(noDialog?.ok === false && noDialog?.reason === "no_dialog", "发简历弹窗未打开时返回 no_dialog，不进入普通发送");
 
@@ -1424,7 +1424,7 @@ const noPdf = await resumeDialogBot._selectResumeFromDialog(
     },
   },
   null,
-  "周礼洋简历.pdf"
+  "张三简历.pdf"
 );
 assert(noPdf?.ok === false && noPdf?.reason === "no_pdf", "无 PDF 简历项时返回 no_pdf，不回退第一个简历项");
 assert(Array.isArray(selectArgs[1]) && selectArgs[1].some((s) => s === ".choose-resume-dialog"), "选择 PDF 时传入 active 弹窗根选择器");

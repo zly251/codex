@@ -24,7 +24,7 @@
 | 判定 | 方法（行号） |
 |---|---|
 | **平台无关（内核）** | `_isResumeCurrent(383)` `_stoppedResumeResult(392)` `_persistResumeSentForChat(396)` `_finishResumeForChat(406)` `_humanWait(499)` `_humanMove(506)` `_humanClick(519)` `_locatePoint(528)` `_clickFirst(578)` `_clickTextControl(587)`（此六个是通用 DOM 机械：选择器/文案全部作参数传入，无 BOSS 字面量） `_findApplicationByCompany(1305)` `_progress(1395)` `_findResumeForJob(1410)` `_findResumeForChat(1415)` `generateReply(3243)` `stop(3250)` |
-| **BOSS 专用** | `_getPage(416)`（`zhipin` URL 判断、`登录/注册` 探测） `_closeCurrentPage(476)` `_clickSendButton(655)` `_collectChatPageSnapshot(690)` `_waitForChatReady(721)` `_waitForChatReadyOrReload(732)` `_waitForChatAction(747)` `_collectChatActionState(757)` `_hasChatInputCandidate(792)` `_humanType(809)`（内嵌聊天作用域输入框判据+`CHAT_INPUT_SELECTORS`） `_checkPageState(937)`（`.btn-startchat`/`ka=` 字面量） `_isOnChatPage(1001)` `_collectJobDetailState(1009)` `_startChatWithJob(1033)`（data-url API + redirect goto） `_navigateToChat(1163)`（`/web/geek/chat?ka=header-message`） `_scanChatSessions(1257)` `_clickResumeSubmitButton(1421)` `_collectResumeSendState(1438)` `_collectSelectedResumeLastText(1511)`（`__vue__` 内省） `_selectedResumeSent(1573)` `_collectResumeState(1580)` `_resumeSentMarker(1685)` `_hasVisibleSend(1698)` `_clickResumeConfirm(1715)` `_waitForResumeDialog(1828)` `_waitForResumeConfirmEnabled(1857)` `_invokeVueMethod(1885)` `_openResumeSendDialog(1968)` `_selectResumeFromDialog(2016)`（硬编码 `"周礼洋简历.pdf"` 2017 附近） `_waitForResumeSent(2068)` `_waitForResumeDialogSendDone(2078)` `_confirmResumeDialog(2106)` `_sendResumeViaDialog(2186)` `_countOwnImageMessages(2417)`（`.chat-record`） `_sendResumeScreenshot(2439)`（`/wapi/zpupload/image/uploadSingle` + `conversation.gid/securityId` + `sendImageMsg`） `_sendPreferredResume(2585)`（调度附件/截图，依赖上两者，暂归 BOSS） `_collectCurrentChatIdentity(2598)` `.chat-conversation` `_selectChatRow(2656)` |
+| **BOSS 专用** | `_getPage(416)`（`zhipin` URL 判断、`登录/注册` 探测） `_closeCurrentPage(476)` `_clickSendButton(655)` `_collectChatPageSnapshot(690)` `_waitForChatReady(721)` `_waitForChatReadyOrReload(732)` `_waitForChatAction(747)` `_collectChatActionState(757)` `_hasChatInputCandidate(792)` `_humanType(809)`（内嵌聊天作用域输入框判据+`CHAT_INPUT_SELECTORS`） `_checkPageState(937)`（`.btn-startchat`/`ka=` 字面量） `_isOnChatPage(1001)` `_collectJobDetailState(1009)` `_startChatWithJob(1033)`（data-url API + redirect goto） `_navigateToChat(1163)`（`/web/geek/chat?ka=header-message`） `_scanChatSessions(1257)` `_clickResumeSubmitButton(1421)` `_collectResumeSendState(1438)` `_collectSelectedResumeLastText(1511)`（`__vue__` 内省） `_selectedResumeSent(1573)` `_collectResumeState(1580)` `_resumeSentMarker(1685)` `_hasVisibleSend(1698)` `_clickResumeConfirm(1715)` `_waitForResumeDialog(1828)` `_waitForResumeConfirmEnabled(1857)` `_invokeVueMethod(1885)` `_openResumeSendDialog(1968)` `_selectResumeFromDialog(2016)`（硬编码 `"简历.pdf"` 2017 附近） `_waitForResumeSent(2068)` `_waitForResumeDialogSendDone(2078)` `_confirmResumeDialog(2106)` `_sendResumeViaDialog(2186)` `_countOwnImageMessages(2417)`（`.chat-record`） `_sendResumeScreenshot(2439)`（`/wapi/zpupload/image/uploadSingle` + `conversation.gid/securityId` + `sendImageMsg`） `_sendPreferredResume(2585)`（调度附件/截图，依赖上两者，暂归 BOSS） `_collectCurrentChatIdentity(2598)` `.chat-conversation` `_selectChatRow(2656)` |
 | **混合，需拆分** | `_findApplicationForChat(1320)`（含 `/job_detail/<id>.html` 正则 1341） `syncFeedback(1373)`（含 `"BOSS 同步: "` 文案） `_isVerified(1399)` `_confirmResumeUpload(1740)`（轮询骨架无关，确认按钮判据 BOSS） `_sendResume(2209)`（流程骨架无关，全部页面动作 BOSS） `_sendResumeForChat(2610)` `_humanType` 的“定位→注入→回车”骨架无关 `autoApply(2725–2987)` `monitorChat(2989–3121)`（generation/`_checking`/onFatal/timer 语义全无关，DOM 动作全 BOSS） `sendReply(3122–3242)`（代际检查+验证判据无关，输入/发送/复核 collect 全 BOSS） |
 
 ### 1.3 纯判据函数（138–346）细分
@@ -157,7 +157,7 @@ src/chatApply.js                  ← 最终改为 facade（§4 步骤 7 前逐�
 | 17 | `jobIdFromUrl(url)` | 会话↔职位关联：从 href 提取 jobId | `_findApplicationForChat` 1341 正则 |
 | 18 | `notePrefix` | 应用备注来源标记（替代 `"BOSS 同步: "`，用 `platform.name`） | `syncFeedback` 1373–1393 |
 | 19 | `failureShot(kind)` | 失败截图文件名（`last_fail/last_blocked/last_unverified`，目录仍 `path.join(DATA_ROOT,"data")`） | 2814/2830/2955/2962 |
-| 20 | `resumeAltNames()` | 简历别名列表（**替换 4 处硬编码 `"周礼洋简历.pdf"`**：2017 区、2187、2221、2887、2924） | 现散布在弹窗/发送/投递三处 |
+| 20 | `resumeAltNames()` | 简历别名列表（**替换 4 处硬编码 `"简历.pdf"`**：2017 区、2187、2221、2887、2924） | 现散布在弹窗/发送/投递三处 |
 
 明确**不进接口**（留在 boss/bot.js，第二平台自己另写）：`_invokeVueMethod`、`_collectResumeState`、`_waitForResumeDialogSendDone`、`_confirmResumeDialog`、`_sendResumeViaDialog`、`_countOwnImageMessages` 及其选择器 —— 按反目标原则整块不拆。
 
@@ -203,7 +203,7 @@ src/chatApply.js                  ← 最终改为 facade（§4 步骤 7 前逐�
 - `require('fs')/node:fs`：`chatApply` 用 `fs.existsSync/readFileSync`（2217/2462）随代码搬到 boss 侧即可，无行为风险。
 
 ### 5.6 已知债务（迁移时顺带处理，不单独立项）
-- 硬编码 `"周礼洋简历.pdf"` ×4 → `adapter.resumeAltNames()`（步骤 6）。
+- 硬编码 `"简历.pdf"` ×4 → `adapter.resumeAltNames()`（步骤 6）。
 - `"BOSS 同步: "` → `platform.name` 参数化（步骤 4）。
 - page.evaluate 内联复制 `PENDING_CHIP_HINTS` 判据：因页面 CSP 禁 eval/new Function，**这份重复是有意设计，保留**，两侧加注释互相锚定。
 - BOSS `viewed` 状态自动回写：M5 明确不做（见 03_DEV_PLAN §13）。

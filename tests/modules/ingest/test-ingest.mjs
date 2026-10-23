@@ -1,6 +1,9 @@
 // M1 Ingest Module — Unit Tests
 // Tests cleaner, enricher, and adapter with mock data (no browser/DB required).
 // Pattern: simple assert(cond, msg) matching scripts/test-*.mjs style.
+// ⚠ 必须最先 import：把区域配置固定指向入库的通用示例（北京），
+//   保证断言与本地私有 config/region.json 无关（ESM 按 import 顺序求值）。
+import "../../../scripts/region-example-env.mjs";
 import assert from "node:assert/strict";
 
 // ── Imports from module under test ──
@@ -135,8 +138,8 @@ console.log("\n━━━ Cleaner Tests ━━━");
     encryptJobId: "abc123def456",
     jobName: "高级C++工程师",
     salaryDesc: "15-25K",
-    cityName: "台州",
-    areaDistrict: "椒江区",
+    cityName: "北京",
+    areaDistrict: "朝阳区",
     jobExperience: "3-5年",
     jobDegree: "本科",
     skills: ["C++", "Linux", "多线程"],
@@ -150,8 +153,8 @@ console.log("\n━━━ Cleaner Tests ━━━");
   assertTrue(draft.salary === "15-25K", "rawItemToJobDraft: salary raw text");
   assertTrue(draft.salaryMinK === 15, "rawItemToJobDraft: salaryMinK parsed (15)");
   assertTrue(draft.salaryMaxK === 25, "rawItemToJobDraft: salaryMaxK parsed (25)");
-  assertTrue(draft.city === "台州", "rawItemToJobDraft: city correct");
-  assertTrue(draft.district === "椒江区", "rawItemToJobDraft: district correct");
+  assertTrue(draft.city === "北京", "rawItemToJobDraft: city correct");
+  assertTrue(draft.district === "朝阳区", "rawItemToJobDraft: district correct");
   assertTrue(draft.companyName === "某科技公司", "rawItemToJobDraft: companyName HTML stripped");
   assertTrue(Array.isArray(draft.tags) && draft.tags.length === 3, "rawItemToJobDraft: tags array");
   assertTrue(draft.source === "boss_search", "rawItemToJobDraft: source = boss_search");
@@ -195,7 +198,7 @@ console.log("\n━━━ Cleaner Tests ━━━");
     encryptJobId: "test123",
     jobName: "测试岗位",
     salaryDesc: "8-12K",
-    cityName: "台州",
+    cityName: "北京",
   };
   const draft = rawItemToJobDraft(item);
   const result = validateJobDraft(draft);
@@ -254,9 +257,9 @@ console.log("\n━━━ Enricher Tests ━━━");
 
 (function testNormalizeAddress() {
   const res = normalizeEnrichPayload({
-    address: "点击查看地图 工作地址 台州椒江区飞跃科创园",
+    address: "点击查看地图 工作地址 北京市朝阳区飞跃科创园",
   });
-  assertTrue(res.address === "台州椒江区飞跃科创园", "normalizeEnrichPayload: address cleaned (map link + prefix stripped)");
+  assertTrue(res.address === "北京市朝阳区飞跃科创园", "normalizeEnrichPayload: address cleaned (map link + prefix stripped)");
 })();
 
 (function testNormalizeCoord() {
@@ -278,7 +281,7 @@ console.log("\n━━━ Enricher Tests ━━━");
     dormitorySource: "detail",
     lat: 28.65,
     lng: 121.42,
-    address: "台州椒江区某路123号",
+    address: "北京市朝阳区某路123号",
   };
   const patch = enrichmentPatch(enriched);
   assertTrue(patch.description === "JD text here", "enrichmentPatch: description");
@@ -287,7 +290,7 @@ console.log("\n━━━ Enricher Tests ━━━");
   assertTrue(patch.dormitorySource === "detail", "enrichmentPatch: dormitorySource");
   assertTrue(patch.lat === 28.65, "enrichmentPatch: lat");
   assertTrue(patch.lng === 121.42, "enrichmentPatch: lng");
-  assertTrue(patch.district === "椒江区", "enrichmentPatch: district extracted from address");
+  assertTrue(patch.district === "朝阳区", "enrichmentPatch: district extracted from address");
 })();
 
 (function testEnrichmentPatchEmpty() {
@@ -303,7 +306,7 @@ console.log("\n━━━ Enricher Tests ━━━");
       return {
         description: "负责后端kanzhun开发",
         requirements: "本科",
-        address: "工作地址 台州黄岩区某大厦",
+        address: "工作地址 北京市海淀区某大厦",
         tags: ["包住", "五险"],
         fullText: "",
         lat: 28.65,
@@ -350,7 +353,7 @@ console.log("\n━━━ Enricher Tests ━━━");
     description: "JD text",
     hasDormitory: 1,
     dormitorySource: "detail",
-    address: "台州椒江区某路",
+    address: "北京市朝阳区某路",
   };
   const distanceInfo = { distanceKm: 3.2, distanceTier: "CORE" };
   const merged = mergeEnrichment(draft, enriched, distanceInfo);
@@ -360,7 +363,7 @@ console.log("\n━━━ Enricher Tests ━━━");
   assertTrue(merged.distanceTier === "CORE", "mergeEnrichment: distanceTier set");
   assertTrue(merged.status === "ENRICHED", "mergeEnrichment: status = ENRICHED");
   assertTrue(typeof merged.enrichedAt === "number", "mergeEnrichment: enrichedAt set");
-  assertTrue(merged.district === "椒江区", "mergeEnrichment: district extracted from address");
+  assertTrue(merged.district === "朝阳区", "mergeEnrichment: district extracted from address");
 })();
 
 // ══════════════════════════════════════════════════════════════════
@@ -402,7 +405,7 @@ console.log("\n━━━ Adapter Tests ━━━");
   const adapter = createBossAdapter(null);
   const cities = adapter.getSupportedCities();
   assertTrue(Array.isArray(cities), "getSupportedCities: returns array");
-  assertTrue(cities.includes("台州"), "getSupportedCities: includes 台州");
+  assertTrue(cities.includes("北京"), "getSupportedCities: includes 北京");
   assertTrue(cities.includes("杭州"), "getSupportedCities: includes 杭州");
   assertTrue(cities.length === 9, "getSupportedCities: 9 cities");
 })();
@@ -445,8 +448,8 @@ console.log("\n━━━ Integration Tests ━━━");
     encryptJobId: "integ_test_001",
     jobName: "全栈工程师",
     salaryDesc: "12-20K·14薪",
-    cityName: "台州",
-    areaDistrict: "椒江区",
+    cityName: "北京",
+    areaDistrict: "朝阳区",
     jobExperience: "3-5年",
     jobDegree: "本科",
     skills: ["React", "Node.js"],
@@ -470,7 +473,7 @@ console.log("\n━━━ Integration Tests ━━━");
   const enriched = normalizeEnrichPayload({
     description: "负责全栈kanzhun开发",
     tags: ["包住"],
-    address: "工作地址 台州椒江区某大厦5楼",
+    address: "工作地址 北京市朝阳区某大厦5楼",
     lat: 28.67,
     lng: 121.43,
   });
