@@ -216,17 +216,31 @@ macOS / Linux 当前使用 Node 直接运行，暂不生成单文件安装包。
 ## 目录结构
 
 ```text
-src/
-  platforms/       平台适配层
+assets/            品牌资产：logo、favicon、social-preview 社交封面
+docs/              设计文档 + 界面截图（导航见 docs/README.md）
+  screenshots/     五个页面的真实截图
+src/               源码
+  core/            L1 通用能力：contracts 契约 / guards 守卫 / 纯判据，不得反向依赖平台层
+  modules/         L2 业务模块：ingest / value / copilot / evidence / console，模块间零依赖
+  platforms/       平台适配层（当前 BOSS 直聘）
   scrapers/        平台抓取器
   browser/         浏览器连接与 CDP 管理
-  db/              数据访问层
+  db/              数据访问层与迁移
+  utils/           通用工具
   routes.mjs       HTTP API
   scoring.js       评分与决策
-  chatApply.js     投递机器人
-web/index.html     本地控制台
-packaging/         SEA 打包与启动器
+  chatApply.js     投递/聊天门面（拆分蓝图见 docs/05_MODULARIZATION_PLAN.md）
+tests/modules/     模块级测试（与 scripts/test-*.mjs 共同构成测试套件）
+scripts/           构建、打包、测试与开发辅助脚本
+web/               单页 Web 控制台（原生 JS + CSS，无框架）
+extension/         浏览器侧边栏扩展（只读采集）
+packaging/         SEA 打包、图标与启动器
+prompts/           提示词资产（含候选人「底细卡」）
+prisma/            数据模型辅助定义
+server.mjs         本地 HTTP 服务入口
 ```
+
+完整文档导航：[docs/README.md](docs/README.md)
 
 ## API
 
